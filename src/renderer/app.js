@@ -1308,7 +1308,7 @@ function sendPanel(t) {
     appendKids(box, 
       el("div", { class: "send-title" }, "Ready to buy?"),
       canDirect
-        ? el("div", { class: "muted" }, "One click puts these in your Steam cart. Nothing is purchased: you check out on Steam, in the app or the browser, as usual.")
+        ? el("div", { class: "muted" }, "One click puts these in your Steam cart. Nothing is purchased: you check out in Steam, in the Steam app or the browser, as usual.")
         : el("div", { class: "muted" }, "Sign in through Steam (account menu, top right) and this button fills your Steam cart in one click."),
       canDirect ? sendBtn : el("button", { class: "btn btn-primary", html: `${ICON.login}<span>Sign in through Steam</span>`, onclick: signInFromBrowse }),
       missing ? el("div", { class: "muted" }, `${fmtInt(missing)} game${missing === 1 ? " isn't" : "s aren't"} sold as a single package and will be skipped. Use its Steam page link above.`) : null,
@@ -1316,15 +1316,76 @@ function sendPanel(t) {
     return box;
   }
 
-  // Website: the Steam Deals desktop app does the sending. It is signed into Steam itself, so there
-  // is nothing to sign into here, and Steam's cart is shared across the app, the website and phones.
+  // Website: Steam only lets its own app change the cart, so each game opens in Steam (the Steam
+  // desktop client on a computer, the Steam mobile app on a phone) with its own Add to Cart button
+  // ready. The Steam Deals Windows app, which is signed into Steam itself, can do all of them at
+  // once and is offered as an optional shortcut.
   const dev = api.cart.device;
-  const codeBox = el("div", { class: "code-box", id: "code-box" });
-  const showCode = () => fillCodeBox(codeBox, t.items);
-  const downloadLink = () => el("a", { class: "link", href: "#", onclick: (e) => { e.preventDefault(); api.openExternal(DOWNLOAD_URL); } }, "free Windows app");
+  const phone = dev === "ios" || dev === "android";
+  const inSteam = (appid) => (phone ? `https://store.steampowered.com/app/${appid}/` : `steam://store/${appid}`);
+  const cartInSteam = phone ? STEAM_CART_URL : `steam://openurl/${STEAM_CART_URL}`;
+  const opened = (state.openedInSteam ||= new Set());
 
+  const progress = el("div", { class: "muted small", id: "open-progress" });
+  const renderProgress = () => {
+    const n = t.items.filter((b) => opened.has(b.appid)).length;
+    progress.textContent = n ? `${fmtInt(n)} of ${fmtInt(t.items.length)} opened in Steam` : "";
+  };
+  const rows = t.items.map((b) => {
+    const done = opened.has(b.appid);
+    const btn = el("button", { class: `btn btn-sm ${done ? "" : "btn-primary"}`, html: `${done ? ICON.check : ICON.play}<span>${done ? "Opened" : "Open in Steam"}</span>` });
+    const row = el("div", { class: `steam-row ${done ? "done" : ""}` },
+      el("img", { class: "basket-thumb small", src: Core.headerImage(b.appid), alt: "", loading: "lazy" }),
+      el("div", { class: "basket-info" }, el("div", { class: "basket-name" }, b.name), el("div", { class: "muted small num" }, b.price ?? "")),
+      btn);
+    btn.addEventListener("click", () => {
+      api.openExternal(inSteam(b.appid));
+      opened.add(b.appid);
+      row.classList.add("done");
+      btn.className = "btn btn-sm";
+      btn.innerHTML = `${ICON.check}<span>Opened</span>`;
+      renderProgress();
+      const next = row.nextElementSibling;
+      if (next && !next.classList.contains("done")) next.querySelector(".btn").classList.add("btn-primary");
+    });
+    return row;
+  });
+  // Only the first unopened game gets the strong button, so the eye goes to "next".
+  let first = true;
+  for (const r of rows) { const b = r.querySelector(".btn"); if (r.classList.contains("done")) continue; if (!first) b.classList.remove("btn-primary"); first = false; }
+  renderProgress();
+
+  const shortcut = el("details", { class: "shortcut" },
+    el("summary", {}, "Have the Steam Deals Windows app? Send all of them at once"),
+    el("div", { class: "shortcut-body", id: "shortcut-body" }));
+  shortcut.addEventListener("toggle", () => { if (shortcut.open && !shortcut.dataset.filled) { shortcut.dataset.filled = "1"; fillShortcut(shortcut.querySelector("#shortcut-body"), t, dev); } });
+
+  appendKids(box,
+    el("div", { class: "send-title" }, "Add to your Steam cart"),
+    el("div", { class: "muted" }, phone
+      ? "Each game opens in the Steam app with its Add to Cart button ready. Tap through the list, then open your cart to pay. Nothing is purchased until you check out in Steam."
+      : "Each game opens in Steam with its Add to Cart button ready. Go down the list, then open your cart to pay. Nothing is purchased until you check out in Steam."),
+    el("div", { class: "steam-list" }, rows),
+    progress,
+    el("div", { class: "btn-row" },
+      el("button", { class: "btn", html: `${ICON.basket}<span>Open my Steam cart</span>`, onclick: () => api.openExternal(cartInSteam) }),
+      !phone ? el("button", { class: "btn btn-sm", html: `${ICON.external}<span>Cart in browser</span>`, onclick: () => api.openExternal(STEAM_CART_URL) }) : null,
+    ),
+    missing ? el("div", { class: "muted small" }, `${fmtInt(missing)} game${missing === 1 ? " isn't" : "s aren't"} sold as a single package; use its Steam page.`) : null,
+    shortcut,
+  );
+  return box;
+}
+
+const DOWNLOAD_URL = "https://github.com/Drakey83/steam-deals/releases/latest";
+
+/** Optional one-click path for people who have the Steam Deals Windows app. */
+function fillShortcut(host, t, dev) {
+  host.innerHTML = "";
+  const downloadLink = () => el("a", { class: "link", href: "#", onclick: (e) => { e.preventDefault(); api.openExternal(DOWNLOAD_URL); } }, "Steam Deals Windows app");
+  const codeBox = el("div", { class: "code-box" });
   if (dev === "windows") {
-    const sendBtn = el("button", { class: "btn btn-primary", disabled: !ids.length, html: `${ICON.basket}<span>Send to Steam cart with the Steam Deals app</span>` });
+    const sendBtn = el("button", { class: "btn btn-sm btn-primary", html: `${ICON.basket}<span>Send to the Steam Deals Windows app</span>` });
     const after = el("div", { class: "after-send", hidden: true });
     sendBtn.addEventListener("click", () => {
       after.hidden = true;
@@ -1337,59 +1398,25 @@ function sendPanel(t) {
         after.hidden = false;
         after.innerHTML = "";
         if (left || document.visibilityState !== "visible") {
-          after.append(
-            el("div", { class: "send-title ok", html: ICON.check }, el("span", {}, "Opened in the Steam Deals app")),
-            el("div", { class: "muted" }, "Finish there: press “Send to my Steam cart”, then pay in Steam as usual."),
-          );
+          after.append(el("div", { class: "muted" }, "Opened in the Steam Deals Windows app. Press “Send to my Steam cart” there."));
         } else {
-          after.append(
-            el("div", { class: "send-title" }, "Didn't open?"),
-            el("div", { class: "muted" }, "You need the ", downloadLink(), " installed. It takes a minute; then press the button again. Or type this code into the app's basket:"),
-            codeBox,
-          );
-          showCode();
+          after.append(el("div", { class: "muted" }, "It didn't open. Install the ", downloadLink(), " first, or type this code into its basket:"), codeBox);
+          fillCodeBox(codeBox, t.items);
         }
       }, 2500);
     });
-    appendKids(box,
-      el("div", { class: "send-title" }, "Ready to buy?"),
-      el("div", { class: "muted" }, "The Steam Deals app is signed into Steam itself, so it can put these in your Steam cart in one click. Nothing is purchased: you check out in Steam, in the app or the browser, as usual."),
-      sendBtn,
-      after,
-      el("div", { class: "muted small" }, "Don't have it yet? Get the ", downloadLink(), "."),
-      missing ? el("div", { class: "muted" }, `${fmtInt(missing)} game${missing === 1 ? " isn't" : "s aren't"} sold as a single package and will be skipped.`) : null,
-      openCartBtns(),
+    host.append(
+      el("div", { class: "muted small" }, "The Windows app is signed into Steam itself, so it can add every game in one click. It's optional; the list above works without it."),
+      sendBtn, after,
     );
-    return box;
+  } else {
+    host.append(
+      el("div", { class: "muted small" }, "On a Windows PC with the ", downloadLink(), ", open its basket, type this code under “Have a basket code?”, and press “Send to my Steam cart”. Codes last 24 hours and hold only the games."),
+      codeBox,
+    );
+    fillCodeBox(codeBox, t.items);
   }
-
-  const phone = dev === "ios" || dev === "android";
-  appendKids(box,
-    el("div", { class: "send-title" }, phone ? "Finish on your PC" : "Send from the Windows app"),
-    el("div", { class: "muted" }, phone
-      ? "Sending to your Steam cart is done by the Steam Deals Windows app, which is signed into Steam itself. Your Steam cart is shared across devices, so once the app adds the games you can pay from the Steam app on this phone."
-      : "Sending to your Steam cart is done by the Steam Deals Windows app, which is signed into Steam itself. Use this code there."),
-    codeBox,
-    el("ol", { class: "steps" },
-      el("li", {}, "On your Windows PC, open Steam Deals (", downloadLink(), ")."),
-      el("li", {}, "Open the basket and enter the code under “Have a basket code?”."),
-      el("li", {}, "Press “Send to my Steam cart”, then pay in Steam, on the PC or from your phone's Steam app."),
-    ),
-    missing ? el("div", { class: "muted" }, `${fmtInt(missing)} game${missing === 1 ? " isn't" : "s aren't"} sold as a single package and will be skipped.`) : null,
-    phone
-      ? el("div", { class: "one-by-one" },
-          el("div", { class: "send-title" }, "Or add them one at a time in the Steam app"),
-          el("div", { class: "muted" }, "Each button opens that game in the Steam app, where its own Add to Cart button is."),
-          el("div", { class: "btn-row" }, t.items.map((b) => el("button", { class: "btn btn-sm", html: `${ICON.play}<span>${b.name}</span>`, onclick: () => api.openExternal(`steam://store/${b.appid}`) }))),
-        )
-      : null,
-    openCartBtns(),
-  );
-  showCode();
-  return box;
 }
-
-const DOWNLOAD_URL = "https://github.com/Drakey83/steam-deals/releases/latest";
 
 /** Create a 24-hour basket code and show it big, with a copy button. */
 async function fillCodeBox(host, items) {

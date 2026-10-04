@@ -1739,17 +1739,43 @@ details.advanced summary:hover {
   letter-spacing: 3px;
   font-weight: 700;
 }
-.one-by-one {
+.steam-list {
   display: grid;
   gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
 }
-.one-by-one .btn span {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.steam-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: opacity var(--t-fast);
+}
+.steam-row.done {
+  opacity: 0.6;
+}
+.basket-thumb.small {
+  width: 64px;
+}
+details.shortcut {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+details.shortcut summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-2);
+}
+details.shortcut summary:hover {
+  color: var(--text);
+}
+.shortcut-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 /* ---------- narrow screens (website on phones and small windows) ---------- */

@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Steam Deals Downloads</title>
+<meta name="description" content="Live download and release statistics for the Steam Deals desktop app, read from GitHub's public API." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231256be'/%3E%3Ccircle cx='22' cy='22' r='7' fill='none' stroke='%23fff' stroke-width='5'/%3E%3Ccircle cx='42' cy='42' r='7' fill='none' stroke='%23fff' stroke-width='5'/%3E%3Cpath d='M45 19 19 45' stroke='%23fff' stroke-width='5.5' stroke-linecap='round'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Source+Sans+3:wght@400;600&display=swap" />
+<style>
+  /* Layout: one column, summary tiles first, then a per-release ledger. Dark-first to match the app. */
+  :root {
+    --bg: #0b0f14;
+    --bg-elev: #10161e;
+    --surface: rgba(255, 255, 255, 0.04);
+    --border: rgba(255, 255, 255, 0.09);
+    --border-strong: rgba(255, 255, 255, 0.18);
+    --fg: #e6edf3;
+    --fg-2: #9aa7b4;
+    --fg-3: #6b7784;
+    --accent: #4fc3f7;
+    --green: #8bd450;
+    --pink: #ff7eb6;
+    --warn: #f5b942;
+    --font-display: "Manrope", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f4f7fa;
+      --bg-elev: #ffffff;
+      --surface: rgba(16, 32, 48, 0.035);
+      --border: rgba(16, 32, 48, 0.1);
+      --border-strong: rgba(16, 32, 48, 0.22);
+      --fg: #0f1a26;
+      --fg-2: #4a5a6b;
+      --fg-3: #7a8a9b;
+      --accent: #0b84c7;
+      --green: #4f9a1f;
+      --pink: #c93d84;
+      --warn: #b7791f;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f7fa;
+    --bg-elev: #ffffff;
+    --surface: rgba(16, 32, 48, 0.035);
+    --border: rgba(16, 32, 48, 0.1);
+    --border-strong: rgba(16, 32, 48, 0.22);
+    --fg: #0f1a26;
+    --fg-2: #4a5a6b;
+    --fg-3: #7a8a9b;
+    --accent: #0b84c7;
+    --green: #4f9a1f;
+    --pink: #c93d84;
+    --warn: #b7791f;
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.5 var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .wrap {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding-block: 28px 56px;
+    padding-inline: 20px;
+    display: grid;
+    gap: 28px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .mark {
+    width: 44px; height: 44px; border-radius: 13px; flex: none;
+    display: grid; place-items: center; color: #fff;
+    background: linear-gradient(135deg, #1256be, #49c49e);
+    box-shadow: 0 8px 22px rgba(30, 120, 220, 0.3);
+  }
+  .mark svg { width: 24px; height: 24px; }
+  header h1 {
+    margin: 0;
+    font: 800 24px/1.15 var(--font-display);
+    letter-spacing: -0.3px;
+    text-wrap: balance;
+  }
+  header .sub { color: var(--fg-2); font-size: 14.5px; margin-top: 2px; }
+  header .links { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 38px; padding: 0 14px; border-radius: 11px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--fg); font: 600 14px var(--font-body); cursor: pointer;
+    transition: border-color 160ms, background 160ms;
+  }
+  .btn:hover { border-color: var(--border-strong); text-decoration: none; }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .btn-primary {
+    border: none; color: #06121c;
+    background: linear-gradient(135deg, #6fd3ff, #4fc3f7 45%, #8bd450);
+    box-shadow: 0 6px 18px rgba(79, 195, 247, 0.25);
+  }
+  .btn svg { width: 16px; height: 16px; }
+
+  .status {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    color: var(--fg-3); font-size: 13.5px;
+  }
+  .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgba(139, 212, 80, 0.18); }
+  .status.err .dot { background: var(--warn); box-shadow: 0 0 0 3px rgba(245, 185, 66, 0.2); }
+  .status .spacer { flex: 1; }
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px;
+  }
+  .tile {
+    padding: 18px 20px 16px;
+    border-radius: 16px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    display: grid; gap: 6px;
+    min-width: 0;
+  }
+  .tile .label {
+    font: 600 11.5px/1 var(--font-body);
+    letter-spacing: 0.7px; text-transform: uppercase; color: var(--fg-3);
+  }
+  .tile .value {
+    font: 800 38px/1.05 var(--font-display);
+    letter-spacing: -0.8px;
+  }
+  .tile .value.accent { color: var(--accent); }
+  .tile .value.green { color: var(--green); }
+  .tile .hint { color: var(--fg-2); font-size: 13.5px; }
+  .tile.hero {
+    background: radial-gradient(600px 220px at 0% 0%, rgba(79, 195, 247, 0.14), transparent 70%),
+                radial-gradient(500px 220px at 100% 100%, rgba(139, 212, 80, 0.12), transparent 70%),
+                var(--bg-elev);
+  }
+
+  section h2 {
+    margin: 0 0 12px;
+    font: 700 17px/1.2 var(--font-display);
+    letter-spacing: -0.2px;
+  }
+  .card {
+    border-radius: 16px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 640px; }
+  th, td { padding: 12px 16px; text-align: left; vertical-align: middle; border-top: 1px solid var(--border); }
+  th { border-top: none; font: 600 11.5px/1 var(--font-body); letter-spacing: 0.6px; text-transform: uppercase; color: var(--fg-3); }
+  td.right, th.right { text-align: right; }
+  td .tag { font: 700 14px var(--font-display); }
+  td .asset { color: var(--fg-2); font-size: 13px; word-break: break-all; }
+  .bar { height: 8px; border-radius: 5px; background: var(--surface); overflow: hidden; min-width: 120px; }
+  .bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); }
+  .pill {
+    display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px;
+    font: 600 12px var(--font-body); background: rgba(79, 195, 247, 0.14); color: var(--accent);
+  }
+  .pill.pre { background: rgba(255, 126, 182, 0.14); color: var(--pink); }
+
+  .note {
+    padding: 14px 18px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--fg-2);
+    font-size: 14px;
+    display: grid; gap: 6px;
+  }
+  .note b { color: var(--fg); font-weight: 600; }
+
+  .skeleton { color: transparent !important; background: var(--surface); border-radius: 8px; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.55; } }
+  .empty { padding: 28px 20px; text-align: center; color: var(--fg-2); }
+  footer { color: var(--fg-3); font-size: 13px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="8" cy="8" r="2.6"/><circle cx="16" cy="16" r="2.6"/><path d="M17 7 7 17"/></svg>
+    </div>
+    <div>
+      <h1>Steam Deals downloads</h1>
+      <div class="sub">Live from GitHub for <a id="repo-link" href="https://github.com/Drakey83/steam-deals">Drakey83/steam-deals</a></div>
+    </div>
+    <div class="links">
+      <a class="btn" href="https://github.com/Drakey83/steam-deals/releases">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
+        Releases
+      </a>
+      <a class="btn btn-primary" id="dl-latest" href="https://github.com/Drakey83/steam-deals/releases/latest">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/></svg>
+        Download latest
+      </a>
+    </div>
+  </header>
+
+  <div class="status" id="status">
+    <span class="dot"></span>
+    <span id="status-text">Loading from GitHub…</span>
+    <span class="spacer"></span>
+    <button class="btn" id="refresh" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      Refresh
+    </button>
+  </div>
+
+  <div class="tiles">
+    <div class="tile hero">
+      <div class="label">Total downloads</div>
+      <div class="value green num skeleton" id="t-total">00000</div>
+      <div class="hint skeleton" id="t-total-hint">across all releases</div>
+    </div>
+    <div class="tile">
+      <div class="label">Latest version</div>
+      <div class="value accent num skeleton" id="t-version">v0.0.0</div>
+      <div class="hint skeleton" id="t-version-hint">published</div>
+    </div>
+    <div class="tile">
+      <div class="label">Downloads per day</div>
+      <div class="value num skeleton" id="t-rate">0.0</div>
+      <div class="hint skeleton" id="t-rate-hint">since the first release</div>
+    </div>
+    <div class="tile">
+      <div class="label">Stars</div>
+      <div class="value num skeleton" id="t-stars">0</div>
+      <div class="hint skeleton" id="t-stars-hint">forks · watchers</div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Releases</h2>
+    <div class="card">
+      <div class="table-wrap">
+        <table id="releases" aria-live="polite">
+          <thead>
+            <tr>
+              <th>Version</th>
+              <th>Published</th>
+              <th>Installer</th>
+              <th class="right">Size</th>
+              <th class="right">Downloads</th>
+              <th>Share</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <tr><td colspan="6" class="empty">Loading releases…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <div class="note">
+    <b>What this page can and can't see.</b>
+    Download counts, versions and stars come from GitHub's public API, so they're exact and update as soon as GitHub does.
+    Page views and git clones are only visible to the repository owner under
+    <a href="https://github.com/Drakey83/steam-deals/graphs/traffic">Insights → Traffic</a>, and GitHub keeps those for 14 days.
+    If you refresh many times in an hour GitHub may pause the API for your address briefly; the page says so when that happens.
+  </div>
+
+  <footer>Steam Deals is not affiliated with Valve Corporation. Steam is a trademark of Valve Corporation.</footer>
+</div>
+
+<script>
+  const OWNER = "Drakey83", REPO = "steam-deals";
+  const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => Number(n || 0).toLocaleString("en-US");
+  const fmtDate = (iso) => new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  const fmtSize = (b) => b >= 1e9 ? (b / 1e9).toFixed(2) + " GB" : b >= 1e6 ? (b / 1e6).toFixed(1) + " MB" : Math.round(b / 1e3) + " KB";
+  function ago(d) {
+    const s = Math.max(0, (Date.now() - d) / 1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return `${Math.round(s / 60)} min ago`;
+    if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+    return `${Math.round(s / 86400)} d ago`;
+  }
+  const unskeleton = (el, text) => { el.classList.remove("skeleton"); el.textContent = text; };
+
+  async function getJSON(url) {
+    const res = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+    if (res.status === 403 || res.status === 429) {
+      const reset = Number(res.headers.get("x-ratelimit-reset")) * 1000;
+      const when = reset ? ` Try again ${ago(reset).replace("ago", "").trim() ? "in about " + Math.max(1, Math.round((reset - Date.now()) / 60000)) + " min" : "soon"}.` : "";
+      throw new Error("GitHub is rate-limiting this address." + when);
+    }
+    if (!res.ok) throw new Error(`GitHub answered HTTP ${res.status}`);
+    return res.json();
+  }
+
+  let lastLoaded = null;
+  async function load() {
+    const btn = $("refresh");
+    btn.disabled = true;
+    $("status").classList.remove("err");
+    $("status-text").textContent = "Loading from GitHub…";
+    try {
+      const [repo, releases] = await Promise.all([getJSON(API), getJSON(`${API}/releases?per_page=100`)]);
+      render(repo, releases);
+      lastLoaded = Date.now();
+      $("status-text").textContent = `Updated ${ago(lastLoaded)} · refreshes every 5 minutes`;
+    } catch (err) {
+      $("status").classList.add("err");
+      $("status-text").textContent = err.message || "Couldn't reach GitHub.";
+      if (!lastLoaded) $("rows").innerHTML = `<tr><td colspan="6" class="empty">${err.message}</td></tr>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function render(repo, releases) {
+    const published = releases.filter((r) => !r.draft);
+    const assets = published.flatMap((r) => r.assets.map((a) => ({ ...a, release: r })));
+    const total = assets.reduce((s, a) => s + (a.download_count || 0), 0);
+    const first = published.length ? new Date(Math.min(...published.map((r) => +new Date(r.published_at)))) : null;
+    const days = first ? Math.max(1, (Date.now() - first) / 86400000) : 1;
+    const latest = published.find((r) => !r.prerelease) || published[0];
+
+    unskeleton($("t-total"), fmt(total));
+    unskeleton($("t-total-hint"), `across ${published.length} release${published.length === 1 ? "" : "s"} · ${assets.length} file${assets.length === 1 ? "" : "s"}`);
+    unskeleton($("t-version"), latest ? latest.tag_name : "—");
+    unskeleton($("t-version-hint"), latest ? `published ${fmtDate(latest.published_at)}` : "no releases yet");
+    unskeleton($("t-rate"), (total / days).toFixed(total / days >= 10 ? 0 : 1));
+    unskeleton($("t-rate-hint"), first ? `since ${fmtDate(first)} (${Math.round(days)} day${Math.round(days) === 1 ? "" : "s"})` : "no releases yet");
+    unskeleton($("t-stars"), fmt(repo.stargazers_count));
+    unskeleton($("t-stars-hint"), `${fmt(repo.forks_count)} fork${repo.forks_count === 1 ? "" : "s"} · ${fmt(repo.subscribers_count)} watching`);
+
+    if (latest?.assets?.length) {
+      const exe = latest.assets.find((a) => /\.exe$/i.test(a.name)) || latest.assets[0];
+      $("dl-latest").href = exe.browser_download_url;
+      $("dl-latest").title = `${exe.name} · ${fmtSize(exe.size)}`;
+    }
+
+    const rows = $("rows");
+    rows.innerHTML = "";
+    if (!assets.length) {
+      rows.innerHTML = `<tr><td colspan="6" class="empty">No release files yet.</td></tr>`;
+      return;
+    }
+    const max = Math.max(1, ...assets.map((a) => a.download_count || 0));
+    for (const a of assets) {
+      const tr = document.createElement("tr");
+      const share = total ? Math.round(((a.download_count || 0) / total) * 100) : 0;
+      tr.innerHTML = `
+        <td><span class="tag">${esc(a.release.tag_name)}</span> ${a.release.prerelease ? '<span class="pill pre">pre-release</span>' : a.release === latest ? '<span class="pill">latest</span>' : ""}</td>
+        <td class="num">${fmtDate(a.release.published_at)}</td>
+        <td><a class="asset" href="${esc(a.browser_download_url)}">${esc(a.name)}</a></td>
+        <td class="right num">${fmtSize(a.size)}</td>
+        <td class="right num"><b>${fmt(a.download_count)}</b></td>
+        <td><div class="bar" title="${share}% of all downloads"><span style="width:${(100 * (a.download_count || 0)) / max}%"></span></div></td>`;
+      rows.appendChild(tr);
+    }
+  }
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  $("refresh").addEventListener("click", load);
+  load();
+  setInterval(load, 5 * 60 * 1000);
+  setInterval(() => { if (lastLoaded && !$("status").classList.contains("err")) $("status-text").textContent = `Updated ${ago(lastLoaded)} · refreshes every 5 minutes`; }, 30000);
+</script>
+</body>
+</html>

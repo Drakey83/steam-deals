@@ -20,6 +20,7 @@ const DEFAULTS = Object.freeze({
   view: "foryou", // 'foryou' | 'all'
   personalWeight: 60, // 0–100: how much the For-you ranking favours taste match over raw deal score
   showTaste: true, // the "Your taste" panel above For-you results
+  showTastePhone: false, // same panel on narrow screens: collapsed unless opened
   basket: [], // [{ appid, packageid, name, price, priceCents, originalCents, discount }]
   taxRegion: null, // null = not chosen yet (US/CA), "included", "none", "US-WA", "CA-ON", "custom"
   taxCustomRate: 0,

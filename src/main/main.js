@@ -180,7 +180,7 @@ async function profileFor(steamid) {
 
 const ALLOWED_SETTING_KEYS = new Set([
   "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights",
-  "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste",
+  "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste", "showTastePhone",
   "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "pairAutoCart",
 ]);
 const TASTE_TTL_MS = 3 * 24 * 60 * 60 * 1000;

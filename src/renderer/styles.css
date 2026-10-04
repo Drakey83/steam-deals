@@ -825,6 +825,7 @@ details.advanced summary:hover {
   text-align: left;
   padding: 0;
   color: inherit;
+  cursor: pointer;
   transition: transform var(--t-med) var(--ease), box-shadow var(--t-med), border-color var(--t-med);
   animation: fade 260ms var(--ease) both;
 }

@@ -1490,6 +1490,13 @@ details.advanced summary:hover {
   margin-left: auto;
 }
 
+.users-line {
+  font-size: 11.5px;
+  color: var(--text-3);
+  text-align: center;
+  margin-top: 6px;
+}
+
 /* ---------- narrow screens (website on phones and small windows) ---------- */
 .filters-btn,
 .sidebar-done {

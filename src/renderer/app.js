@@ -511,8 +511,18 @@ function renderLogin() {
       ),
     ),
     el("p", { class: "login-foot" }, foot),
+    usersLine(),
   );
   app.append(el("div", { class: "login" }, el("div", { class: "blob blob-a" }), el("div", { class: "blob blob-b" }), el("div", { class: "blob blob-c" }), card));
+}
+
+// Small anonymous user count (website only; hidden when the counter isn't set up).
+function usersLine() {
+  const u = api.features?.users;
+  if (!u || !u.total) return null;
+  const week = u.week ? ` · ${fmtInt(u.week)} this week` : "";
+  return el("div", { class: "users-line num", title: "Counted anonymously: one random id per browser, no names or Steam accounts." },
+    `${fmtInt(u.total)} ${u.total === 1 ? "person has" : "people have"} used Steam Deals${week}`);
 }
 
 function linkTo(url, label) {
@@ -750,6 +760,7 @@ function renderSidebar() {
     el("div", { class: "sidebar-foot" },
       select("scanDepth", "Scan depth", SCAN_DEPTHS, { refetch: true }),
       el("button", { class: "btn", html: `${ICON.settings}<span>Settings</span>`, onclick: openSettings }),
+      usersLine(),
     ),
   );
   renderTags();
@@ -1172,7 +1183,7 @@ function openSettings() {
       el("div", { class: "settings-group" }, el("h3", {}, "Account"), accountRow),
       el("div", { class: "settings-group" }, el("h3", {}, "About"),
         el("div", { class: "about", id: "about" }, api.platform === "web"
-          ? "Steam Deals pulls discounts from Steam's public store API, hides what you own, and ranks what's left. Settings and any API key you add stay in this browser. No ads, no tracking. Not affiliated with Valve Corporation."
+          ? "Steam Deals pulls discounts from Steam's public store API, hides what you own, and ranks what's left. Settings and any API key you add stay in this browser. No ads, no tracking. The user count is anonymous: one random id per browser, nothing tied to you or your Steam account. Not affiliated with Valve Corporation."
           : "Steam Deals pulls discounts straight from Steam's public store API, hides what you own, and ranks what's left. No accounts, no telemetry, no third parties. Not affiliated with Valve Corporation.")),
     ),
   );

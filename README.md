@@ -25,7 +25,8 @@ explanation on every card. Everything you own is hidden.
 Open **https://steamdeal.vercel.app**. Nothing to install. Sign in through Steam, paste your own
 Steam Web API key, or browse as a guest. Signing in through Steam needs your profile's **Game details**
 set to Public. Using your own key does not. On a phone or tablet, use your browser's **Add to Home Screen**
-to keep it as an app.
+to keep it as an app. The layout adapts to the screen: on phones the games become a compact list under a slim
+top bar, the filters open as a side sheet, and the view toggles scroll away with the content.
 
 ### Windows app
 

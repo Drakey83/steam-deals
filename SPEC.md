@@ -223,6 +223,16 @@ Streaming
   that the desktop basket's "Have a basket code?" field imports. Phones also get per-game `steam://store/<appid>` buttons.
   `steam://purchase/<sub>` and other client protocol commands were tested and do not touch the account cart.
 - Phones/tablets: PWA manifest + icons, safe-area padding, filters drawer, full-width basket/drawer, bigger touch targets.
+- Responsive layout (v1.5.0), one stylesheet for both apps. Breakpoints: ≤860px wide or ≤500px tall = "narrow"
+  (`NARROW` in app.js): the sidebar becomes an off-canvas filters sheet and the For-you/Browse, On-sale/All-games and
+  sort controls move out of the fixed top bar into the scrolling area (`placeViewbar()` moves the `.viewbar` node
+  between `#viewbar-top` and `#viewbar-slot`; banners and the stats line already live in the scroller). ≤640px wide
+  or ≤500px tall = "phone" (`PHONE`): a 55px top bar (filters, brand, search icon, basket, account), tap-to-open search,
+  one compact horizontal row per game (124px art, 2-line title, price, rating, +; tags hidden), two such columns on
+  landscape phones, text-only toggles, the taste panel collapsed by default (`showTastePhone`), Refresh moved into the
+  account menu, full-screen settings dialog, scrollable login card. 861–1100px (tablets in landscape) keeps the docked
+  sidebar but lets the top bar wrap. Verified with CDP viewport sweeps at 360×640, 375×553, 390×660, 412×830,
+  430×740, 844×330, 768×1000, 820×1150 and 1024×740: fixed chrome is 55px on every phone size (was ~470px).
 
 ## 11. Work plan
 

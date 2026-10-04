@@ -3,7 +3,7 @@
 //   src/shared/core.js                -> web/public/ and web/api/_lib/  (shared scoring + taste logic)
 //   web/src/{index.html,web-api.js}   -> web/public/      (website shell + browser implementation)
 //   build/icon.png                    -> web/public/icon.png
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,5 +27,13 @@ const copies = [
   ["build/icon-512-maskable.png", "web/public/icon-512-maskable.png"],
   ["build/apple-touch-icon.png", "web/public/apple-touch-icon.png"],
 ];
-for (const [from, to] of copies) cpSync(join(root, from), join(root, to));
+const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+for (const [from, to] of copies) {
+  if (from.endsWith("web-api.js")) {
+    // the website reports the same version as the desktop app it was built with
+    writeFileSync(join(root, to), readFileSync(join(root, from), "utf8").replace(`value: "web"`, `value: "${version} · web"`));
+  } else {
+    cpSync(join(root, from), join(root, to));
+  }
+}
 console.log(`web build: ${copies.length} files -> web/public, web/api/_lib`);

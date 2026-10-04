@@ -346,7 +346,7 @@ function tasteModel() {
 
 // Settings that don't change which games are shown or in what order. Changing them must not
 // redraw the grid (which would also scroll it back to the top).
-const NON_RESULT_KEYS = new Set(["basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "showTaste"]);
+const NON_RESULT_KEYS = new Set(["basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "showTaste", "showTastePhone", "pairAutoCart"]);
 
 function patchSettings(patch, { refetch = false, persistNow = false } = {}) {
   state.settings = { ...state.settings, ...patch };
@@ -517,7 +517,7 @@ function renderLogin() {
     el("p", { class: "login-foot" }, foot),
     usersLine(),
   );
-  app.append(el("div", { class: "login" }, el("div", { class: "blob blob-a" }), el("div", { class: "blob blob-b" }), el("div", { class: "blob blob-c" }), card));
+  app.append(el("div", { class: "login" }, el("div", { class: "blobs" }, el("div", { class: "blob blob-a" }), el("div", { class: "blob blob-b" }), el("div", { class: "blob blob-c" })), card));
 }
 
 // Small anonymous user count (website only; hidden when the counter isn't set up).
@@ -548,11 +548,16 @@ function renderBrowse() {
     "section",
     { class: "content" },
     renderTopbar(),
-    el("div", { id: "banners" }),
-    el("div", { class: "stats", id: "stats" }),
-    el("div", { class: "scroller", id: "scroller" }, el("div", { id: "foryou-head" }), el("div", { class: "grid", id: "grid" }), el("div", { class: "sentinel", id: "sentinel" })),
+    el("div", { class: "scroller", id: "scroller" },
+      el("div", { id: "viewbar-slot" }), // the view/catalog toggles land here on narrow screens so they scroll away
+      el("div", { id: "banners" }),
+      el("div", { class: "stats", id: "stats" }),
+      el("div", { id: "foryou-head" }),
+      el("div", { class: "grid", id: "grid" }),
+      el("div", { class: "sentinel", id: "sentinel" })),
   );
   app.append(el("div", { class: "browse" }, sidebar, content));
+  placeViewbar();
   renderSidebar();
   setupInfiniteScroll();
   renderBanners();
@@ -565,21 +570,32 @@ function renderTopbar() {
     state.query = search.value;
     updateResults();
   });
-  const refresh = el("button", { class: "btn btn-icon", title: "Refresh deals", "aria-label": "Refresh", html: ICON.refresh });
+  const refresh = el("button", { class: "btn btn-icon refresh-btn", title: "Refresh deals", "aria-label": "Refresh", html: ICON.refresh });
   refresh.addEventListener("click", () => loadAll({ force: true }));
   const filtersBtn = el("button", { class: "btn btn-icon filters-btn", title: "Filters", "aria-label": "Show filters", html: ICON.filter });
   filtersBtn.addEventListener("click", () => document.body.classList.toggle("filters-open"));
+  const searchToggle = el("button", { class: "btn btn-icon search-toggle", title: "Search", "aria-label": "Search", html: ICON.search });
+  searchToggle.addEventListener("click", () => {
+    const open = document.body.classList.toggle("search-open");
+    if (open) setTimeout(() => search.focus(), 50);
+  });
+  const viewbar = el("div", { class: "viewbar", id: "viewbar" },
+    el("div", { class: "seg", id: "seg", role: "tablist" }),
+    el("div", { class: "seg", id: "seg-catalog", role: "tablist" }),
+    el("span", { id: "sort-slot" }));
   const bar = el(
     "div",
     { class: "topbar" },
     filtersBtn,
-    el("div", { class: "seg", id: "seg", role: "tablist" }),
-    el("div", { class: "seg", id: "seg-catalog", role: "tablist" }),
+    api.platform === "web"
+      ? el("div", { class: "brand brand-inline" }, el("span", { class: "brand-mark", "aria-hidden": "true", html: ICON.percent }), el("span", { class: "brand-name" }, "Steam Deals"))
+      : null,
+    el("span", { id: "viewbar-top" }, viewbar),
     el("div", { class: "search", html: ICON.search }, search, el("kbd", {}, "/")),
-    el("span", { id: "sort-slot" }),
     el("div", { class: "spacer" }),
     el("span", { class: "updated", id: "updated" }),
     refresh,
+    searchToggle,
     basketButtonEl(),
     renderAccountChip(),
   );
@@ -591,6 +607,19 @@ function renderTopbar() {
   });
   return bar;
 }
+
+// Narrow screens (tablets in portrait, phones, short landscape phones): the view/catalog toggles move out of the
+// fixed top bar into the scrolling content. PHONE is the subset where the taste panel starts collapsed.
+const NARROW = window.matchMedia("(max-width: 860px), (max-height: 500px)");
+const PHONE = window.matchMedia("(max-width: 640px), (max-height: 500px)");
+function placeViewbar() {
+  const vb = $("#viewbar");
+  if (!vb) return;
+  const target = NARROW.matches ? $("#viewbar-slot") : $("#viewbar-top");
+  if (target && vb.parentElement !== target) target.append(vb);
+}
+NARROW.addEventListener("change", placeViewbar);
+PHONE.addEventListener("change", renderForYouHead);
 
 function renderSeg() {
   const host = $("#seg");
@@ -677,6 +706,7 @@ function toggleMenu(anchor) {
   } else {
     items.push(item(ICON.login, "Sign in through Steam", signInFromBrowse));
   }
+  items.push(item(ICON.refresh, "Refresh deals", () => loadAll({ force: true })));
   items.push(item(ICON.settings, "Settings", openSettings));
   if (a && a.method !== "guest") items.push(item(ICON.logout, "Sign out", signOut, "btn-danger"));
   else items.push(item(ICON.logout, "Back to start", signOut));
@@ -875,11 +905,12 @@ function renderForYouHead() {
     return;
   }
   const model = tasteModel();
-  const shown = state.settings.showTaste !== false;
+  const phone = PHONE.matches;
+  const shown = phone ? state.settings.showTastePhone === true : state.settings.showTaste !== false;
   const toggle = el("button", { class: "btn btn-ghost btn-sm", title: shown ? "Hide this panel" : "Show your taste profile", "aria-expanded": shown },
     shown ? "Hide" : "Show");
   toggle.addEventListener("click", () => {
-    patchSettings({ showTaste: !shown }, { persistNow: true });
+    patchSettings(phone ? { showTastePhone: !shown } : { showTaste: !shown }, { persistNow: true });
     renderForYouHead();
   });
   const chips = (model?.topTags || []).map((id) => el("span", { class: "chip on" }, tagName(id)));

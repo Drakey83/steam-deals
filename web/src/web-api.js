@@ -294,7 +294,7 @@
 
   const ALLOWED_SETTINGS = new Set([
     "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights", "hideOwned",
-    "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste",
+    "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste", "showTastePhone",
     "basket", "taxRegion", "taxCustomRate", "taxRegionAuto",
   ]);
 

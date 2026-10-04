@@ -1,0 +1,8 @@
+{
+  "name": "steam-deals-web",
+  "private": true,
+  "description": "Website version of Steam Deals (static page + Vercel functions). Assembled by scripts/build-web.mjs.",
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -12,7 +12,13 @@ matches you, with a "because you played …" explanation on every card. Everythi
 ![sign-in](docs/screenshot-signin.png)
 ![browse](docs/screenshot-browse.png)
 
-## Install
+## Use it in your browser
+
+**https://steam-deals-olive.vercel.app** works on any computer or phone with nothing to install.
+Sign in through Steam, paste your own Steam Web API key, or browse as a guest.
+Signing in through Steam needs your profile's **Game details** set to Public; using your own key does not.
+
+## Install the desktop app (Windows)
 
 1. Download `Steam Deals Setup x.y.z.exe` from the Releases page.
 2. Run it. Windows SmartScreen will say the publisher is unknown because the installer isn't code-signed.
@@ -76,7 +82,19 @@ npm run dist            # build release/Steam Deals Setup x.y.z.exe
 ```
 
 Layout: `src/main` (Electron main process: window, Steam HTTP, sign-in, settings, cache), `src/preload.js`
-(the only bridge to the UI), `src/renderer` (vanilla HTML/CSS/JS). `SPEC.md` describes the design in detail.
+(the only bridge to the UI), `src/renderer` (vanilla HTML/CSS/JS, shared by the desktop app and the website),
+`src/shared/core.js` (scoring and taste logic, shared by both). `SPEC.md` describes the design in detail.
+
+**Website** (`web/`): static page plus serverless functions on Vercel's free Hobby plan. `web/src/web-api.js`
+implements the same interface the desktop preload exposes, backed by `web/api/*`. Deal pages are cached at
+Vercel's edge for three hours, so every visitor shares one scan. "Sign in through Steam" is Steam's OpenID
+login; it is enabled when the project has `STEAM_API_KEY` and `SESSION_SECRET` (32+ chars) set as
+environment variables. A visitor's own API key stays in their browser and is passed through to Steam only.
+
+```bash
+npm run web:build       # assemble web/public from the shared sources
+npm run web:deploy      # build and deploy to production (needs `vercel login` and a linked project)
+```
 
 `scripts/make-icon.py` regenerates the icon (needs Python with Pillow). `scripts/cdp.mjs` drives a running
 instance over the DevTools protocol for screenshots and inspection when started with `--remote-debugging-port=9222`.

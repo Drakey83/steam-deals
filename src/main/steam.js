@@ -9,6 +9,8 @@ const API = "https://api.steampowered.com";
 const STORE = "https://store.steampowered.com";
 const COMMUNITY = "https://steamcommunity.com";
 
+const { headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile } = require("../shared/core.js");
+
 const PAGE_SIZE = 500; // verified: Query/v1 returns up to 500 items per page
 const PAGE_SPACING_MS = 250;
 const SERVER_MIN_DISCOUNT = 50; // fixed server-side filter; UI narrows client-side
@@ -81,48 +83,6 @@ async function fetchText(url, { fetchImpl = globalThis.fetch, signal } = {}) {
   const res = await fetchImpl(url, { signal });
   if (!res.ok) throw new SteamError(`Steam returned HTTP ${res.status}`, res.status, "http");
   return res.text();
-}
-
-function headerImage(appid) {
-  return `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appid}/header.jpg`;
-}
-
-function storeUrl(appid) {
-  return `${STORE}/app/${appid}/`;
-}
-
-/** Normalize a Query/v1 store_item into the compact shape the UI uses. Returns null for non-games. */
-function normalizeItem(it, { requireDiscount = true } = {}) {
-  if (!it || it.success === false || it.visible === false) return null;
-  if (it.item_type !== undefined && it.item_type !== 0) return null; // 0 = app
-  if (it.type !== undefined && it.type !== 0) return null; // 0 = game (not DLC/demo/music/software…)
-  if (it.is_free) return null;
-  const bpo = it.best_purchase_option;
-  if (!bpo) return null;
-  const discount = Number(bpo.discount_pct ?? 0) || 0;
-  if (!Number.isFinite(discount) || (requireDiscount && discount <= 0)) return null;
-  const rev = it.reviews?.summary_filtered ?? it.reviews?.summary_unfiltered ?? null;
-  const finalCents = Number(bpo.final_price_in_cents);
-  const origCents = Number(bpo.original_price_in_cents);
-  return {
-    appid: it.appid,
-    name: it.name ?? `App ${it.appid}`,
-    discount,
-    price: bpo.formatted_final_price ?? null,
-    originalPrice: bpo.formatted_original_price ?? null,
-    priceCents: Number.isFinite(finalCents) ? finalCents : null,
-    originalCents: Number.isFinite(origCents) ? origCents : null,
-    rating: typeof rev?.percent_positive === "number" ? rev.percent_positive : null,
-    reviews: typeof rev?.review_count === "number" ? rev.review_count : 0,
-    reviewLabel: rev?.review_score_label ?? null,
-    released: it.release?.steam_release_date ? it.release.steam_release_date * 1000 : null,
-    earlyAccess: Boolean(it.release?.is_early_access),
-    tagids: Array.isArray(it.tags) ? it.tags.map((t) => t.tagid).filter(Number.isFinite) : [],
-    tags: normTags(it.tags),
-    description: it.basic_info?.short_description ?? "",
-    image: headerImage(it.appid),
-    url: storeUrl(it.appid),
-  };
 }
 
 /**
@@ -231,13 +191,6 @@ function isSteamId64(value) {
   return /^7656119\d{10}$/.test(String(value ?? "").trim());
 }
 
-/** Steam's store tags carry a relevance weight. Normalize so each game's tag weights sum to 1. */
-function normTags(tags) {
-  const arr = Array.isArray(tags) ? tags.filter((t) => Number.isFinite(t?.tagid)) : [];
-  const total = arr.reduce((s, t) => s + (Number(t.weight) || 1), 0) || 1;
-  return arr.map((t) => ({ id: t.tagid, w: (Number(t.weight) || 1) / total }));
-}
-
 // ---------- taste profile (personal recommendations) ----------
 
 /**
@@ -269,22 +222,6 @@ async function fetchOwnedGamesDetailed({ steamid, accessToken, apiKey, signal })
   }));
 }
 
-/**
- * Compact fingerprint of what matters to the taste profile: which games are owned and how much
- * they've been played (to the hour). When it changes, the profile is rebuilt — that's how the app
- * keeps learning as the person plays.
- */
-function libraryFingerprint(games) {
-  const parts = games
-    .map((g) => `${g.appid}:${Math.floor((g.playtime || 0) / 60)}:${Math.floor((g.recent || 0) / 60)}`)
-    .sort();
-  // djb2 over the joined string — cheap and stable.
-  let h = 5381;
-  const s = parts.join("|");
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return `${games.length}-${(h >>> 0).toString(16)}`;
-}
-
 /** Store cards (name, type, weighted tags) for a list of appids, 50 per request. Keyless. */
 async function fetchItems(appids, { language = "english", country = "US", tagCount = 20, signal, fetchImpl, onProgress } = {}) {
   const out = [];
@@ -311,68 +248,6 @@ async function fetchItems(appids, { language = "english", country = "US", tagCou
     if (i + BATCH < appids.length) await sleep(PAGE_SPACING_MS, signal);
   }
   return out;
-}
-
-/**
- * Choose which owned games to learn from: the most-played first, then a spread of the rest,
- * so the profile reflects what the person actually plays without dozens of extra requests.
- */
-function pickSample(games, max = 220) {
-  const out = [];
-  const seen = new Set();
-  const add = (g) => {
-    if (!seen.has(g.appid) && out.length < max) {
-      seen.add(g.appid);
-      out.push(g);
-    }
-  };
-  // Everything played in the last two weeks always makes the cut: that's the freshest taste signal.
-  games.filter((g) => g.recent > 0).sort((a, b) => b.recent - a.recent).forEach(add);
-  games.filter((g) => g.playtime > 0).sort((a, b) => b.playtime - a.playtime).slice(0, 160).forEach(add);
-  const unplayed = games.filter((g) => !(g.playtime > 0));
-  const room = max - out.length;
-  if (room > 0 && unplayed.length) {
-    const step = Math.max(1, Math.ceil(unplayed.length / room));
-    for (let i = 0; i < unplayed.length && out.length < max; i += step) add(unplayed[i]);
-  }
-  return out;
-}
-
-/**
- * Build a tag-affinity profile from owned games. Played games count more (log of hours);
- * unplayed games still whisper. Returns tag shares (sum to 1) plus "anchor" games for
- * "because you played …" explanations.
- */
-function buildTasteProfile(games, items) {
-  const byApp = new Map(items.filter((i) => i.type === 0 && i.tags.length).map((i) => [i.appid, i]));
-  const hasPlaytime = games.some((g) => g.playtime > 0);
-  const aff = new Map();
-  const anchors = [];
-  let basedOn = 0;
-  let totalW = 0;
-  for (const g of games) {
-    const it = byApp.get(g.appid);
-    if (!it) continue;
-    const hours = (g.playtime || 0) / 60;
-    const recentHours = (g.recent || 0) / 60;
-    // Lifetime hours set the base weight; anything played in the last two weeks gets a fresh boost,
-    // so the profile drifts toward what the person is into right now.
-    let w = hasPlaytime ? (hours > 0 ? 1 + Math.log2(1 + hours) : 0.35) : 1;
-    if (recentHours > 0) w += 1.5 + Math.log2(1 + recentHours);
-    basedOn++;
-    totalW += w;
-    for (const t of it.tags) aff.set(t.id, (aff.get(t.id) || 0) + w * t.w);
-    anchors.push({ appid: g.appid, name: it.name || g.name || `App ${g.appid}`, hours: Math.round(hours * 10) / 10, recent: Math.round(recentHours * 10) / 10, w, tags: it.tags });
-  }
-  const affinity = {};
-  for (const [id, v] of aff) affinity[id] = v / (totalW || 1);
-  anchors.sort((a, b) => b.w - a.w);
-  return {
-    affinity,
-    anchors: anchors.slice(0, 80).map(({ appid, name, hours, recent, tags }) => ({ appid, name, hours, recent, tags })),
-    basedOn,
-    hasPlaytime,
-  };
 }
 
 /** Keyless wishlist appids for a public profile (used by the API-key path; the store session path gets it from userdata). */

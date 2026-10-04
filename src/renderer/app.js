@@ -480,17 +480,25 @@ function renderLogin() {
     toast(`Found ${fmtInt(r.ownedCount)} games in your library`, { type: "ok" });
   });
 
+  const web = api.platform === "web";
+  const canSignIn = !web || api.features?.steamSignIn;
+  const keyHint = web
+    ? ["Get a free key at ", linkTo("https://steamcommunity.com/dev/apikey", "steamcommunity.com/dev/apikey"), ". It stays in this browser and is only ever sent on to Steam."]
+    : ["Get a free key at ", linkTo("https://steamcommunity.com/dev/apikey", "steamcommunity.com/dev/apikey"), ". Your profile's Game details must be public."];
+  const foot = web
+    ? "Sign in on Steam's own page: this site never sees your password and only reads your game list and playtime. Signing in needs your profile's Game details set to Public. Your settings stay in this browser."
+    : "You sign in on Steam's own page. This app never sees your password and only reads which games you own. Nothing leaves your computer except requests to Steam.";
   const card = el(
     "div",
     { class: "login-card" },
     el("div", { class: "login-logo", html: ICON.percent }),
     el("h1", {}, "Steam Deals"),
     el("p", { class: "tagline" }, "The best discounts on Steam right now, minus everything you already own."),
-    el("div", { class: "login-actions" }, signInBtn, guestBtn),
+    el("div", { class: "login-actions" }, canSignIn ? signInBtn : null, guestBtn),
     el(
       "details",
-      { class: "advanced" },
-      el("summary", {}, "Use a Steam Web API key instead"),
+      { class: "advanced", open: !canSignIn },
+      el("summary", {}, canSignIn ? "Use a Steam Web API key instead" : "Use your Steam Web API key"),
       el(
         "div",
         { class: "advanced-form" },
@@ -498,11 +506,11 @@ function renderLogin() {
         keyInput,
         el("label", {}, "Your Steam account"),
         idInput,
-        el("div", { class: "hint" }, "Get a free key at ", linkTo("https://steamcommunity.com/dev/apikey", "steamcommunity.com/dev/apikey"), ". Your profile's Game details must be public."),
+        el("div", { class: "hint" }, ...keyHint),
         keyBtn,
       ),
     ),
-    el("p", { class: "login-foot" }, "You sign in on Steam's own page. This app never sees your password and only reads which games you own. Nothing leaves your computer except requests to Steam."),
+    el("p", { class: "login-foot" }, foot),
   );
   app.append(el("div", { class: "login" }, el("div", { class: "blob blob-a" }), el("div", { class: "blob blob-b" }), el("div", { class: "blob blob-c" }), card));
 }
@@ -545,9 +553,12 @@ function renderTopbar() {
   });
   const refresh = el("button", { class: "btn btn-icon", title: "Refresh deals", "aria-label": "Refresh", html: ICON.refresh });
   refresh.addEventListener("click", () => loadAll({ force: true }));
+  const filtersBtn = el("button", { class: "btn btn-icon filters-btn", title: "Filters", "aria-label": "Show filters", html: ICON.filter });
+  filtersBtn.addEventListener("click", () => document.body.classList.toggle("filters-open"));
   const bar = el(
     "div",
     { class: "topbar" },
+    filtersBtn,
     el("div", { class: "seg", id: "seg", role: "tablist" }),
     el("div", { class: "seg", id: "seg-catalog", role: "tablist" }),
     el("div", { class: "search", html: ICON.search }, search, el("kbd", {}, "/")),
@@ -722,6 +733,7 @@ function renderSidebar() {
   const saleOnly = s.catalog !== "all";
   const depths = saleOnly ? SCAN_DEPTHS : SCAN_DEPTHS.filter(([v]) => v !== 0);
   side.append(
+    el("button", { class: "btn btn-sm sidebar-done", onclick: () => document.body.classList.remove("filters-open") }, "Done"),
     el("div", {}, el("div", { class: "section-title" }, "Filters", el("button", { class: "btn btn-ghost btn-sm", onclick: resetFilters }, "Reset")),
       el("div", { style: { display: "grid", gap: "14px" } },
         saleOnly ? range("minDiscount", "Min discount", 50, 95, 5, (v) => `${v}%`) : el("div", { class: "muted", style: { fontSize: "12px" } }, "Showing the whole catalog. Switch to “On sale” to filter by discount."),
@@ -836,7 +848,11 @@ function renderForYouHead() {
   }
   const t = state.taste;
   if (!t) {
-    const msg = state.tasteReason === "session_expired" ? "Your Steam session expired. Sign in again to get personal picks." : "Couldn't build a taste profile from your library.";
+    const msg =
+      state.tasteReason === "session_expired" ? "Your Steam session expired. Sign in again to get personal picks."
+      : state.tasteReason === "private" ? "Your Steam profile's Game details are private, so your library can't be read. Set them to Public in Steam's privacy settings, or sign in with your own API key, then rebuild."
+      : state.tasteReason === "empty" ? "Your library looks empty, so there's nothing to learn from yet."
+      : "Couldn't build a taste profile from your library.";
     host.append(el("div", { class: "fy-head" }, el("div", { class: "fy-title", html: ICON.warning }, el("span", {}, "No taste profile yet")), el("div", { class: "muted" }, msg),
       el("div", {}, el("button", { class: "btn btn-sm", onclick: state.tasteReason === "session_expired" ? signInFromBrowse : rebuildTaste }, state.tasteReason === "session_expired" ? "Sign in again" : "Try again"))));
     return;
@@ -1155,7 +1171,9 @@ function openSettings() {
       ),
       el("div", { class: "settings-group" }, el("h3", {}, "Account"), accountRow),
       el("div", { class: "settings-group" }, el("h3", {}, "About"),
-        el("div", { class: "about", id: "about" }, "Steam Deals pulls discounts straight from Steam's public store API, hides what you own, and ranks what's left. No accounts, no telemetry, no third parties. Not affiliated with Valve Corporation.")),
+        el("div", { class: "about", id: "about" }, api.platform === "web"
+          ? "Steam Deals pulls discounts from Steam's public store API, hides what you own, and ranks what's left. Settings and any API key you add stay in this browser. No ads, no tracking. Not affiliated with Valve Corporation."
+          : "Steam Deals pulls discounts straight from Steam's public store API, hides what you own, and ranks what's left. No accounts, no telemetry, no third parties. Not affiliated with Valve Corporation.")),
     ),
   );
   api.version().then((r) => {
@@ -1201,6 +1219,7 @@ function onKey(e) {
 
 // ---------- boot ----------
 async function init() {
+  if (typeof api.ready === "function") await api.ready(); // website: load config, finish a Steam sign-in redirect
   const s = await api.settings.get();
   state.settings = s.settings;
   // Older builds offered different scan depths; snap anything unknown to the standard depth.
@@ -1217,12 +1236,25 @@ async function init() {
     if (state.tasteLoading) renderForYouHead();
   });
   document.addEventListener("keydown", onKey);
+  // Narrow screens: the filters drawer closes on Escape or a tap anywhere outside it.
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") document.body.classList.remove("filters-open");
+  });
+  document.addEventListener("click", (e) => {
+    if (!document.body.classList.contains("filters-open")) return;
+    if (e.target.closest("#sidebar") || e.target.closest(".filters-btn")) return;
+    document.body.classList.remove("filters-open");
+  });
   setInterval(renderUpdated, 30000);
   if (!state.account) renderLogin();
   else {
     renderBrowse();
     loadAll();
   }
+  const f = api.features || {};
+  if (f.justSignedIn) toast(`Welcome, ${f.justSignedIn}`, { type: "ok" });
+  if (f.privateProfile) toast("Your Steam profile's Game details are private, so owned games can't be hidden. Set them to Public in Steam, then refresh.", { type: "err", timeout: 12000 });
+  if (f.signInError) toast(`Sign-in didn't finish: ${f.signInError}`, { type: "err", timeout: 10000 });
 }
 init().catch((err) => {
   console.error(err);

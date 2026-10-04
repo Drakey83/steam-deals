@@ -15,15 +15,60 @@ const BG = "#0b0f14";
 let mainWindow = null;
 let dealsAbort = null;
 
+// ---------- steamdeals:// links (the website hands baskets to the app this way) ----------
+const PROTOCOL = "steamdeals";
+let pendingDeepLink = null;
+
+// Only the installed app claims the scheme (the installer registers it as well). A dev run must not,
+// or it would steal links from the installed copy on a developer's machine.
+if (!process.defaultApp) app.setAsDefaultProtocolClient(PROTOCOL);
+
+function parseDeepLink(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== `${PROTOCOL}:` || u.hostname !== "cart") return null;
+    const items = String(u.searchParams.get("items") || "")
+      .split(",")
+      .map((pair) => pair.split(":").map(Number))
+      .filter(([appid]) => Number.isInteger(appid) && appid > 0)
+      .slice(0, 100)
+      .map(([appid, packageid]) => ({ appid, packageid: packageid > 0 ? packageid : null }));
+    return items.length ? { items } : null;
+  } catch {
+    return null;
+  }
+}
+const deepLinkIn = (argv) => (argv || []).find((a) => typeof a === "string" && a.startsWith(`${PROTOCOL}://`)) || null;
+
+function handleDeepLink(url) {
+  const parsed = parseDeepLink(url);
+  if (!parsed) return;
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
+    sendToUI("deeplink:basket", parsed);
+  } else {
+    pendingDeepLink = parsed; // the renderer asks for it once it has started
+  }
+}
+
 // ---------- single instance ----------
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+  app.on("second-instance", (_e, argv) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+    const link = deepLinkIn(argv);
+    if (link) handleDeepLink(link);
   });
+  app.on("open-url", (e, url) => {
+    e.preventDefault();
+    handleDeepLink(url);
+  });
+  const first = deepLinkIn(process.argv);
+  if (first) pendingDeepLink = parseDeepLink(first);
 }
 
 // ---------- window ----------
@@ -136,7 +181,7 @@ async function profileFor(steamid) {
 const ALLOWED_SETTING_KEYS = new Set([
   "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights",
   "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste",
-  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "cartButtonSeen",
+  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto",
 ]);
 const TASTE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -384,6 +429,39 @@ handle("geo:detect", async () => {
   if (!res.ok) throw new steam.SteamError("Location lookup unavailable", res.status, "geo");
   const g = await res.json();
   return { country: g.country ?? null, region: g.region ?? null, taxRegion: g.taxRegion ?? null };
+});
+
+handle("deeplink:pending", () => {
+  const p = pendingDeepLink;
+  pendingDeepLink = null;
+  return { basket: p };
+});
+
+handle("items:lookup", async ({ appids = [] } = {}) => {
+  const s = settings.get();
+  const ids = [...new Set(appids.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 100);
+  if (!ids.length) return { items: [] };
+  return { items: await steam.lookupItems(ids, { language: s.language, country: s.country }) };
+});
+
+// Basket codes live on the website's small store so a phone can hand a basket to this app.
+const SITE = "https://steamdeal.vercel.app";
+handle("basketcode:create", async ({ items = [] } = {}) => {
+  const res = await fetch(`${SITE}/api/basket`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ items: items.map((i) => ({ appid: i.appid, packageid: i.packageid })) }),
+    signal: AbortSignal.timeout(8000),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new steam.SteamError(data?.error?.message || "Couldn't create a basket code", res.status, "codes");
+  return { enabled: data.enabled !== false, code: data.code || null, expiresIn: data.expiresIn || null };
+});
+handle("basketcode:fetch", async ({ code = "" } = {}) => {
+  const res = await fetch(`${SITE}/api/basket?code=${encodeURIComponent(String(code).toUpperCase())}`, { signal: AbortSignal.timeout(8000) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new steam.SteamError(data?.error?.message || "That code didn't work", res.status, "codes");
+  return { items: data.items || [] };
 });
 
 handle("cart:supported", () => ({ value: settings.get().account?.method === "steam" }));

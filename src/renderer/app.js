@@ -346,7 +346,7 @@ function tasteModel() {
 
 // Settings that don't change which games are shown or in what order. Changing them must not
 // redraw the grid (which would also scroll it back to the top).
-const NON_RESULT_KEYS = new Set(["basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "cartButtonSeen", "showTaste"]);
+const NON_RESULT_KEYS = new Set(["basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "showTaste"]);
 
 function patchSettings(patch, { refetch = false, persistNow = false } = {}) {
   state.settings = { ...state.settings, ...patch };
@@ -1266,6 +1266,7 @@ function openBasket() {
       t.items.length ? el("div", { class: "basket-list" }, rows) : el("div", { class: "empty basket-empty" }, el("div", { class: "glyph", html: ICON.basket }), el("h3", {}, "Your basket is empty"), el("p", {}, "Use the + on any game to collect sales here and see what they add up to before you check out on Steam.")),
       summary,
       t.items.length ? sendPanel(t) : null,
+      api.cart?.mode === "direct" && api.basketCode ? importCodeRow() : null,
     ),
   );
   drawer.classList.add("open");
@@ -1315,88 +1316,150 @@ function sendPanel(t) {
     return box;
   }
 
-  // Website: hand the basket to the "Fill my Steam cart" button on Steam's own page.
-  const url = api.cart.handoffUrl(ids);
+  // Website: the Steam Deals desktop app does the sending. It is signed into Steam itself, so there
+  // is nothing to sign into here, and Steam's cart is shared across the app, the website and phones.
   const dev = api.cart.device;
-  const seen = Boolean(state.settings.cartButtonSeen);
-  const step1 = el("button", { class: "btn btn-primary", disabled: !ids.length, html: `${ICON.external}<span>1 · Open my Steam cart</span>`, onclick: () => api.openExternal(url) });
-  const setup = el("details", { class: "setup", open: !seen },
-    el("summary", {}, seen ? "Set up the button again" : "One-time setup: get the “Fill my Steam cart” button"),
-    el("div", { class: "setup-body", id: "setup-body" }, el("div", { class: "muted" }, "Loading…")),
-  );
-  appendKids(box, 
-    el("div", { class: "send-title" }, "Send to Steam"),
-    el("div", { class: "muted" }, "Browsers don't let one website change your cart on another, so Steam Deals hands your basket to a small button that runs on Steam's own page. Nothing is purchased; you check out on Steam as usual."),
-    step1,
-    el("div", { class: "step2" }, el("b", {}, "2 · On the Steam page that opens, press your “Fill my Steam cart” button."), el("div", { class: "muted" }, "It reads your basket from that page's address, adds every game, and shows the cart. Your Steam sign-in stays on Steam.")),
-    setup,
+  const codeBox = el("div", { class: "code-box", id: "code-box" });
+  const showCode = () => fillCodeBox(codeBox, t.items);
+  const downloadLink = () => el("a", { class: "link", href: "#", onclick: (e) => { e.preventDefault(); api.openExternal(DOWNLOAD_URL); } }, "free Windows app");
+
+  if (dev === "windows") {
+    const sendBtn = el("button", { class: "btn btn-primary", disabled: !ids.length, html: `${ICON.basket}<span>Send to Steam cart with the Steam Deals app</span>` });
+    const after = el("div", { class: "after-send", hidden: true });
+    sendBtn.addEventListener("click", () => {
+      after.hidden = true;
+      let left = false;
+      const onBlur = () => { left = true; };
+      window.addEventListener("blur", onBlur, { once: true });
+      location.href = api.cart.appLink(t.items);
+      setTimeout(() => {
+        window.removeEventListener("blur", onBlur);
+        after.hidden = false;
+        after.innerHTML = "";
+        if (left || document.visibilityState !== "visible") {
+          after.append(
+            el("div", { class: "send-title ok", html: ICON.check }, el("span", {}, "Opened in the Steam Deals app")),
+            el("div", { class: "muted" }, "Finish there: press “Send to my Steam cart”, then pay in Steam as usual."),
+          );
+        } else {
+          after.append(
+            el("div", { class: "send-title" }, "Didn't open?"),
+            el("div", { class: "muted" }, "You need the ", downloadLink(), " installed. It takes a minute; then press the button again. Or type this code into the app's basket:"),
+            codeBox,
+          );
+          showCode();
+        }
+      }, 2500);
+    });
+    appendKids(box,
+      el("div", { class: "send-title" }, "Ready to buy?"),
+      el("div", { class: "muted" }, "The Steam Deals app is signed into Steam itself, so it can put these in your Steam cart in one click. Nothing is purchased: you check out in Steam, in the app or the browser, as usual."),
+      sendBtn,
+      after,
+      el("div", { class: "muted small" }, "Don't have it yet? Get the ", downloadLink(), "."),
+      missing ? el("div", { class: "muted" }, `${fmtInt(missing)} game${missing === 1 ? " isn't" : "s aren't"} sold as a single package and will be skipped.`) : null,
+      openCartBtns(),
+    );
+    return box;
+  }
+
+  const phone = dev === "ios" || dev === "android";
+  appendKids(box,
+    el("div", { class: "send-title" }, phone ? "Finish on your PC" : "Send from the Windows app"),
+    el("div", { class: "muted" }, phone
+      ? "Sending to your Steam cart is done by the Steam Deals Windows app, which is signed into Steam itself. Your Steam cart is shared across devices, so once the app adds the games you can pay from the Steam app on this phone."
+      : "Sending to your Steam cart is done by the Steam Deals Windows app, which is signed into Steam itself. Use this code there."),
+    codeBox,
+    el("ol", { class: "steps" },
+      el("li", {}, "On your Windows PC, open Steam Deals (", downloadLink(), ")."),
+      el("li", {}, "Open the basket and enter the code under “Have a basket code?”."),
+      el("li", {}, "Press “Send to my Steam cart”, then pay in Steam, on the PC or from your phone's Steam app."),
+    ),
     missing ? el("div", { class: "muted" }, `${fmtInt(missing)} game${missing === 1 ? " isn't" : "s aren't"} sold as a single package and will be skipped.`) : null,
+    phone
+      ? el("div", { class: "one-by-one" },
+          el("div", { class: "send-title" }, "Or add them one at a time in the Steam app"),
+          el("div", { class: "muted" }, "Each button opens that game in the Steam app, where its own Add to Cart button is."),
+          el("div", { class: "btn-row" }, t.items.map((b) => el("button", { class: "btn btn-sm", html: `${ICON.play}<span>${b.name}</span>`, onclick: () => api.openExternal(`steam://store/${b.appid}`) }))),
+        )
+      : null,
     openCartBtns(),
   );
-  fillSetup(dev, setup.querySelector("#setup-body"));
+  showCode();
   return box;
 }
 
-async function fillSetup(dev, host) {
-  const r = await api.cart.bookmarklet();
-  host.innerHTML = "";
-  if (!r.ok) return host.append(el("div", { class: "muted" }, "Couldn't load the button code. Refresh and try again."));
-  const href = r.value;
-  const rawCode = decodeURIComponent(href.replace(/^javascript:/, ""));
-  const copyBtn = (label, text) => {
-    const b = el("button", { class: "btn btn-sm", html: `${ICON.copy}<span>${label}</span>` });
-    b.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(text);
-        toast("Copied", { type: "ok", timeout: 2000 });
-      } catch {
-        const ta = el("textarea", { readonly: true, style: { width: "100%", height: "120px" } }, text);
-        host.append(ta);
-        ta.select();
-        toast("Select the code below and copy it", { timeout: 4000 });
-      }
-    });
-    return b;
-  };
-  const done = el("button", { class: "btn btn-sm btn-primary", onclick: () => { patchSettings({ cartButtonSeen: true }, { persistNow: true }); openBasket(); toast("Great. Next time, just press “Open my Steam cart” and then your button.", { type: "ok", timeout: 5000 }); } }, "I've set it up");
+const DOWNLOAD_URL = "https://github.com/Drakey83/steam-deals/releases/latest";
 
-  if (dev === "desktop") {
-    const link = el("a", { class: "bookmarklet", href, draggable: true, html: `${ICON.basket}<span>Fill my Steam cart</span>` });
-    link.addEventListener("click", (e) => { e.preventDefault(); toast("Drag this button up to your bookmarks bar instead of clicking it.", { timeout: 5000 }); });
-    host.append(
-      el("ol", { class: "steps" },
-        el("li", {}, "Show your bookmarks bar if it's hidden (Ctrl+Shift+B in Chrome and Edge, Ctrl+Shift+B in Firefox)."),
-        el("li", {}, "Drag this button onto the bookmarks bar: ", link),
-        el("li", {}, "That's it. Press it whenever you're on the Steam cart page that step 1 opens."),
-      ),
-      el("div", { class: "muted" }, "No bookmarks bar? ", copyBtn("Copy button code", href), " then add a bookmark and paste the code as its address."),
-      done,
-    );
-  } else if (dev === "ios") {
-    host.append(
-      el("div", { class: "muted" }, "On iPhone and iPad the button is a Safari bookmark. Two minutes, once:"),
-      el("ol", { class: "steps" },
-        el("li", {}, copyBtn("Copy button code", href)),
-        el("li", {}, "In Safari, tap Share, then “Add Bookmark”, name it “Fill my Steam cart”, and save."),
-        el("li", {}, "Open Bookmarks, tap Edit, tap the new bookmark, delete its address and paste the code. Tap Done."),
-        el("li", {}, "After step 1 above opens your Steam cart in Safari, open Bookmarks and tap “Fill my Steam cart”."),
-      ),
-      el("div", { class: "muted" }, "If Steam's app opens instead of Safari in step 1, go back and long-press the button, then choose “Open in Safari”. Prefer Shortcuts? Create one with a “Run JavaScript on Web Page” action and paste this: ", copyBtn("Copy for Shortcuts", rawCode)),
-      done,
-    );
-  } else {
-    host.append(
-      el("div", { class: "muted" }, "On Android the button is a Chrome bookmark you run from the address bar. Two minutes, once:"),
-      el("ol", { class: "steps" },
-        el("li", {}, copyBtn("Copy button code", href)),
-        el("li", {}, "In Chrome, tap ⋮ then the star to bookmark this page. Tap the star again, then Edit."),
-        el("li", {}, "Name it “Fill my Steam cart”, replace the address with the pasted code, and save."),
-        el("li", {}, "After step 1 above opens your Steam cart, tap the address bar, type “Fill my” and tap the bookmark when it appears."),
-      ),
-      el("div", { class: "muted" }, "Using Firefox or Samsung Internet? The same bookmark trick works there."),
-      done,
-    );
+/** Create a 24-hour basket code and show it big, with a copy button. */
+async function fillCodeBox(host, items) {
+  host.innerHTML = "";
+  host.append(el("div", { class: "muted" }, "Getting a code…"));
+  const r = await api.basketCode.create(items);
+  host.innerHTML = "";
+  if (!r.ok) return host.append(el("div", { class: "muted" }, `Couldn't get a code: ${r.error.message}`));
+  if (r.enabled === false) return host.append(el("div", { class: "muted" }, "Basket codes aren't available on this site right now."));
+  const copy = el("button", { class: "btn btn-sm", html: `${ICON.copy}<span>Copy</span>` });
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(r.code);
+      toast("Code copied", { type: "ok", timeout: 2000 });
+    } catch {
+      toast(`Code: ${r.code}`, { timeout: 6000 });
+    }
+  });
+  host.append(
+    el("div", { class: "code-row" }, el("span", { class: "code num", "aria-label": "Basket code" }, r.code), copy),
+    el("div", { class: "muted small" }, "Valid for 24 hours. It holds only the games, nothing about you."),
+  );
+}
+
+/** Desktop: import a basket code made on another device. */
+function importCodeRow() {
+  const input = el("input", { class: "input code-input", type: "text", maxlength: 7, placeholder: "ABC123", autocomplete: "off", spellcheck: "false", "aria-label": "Basket code" });
+  const btn = el("button", { class: "btn btn-sm" }, "Import");
+  const go = async () => {
+    const code = input.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (code.length !== 6) return toast("A basket code is 6 letters and numbers.", { type: "err" });
+    btn.disabled = true;
+    const r = await api.basketCode.fetch(code);
+    btn.disabled = false;
+    if (!r.ok) return toast(r.error.message, { type: "err", timeout: 6000 });
+    await receiveBasket(r.items, "code");
+  };
+  btn.addEventListener("click", go);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  input.addEventListener("input", () => { input.value = input.value.toUpperCase(); });
+  return el("div", { class: "import-row" },
+    el("span", { class: "muted" }, "Have a basket code from your phone or another computer?"),
+    el("div", { class: "btn-row" }, input, btn));
+}
+
+/** Add games that arrived from the website (steamdeals:// link) or a basket code. */
+async function receiveBasket(items, source) {
+  const wanted = (items || []).map((i) => ({ appid: Number(i.appid), packageid: Number(i.packageid) || null })).filter((i) => i.appid > 0);
+  if (!wanted.length) return;
+  const byApp = new Map(state.deals.map((d) => [d.appid, d]));
+  const missing = wanted.filter((i) => !byApp.has(i.appid)).map((i) => i.appid);
+  if (missing.length && api.items?.lookup) {
+    const r = await api.items.lookup(missing);
+    if (r.ok) for (const d of r.items || []) byApp.set(d.appid, d);
   }
+  const list = basket().slice();
+  let added = 0;
+  for (const i of wanted) {
+    if (list.some((b) => b.appid === i.appid)) continue;
+    const d = byApp.get(i.appid);
+    if (!d) continue;
+    list.push(basketItem({ ...d, packageid: d.packageid ?? i.packageid }));
+    added++;
+  }
+  patchSettings({ basket: list }, { persistNow: true });
+  state.lastSent = null;
+  renderBasketButton();
+  refreshBasketToggles();
+  if ($("#grid")) openBasket();
+  toast(added ? `${fmtInt(added)} game${added === 1 ? "" : "s"} added from ${source === "code" ? "your basket code" : "the website"}` : "Those games are already in your basket", { type: "ok", timeout: 5000 });
 }
 
 async function sendDirect(ids, btn) {
@@ -1637,9 +1700,15 @@ async function init() {
     loadAll();
   }
   ensureTaxRegion();
+  // Desktop: baskets handed over from the website (steamdeals:// links), now or while running.
+  if (api.deeplink) {
+    api.deeplink.onBasket((p) => receiveBasket(p?.items, "web"));
+    api.deeplink.pending().then((p) => { if (p?.ok && p.basket) receiveBasket(p.basket.items, "web"); });
+  }
   const f = api.features || {};
   if (f.justSignedIn) toast(`Welcome, ${f.justSignedIn}`, { type: "ok" });
   if (f.privateProfile) toast("Your Steam profile's Game details are private, so owned games can't be hidden. Set them to Public in Steam, then refresh.", { type: "err", timeout: 12000 });
+  if (f.siteKeyInvalid) toast("You're signed in, but this site can't read Steam libraries right now (its Steam connection needs fixing). Deals still work; try again later or use your own API key.", { type: "err", timeout: 14000 });
   if (f.signInError) toast(`Sign-in didn't finish: ${f.signInError}`, { type: "err", timeout: 10000 });
 }
 init().catch((err) => {

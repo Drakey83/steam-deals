@@ -202,11 +202,14 @@ Streaming
   `/cart/` form, GET links, and API keys all fail; CORS to api.steampowered.com is allowed only for the store origin.
 - Desktop: `cart:add/get/remove` IPC use the signed-in session's token directly; success shows Steam's subtotal, "Open cart in
   Steam app" (`steam://openurl/https://store.steampowered.com/cart/`), and an Undo that removes the added line items.
-- Website: handoff. "Open my Steam cart" opens `store.steampowered.com/cart/#sd=<packageids>`; the person runs the
-  "Fill my Steam cart" button (`web/src/cart-bookmarklet.js`, served as a `javascript:` bookmark) on that page. It reads the
-  ids from the hash, fetches the page's own token and country, calls `AddItemsToCart`, and reloads the cart. Setup is per
-  device (drag to bookmarks bar; Safari/Chrome bookmark with pasted code; optional iOS Shortcut) and remembered via
-  `cartButtonSeen`. Steam's page CSP blocks loading scripts from other hosts, so the whole code lives in the bookmark.
+- Website: hands the basket to the desktop app, never to a bookmark/script (a bookmarklet version was built, verified
+  and then removed as too alarming for ordinary users). The app registers the `steamdeals://` scheme (electron-builder
+  `protocols`, plus `setAsDefaultProtocolClient` in dev). `steamdeals://cart?items=<appid>:<packageid>,…&v=1` arrives via
+  `second-instance` argv (Windows) or `open-url`; the renderer resolves unknown appids with `items:lookup` (GetItems) and
+  opens the basket. On Windows browsers the website uses that link and detects "didn't open" by the page keeping focus.
+  Elsewhere (phones, Mac, Linux) it shows a 6-character **basket code** (`web/api/basket.js`, Redis, 24 h TTL, ids only)
+  that the desktop basket's "Have a basket code?" field imports. Phones also get per-game `steam://store/<appid>` buttons.
+  `steam://purchase/<sub>` and other client protocol commands were tested and do not touch the account cart.
 - Phones/tablets: PWA manifest + icons, safe-area padding, filters drawer, full-width basket/drawer, bigger touch targets.
 
 ## 11. Work plan

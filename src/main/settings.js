@@ -24,7 +24,6 @@ const DEFAULTS = Object.freeze({
   taxRegion: null, // null = not chosen yet (US/CA), "included", "none", "US-WA", "CA-ON", "custom"
   taxCustomRate: 0,
   taxRegionAuto: false, // true while the region came from location detection and hasn't been changed by hand
-  cartButtonSeen: false, // website: the person has set up the "Fill my Steam cart" button
   account: null, // { steamid, name, avatar, method: 'steam' | 'apikey', signedInAt }
   apiKey: null,
   manualSteamId: null,

@@ -250,6 +250,25 @@ async function fetchItems(appids, { language = "english", country = "US", tagCou
   return out;
 }
 
+/** Full store cards (price, discount, packageid, rating, tags) for specific appids, whether or not on sale. */
+async function lookupItems(appids, { language = "english", country = "US", signal, fetchImpl } = {}) {
+  const out = [];
+  for (let i = 0; i < appids.length; i += 50) {
+    const input = {
+      ids: appids.slice(i, i + 50).map((appid) => ({ appid })),
+      context: { language, country_code: country, steam_realm: 1 },
+      data_request: { include_basic_info: true, include_reviews: true, include_release: true, include_tag_count: 8 },
+    };
+    const res = await fetchJSON(`${API}/IStoreBrowseService/GetItems/v1/?input_json=${encodeURIComponent(JSON.stringify(input))}`, { signal, fetchImpl });
+    for (const it of res?.response?.store_items ?? []) {
+      const n = normalizeItem(it, { requireDiscount: false });
+      if (n) out.push(n);
+    }
+    if (i + 50 < appids.length) await sleep(PAGE_SPACING_MS, signal);
+  }
+  return out;
+}
+
 // ---------- Steam account cart (needs the store session's web API token) ----------
 
 /** Country code Steam uses for this signed-in store session (the cart service wants it to match). */
@@ -356,6 +375,7 @@ module.exports = {
   fetchOwnedWithKey,
   fetchWebApiToken,
   fetchStoreCountry,
+  lookupItems,
   getCart,
   addToCart,
   removeFromCart,

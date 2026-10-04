@@ -87,12 +87,13 @@ already include it), and the total. When you're ready, **Send to my Steam cart**
 Steam cart. Nothing is purchased: you review and pay in Steam's own checkout, in the Steam app, the website,
 or on your phone, since the cart belongs to your account.
 
-- In the **Windows app**, one click does it (you need to be signed in through Steam).
-- On the **website**, browsers don't allow one site to change your cart on another, so Steam Deals hands the
-  basket to a small **“Fill my Steam cart” button** that runs on Steam's own page. Set it up once: drag it to
-  your bookmarks bar on a computer, or save it as a bookmark on iPhone, iPad or Android (the basket walks you
-  through it). Then it's two taps: *Open my Steam cart*, then your button. The button only ever runs on
-  steampowered.com and only adds items; your Steam sign-in never leaves Steam.
+- In the **Windows app**, one click does it (you need to be signed in through Steam). Undo removes the games again.
+- On the **website**, browsers don't allow one site to change your cart on another, so the website hands the
+  basket to the Windows app: on a Windows PC, **Send to Steam cart with the Steam Deals app** opens the app
+  with your basket (like a Spotify or Discord link). On a phone, Mac or Linux the basket shows a six-letter
+  **basket code** to type into the app on your PC; codes last 24 hours and hold only the games. Because the
+  Steam cart is tied to your account, you can then pay from the Steam app on your phone. Phones also get an
+  "Open in Steam app" button per game, which opens that game's own Add to Cart button in the Steam app.
 
 Filters live in the left sidebar: minimum discount and rating, minimum review count, tags, hide-owned and wishlist-only.
 Click any card for details, a score breakdown, and why it matched you, plus buttons to open the store page in your

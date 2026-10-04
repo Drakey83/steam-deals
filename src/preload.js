@@ -51,6 +51,19 @@ contextBridge.exposeInMainWorld("steamDeals", {
     detect: () => invoke("geo:detect"),
   },
 
+  // Baskets arriving from the website (steamdeals:// links) and basket codes.
+  deeplink: {
+    onBasket: (cb) => subscribe("deeplink:basket", cb),
+    pending: () => invoke("deeplink:pending"),
+  },
+  items: {
+    lookup: (appids) => invoke("items:lookup", { appids }),
+  },
+  basketCode: {
+    create: (items) => invoke("basketcode:create", { items }),
+    fetch: (code) => invoke("basketcode:fetch", { code }),
+  },
+
   // Desktop can fill the signed-in account's Steam cart directly.
   cart: {
     mode: "direct",

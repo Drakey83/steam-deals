@@ -138,7 +138,7 @@
       if (!apiKey) throw new ApiError("Your API key isn't saved in this browser. Sign out and add it again.", "no_key");
       data = await http("/api/owned", { method: "POST", body: { apiKey, account: a.steamid } });
     }
-    library = { steamid: data.steamid, games: data.games || [], wishlist: data.wishlist || [], privateProfile: Boolean(data.privateProfile), fetchedAt: Date.now() };
+    library = { steamid: data.steamid, games: data.games || [], wishlist: data.wishlist || [], privateProfile: Boolean(data.privateProfile), siteKeyInvalid: Boolean(data.siteKeyInvalid), fetchedAt: Date.now() };
     // Keep the displayed name and avatar current.
     if (data.name || data.avatar) {
       settings.account = { ...a, name: data.name || a.name, avatar: data.avatar || a.avatar };
@@ -280,11 +280,12 @@
       try {
         const me = await http("/api/me");
         settings.account = { method: "steam", steamid: me.steamid, name: me.name || "Steam user", avatar: me.avatar || null, signedInAt: Date.now() };
-        library = { steamid: me.steamid, games: me.games || [], wishlist: me.wishlist || [], privateProfile: Boolean(me.privateProfile), fetchedAt: Date.now() };
+        library = { steamid: me.steamid, games: me.games || [], wishlist: me.wishlist || [], privateProfile: Boolean(me.privateProfile), siteKeyInvalid: Boolean(me.siteKeyInvalid), fetchedAt: Date.now() };
         store.del(APIKEY_KEY);
         saveSettings();
         features.justSignedIn = settings.account.name;
         features.privateProfile = library.privateProfile;
+        features.siteKeyInvalid = library.siteKeyInvalid;
       } catch (err) {
         features.signInError = err.message;
       }
@@ -294,28 +295,21 @@
   const ALLOWED_SETTINGS = new Set([
     "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights", "hideOwned",
     "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste",
-    "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "cartButtonSeen",
+    "basket", "taxRegion", "taxCustomRate", "taxRegionAuto",
   ]);
 
-  // The website can't touch a Steam cart itself (browsers block that on purpose), so it hands the
-  // basket to a "Fill my Steam cart" button that runs on Steam's own page. See cart-bookmarklet.js.
-  let bookmarkletCode = null;
-  async function bookmarklet() {
-    if (!bookmarkletCode) {
-      const src = await (await fetch("/cart-bookmarklet.js")).text();
-      // Drop comment-only lines, keep everything else verbatim, encode so it survives as a bookmark URL.
-      const code = src.split("\n").filter((l) => !/^\s*\/\//.test(l)).join("\n").trim();
-      bookmarkletCode = "javascript:" + encodeURIComponent(code);
-    }
-    return bookmarkletCode;
-  }
+  // The website can't touch a Steam cart itself (browsers block that on purpose). The Steam Deals
+  // desktop app can, so the website hands the basket to it: a steamdeals:// link on Windows, or a
+  // short basket code to type into the app from a phone or another computer.
   function device() {
-    const forced = new URLSearchParams(location.search).get("device"); // testing aid: ?device=ios|android|desktop
-    if (["ios", "android", "desktop"].includes(forced)) return forced;
+    const forced = new URLSearchParams(location.search).get("device"); // testing aid: ?device=windows|mac|linux|ios|android
+    if (["windows", "mac", "linux", "ios", "android"].includes(forced)) return forced;
     const ua = navigator.userAgent;
-    const iOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    const android = /Android/.test(ua);
-    return iOS ? "ios" : android ? "android" : "desktop";
+    if (/iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) return "ios";
+    if (/Android/.test(ua)) return "android";
+    if (/Windows/.test(ua)) return "windows";
+    if (/Mac/.test(ua)) return "mac";
+    return "linux";
   }
 
   window.steamDeals = {
@@ -369,6 +363,7 @@
         try {
           const lib = await loadLibrary(force);
           if (!lib) return { owned: [], wishlist: [], signedIn: false };
+          if (lib.siteKeyInvalid) return { owned: [], wishlist: lib.wishlist, signedIn: false, siteKeyInvalid: true };
           return { owned: lib.games.map((g) => g.appid), wishlist: lib.wishlist, signedIn: lib.games.length > 0 || !lib.privateProfile, privateProfile: lib.privateProfile };
         } catch (err) {
           if (err.code === "signed_out") return { owned: [], wishlist: [], signedIn: false, sessionExpired: true };
@@ -415,9 +410,15 @@
       mode: "handoff",
       device: device(),
       supported: async () => ({ ok: true, value: false }),
-      /** Steam cart page carrying the basket in its address; the button on that page does the adding. */
-      handoffUrl: (packageids) => `https://store.steampowered.com/cart/#sd=${packageids.join(",")}`,
-      bookmarklet: wrap(async () => ({ value: await bookmarklet() })),
+      /** Link that opens the desktop app with these games (it registers the steamdeals:// scheme). */
+      appLink: (items) => `steamdeals://cart?items=${items.map((i) => `${i.appid}:${i.packageid || 0}`).join(",")}&v=1`,
+    },
+
+    basketCode: {
+      create: wrap(async (items) => {
+        const r = await http("/api/basket", { method: "POST", body: { items: items.map((i) => ({ appid: i.appid, packageid: i.packageid })) } });
+        return { enabled: r.enabled !== false, code: r.code || null, expiresIn: r.expiresIn || null };
+      }),
     },
 
     openExternal: async (url) => {

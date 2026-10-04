@@ -10,11 +10,17 @@ module.exports = handler(async (req, res) => {
   const [profile, wishlist] = await Promise.all([fetchProfile(steamid), fetchWishlist(steamid)]);
   let games = [];
   let privateProfile = false;
+  let siteKeyInvalid = false;
   try {
     games = await fetchOwned(process.env.STEAM_API_KEY, steamid);
   } catch (err) {
-    if (err.code !== "private") throw err;
-    privateProfile = true;
+    if (err.code === "private") privateProfile = true;
+    else if (err.code === "bad_key") {
+      // The site's own key is wrong or revoked. Sign the person in anyway; the page explains that
+      // libraries can't be read until the site owner fixes the key.
+      siteKeyInvalid = true;
+      console.error("[me] STEAM_API_KEY was rejected by Steam; update it in the project's environment variables");
+    } else throw err;
   }
-  send(res, 200, { steamid, name: profile.name, avatar: profile.avatar, games, wishlist, privateProfile });
+  send(res, 200, { steamid, name: profile.name, avatar: profile.avatar, games, wishlist, privateProfile, siteKeyInvalid });
 });

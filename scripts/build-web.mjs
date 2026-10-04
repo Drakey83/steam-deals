@@ -19,7 +19,6 @@ const copies = [
   ["src/shared/core.js", "web/api/_lib/core.js"],
   ["web/src/index.html", "web/public/index.html"],
   ["web/src/web-api.js", "web/public/web-api.js"],
-  ["web/src/cart-bookmarklet.js", "web/public/cart-bookmarklet.js"],
   ["web/src/manifest.webmanifest", "web/public/manifest.webmanifest"],
   ["build/icon.png", "web/public/icon.png"],
   ["build/icon-192.png", "web/public/icon-192.png"],

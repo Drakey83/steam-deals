@@ -59,7 +59,10 @@ const SORTS = [
   ["reviews", "Most reviewed"], ["price", "Lowest price"], ["name", "Name A–Z"],
 ];
 const REVIEW_MINS = [[0, "Any"], [100, "100+"], [1000, "1,000+"], [10000, "10,000+"], [50000, "50,000+"]];
-const SCAN_DEPTHS = [[1000, "Quick · 1,000 games"], [3000, "Standard · 3,000 games"], [6000, "Deep · 6,000 games"]];
+// 0 = everything on sale (~70k items, 2–3 min, streams in). Only offered in sale mode; the full catalog is ~240k.
+const SCAN_DEPTHS = [[3000, "Quick · 3,000"], [10000, "Standard · 10,000"], [25000, "Deep · 25,000"], [0, "Everything on sale · ~70,000 · slow"]];
+ICON.grid = svg('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>');
+ICON.tag = svg('<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>');
 const PAGE = 60;
 const DEFAULT_FILTERS = { minDiscount: 50, minRating: 80, minReviews: 0, selectedTags: [], wishlistOnly: false, hideOwned: true, sort: "score" };
 
@@ -79,6 +82,11 @@ const state = {
   shown: 0,
   selected: null,
   menuEl: null,
+  taste: null, // { affinity, anchors, basedOn, hasPlaytime, libraryCount, source }
+  tasteLoading: false,
+  tasteReason: null,
+  tasteProgress: null,
+  _tasteModel: null,
 };
 let saveTimer = null;
 let observer = null;
@@ -142,10 +150,15 @@ async function loadAll({ force = false } = {}) {
   if (state.loading) return;
   state.loading = true;
   state.error = null;
+  state.tasteLoading = true;
+  state.tasteProgress = null;
   setProgress({ label: "Connecting to Steam…" });
   renderStats();
   renderGrid(true);
+  renderForYouHead();
 
+  // Taste profile builds concurrently; deals render as soon as they arrive.
+  const tasteP = api.taste.build({ force }).catch((e) => ({ ok: false, error: { message: e.message } }));
   const [tagsRes, libRes, dealsRes] = await Promise.all([
     api.tags.fetch(),
     api.library.fetch({ force }),
@@ -166,33 +179,169 @@ async function loadAll({ force = false } = {}) {
   }
   if (dealsRes.ok) {
     state.deals = dealsRes.items || [];
+    state._tasteModel = null;
     state.meta = {
       total: dealsRes.total,
       scanned: dealsRes.scanned || (dealsRes.items || []).length,
       fetchedAt: dealsRes.fetchedAt,
       fromCache: Boolean(dealsRes.fromCache),
       truncated: Boolean(dealsRes.truncated),
+      discounted: dealsRes.discounted !== false,
+      streaming: false,
     };
   } else if (dealsRes.error.code !== "cancelled") {
     state.error = dealsRes.error;
     toast(`Couldn't load deals: ${dealsRes.error.message}`, { type: "err", action: () => loadAll({ force: true }) });
   }
   state.loading = false;
+  state.streamRun = null;
   setProgress(null);
+  syncSortWithView();
   renderSidebar(); // library state affects the toggles; deals affect the tag list
+  renderSeg();
+  renderSortSelect();
   renderBanners();
   updateResults();
   renderUpdated();
+
+  const tasteRes = await tasteP;
+  applyTaste(tasteRes);
+}
+
+// Pages arrive while the scan runs; show them right away instead of waiting for the whole depth.
+let streamTimer = null;
+function onDealsPartial(p) {
+  if (!state.loading || !p) return;
+  if (state.streamRun !== p.runId) {
+    state.streamRun = p.runId;
+    state.deals = [];
+    state.streamSeen = new Set();
+  }
+  for (const it of p.items || []) {
+    if (!state.streamSeen.has(it.appid)) {
+      state.streamSeen.add(it.appid);
+      state.deals.push(it);
+    }
+  }
+  state.meta = { ...state.meta, total: p.total, scanned: p.scanned, discounted: p.discounted !== false, streaming: true };
+  state._tasteModel = null;
+  if (streamTimer) return;
+  streamTimer = setTimeout(() => {
+    streamTimer = null;
+    if (state.loading) {
+      renderTags();
+      updateResults();
+    }
+  }, 700);
+}
+
+function applyTaste(res) {
+  state.tasteLoading = false;
+  state.tasteProgress = null;
+  state._tasteModel = null;
+  if (res?.ok) {
+    state.taste = res.taste || null;
+    state.tasteReason = res.reason || null;
+  } else {
+    state.taste = null;
+    state.tasteReason = "error";
+    if (res?.error?.message) toast(`Couldn't build your taste profile: ${res.error.message}`, { type: "err", action: rebuildTaste });
+  }
+  updateResults();
+}
+
+async function rebuildTaste() {
+  if (state.tasteLoading) return;
+  state.tasteLoading = true;
+  state.tasteProgress = null;
+  renderForYouHead();
+  const r = await api.taste.build({ force: true }).catch((e) => ({ ok: false, error: { message: e.message } }));
+  applyTaste(r);
+  if (r?.ok && r.taste) toast(`Taste profile rebuilt from ${fmtInt(r.taste.basedOn)} games`, { type: "ok" });
 }
 
 async function refreshLibrary() {
   const r = await api.library.fetch({ force: true });
   if (!r.ok) return toast(r.error.message, { type: "err" });
   state.library = { owned: new Set(r.owned || []), wishlist: new Set(r.wishlist || []), signedIn: Boolean(r.signedIn), sessionExpired: Boolean(r.sessionExpired) };
+  syncSortWithView();
   renderSidebar();
+  renderSeg();
   renderBanners();
   updateResults();
   if (r.signedIn) toast(`Library refreshed · ${fmtInt(r.owned.length)} games`, { type: "ok" });
+  rebuildTaste();
+}
+
+// ---------- view mode (For you / All deals) ----------
+function isPersonal() {
+  return Boolean(state.library.signedIn && state.account && state.account.method !== "guest");
+}
+function viewMode() {
+  return isPersonal() && state.settings.view !== "all" ? "foryou" : "all";
+}
+function syncSortWithView() {
+  const s = state.settings;
+  const before = s.sort;
+  if (viewMode() === "foryou" && s.sort === "score") s.sort = "match";
+  if (viewMode() === "all" && s.sort === "match") s.sort = "score";
+  if (s.sort !== before) api.settings.update({ sort: s.sort });
+}
+function setView(view) {
+  patchSettings({ view }, { persistNow: true });
+  syncSortWithView();
+  api.settings.update({ sort: state.settings.sort });
+  renderSeg();
+  renderSortSelect();
+  updateResults();
+}
+
+// Tag "lift": how much more the person's library leans into a tag than the discounted
+// catalog does. Ubiquitous tags (Singleplayer, Indie…) end up near zero; distinctive
+// tastes (Roguelike, Souls-like, Farming Sim…) end up strongly positive or negative.
+function tasteModel() {
+  const t = state.taste;
+  if (!t || !t.affinity) return null;
+  if (state._tasteModel && state._tasteModel.deals === state.deals) return state._tasteModel;
+  const base = new Map();
+  for (const d of state.deals) for (const tg of d.tags || []) base.set(tg.id, (base.get(tg.id) || 0) + tg.w);
+  const n = state.deals.length || 1;
+  const EPS = 1e-4;
+  const lift = new Map();
+  const ids = new Set([...Object.keys(t.affinity).map(Number), ...base.keys()]);
+  for (const id of ids) {
+    const a = (t.affinity[id] || 0) + EPS;
+    const b = (base.get(id) || 0) / n + EPS;
+    lift.set(id, Math.max(-2.5, Math.min(3, Math.log2(a / b))));
+  }
+  const topTags = Object.entries(t.affinity)
+    .map(([id, a]) => ({ id: Number(id), score: a * Math.max(0, lift.get(Number(id)) ?? 0) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 12)
+    .map((x) => x.id);
+  const anchorVecs = (t.anchors || []).map((a) => {
+    const m = new Map(a.tags.map((tg) => [tg.id, tg.w]));
+    const norm = Math.sqrt([...m.values()].reduce((s, w) => s + w * w, 0)) || 1;
+    return { ...a, m, norm };
+  });
+  const model = {
+    deals: state.deals,
+    lift,
+    topTags,
+    raw: (d) => (d.tags || []).reduce((s, tg) => s + tg.w * (lift.get(tg.id) ?? 0), 0),
+    contributions: (d) => (d.tags || []).map((tg) => ({ id: tg.id, v: tg.w * (lift.get(tg.id) ?? 0) })).sort((a, b) => b.v - a.v),
+    similar: (d, k = 2) => {
+      const dn = Math.sqrt((d.tags || []).reduce((s, tg) => s + tg.w * tg.w, 0)) || 1;
+      return anchorVecs
+        .map((a) => ({ name: a.name, hours: a.hours, appid: a.appid, sim: (d.tags || []).reduce((s, tg) => s + tg.w * (a.m.get(tg.id) || 0), 0) / (dn * a.norm) }))
+        .filter((x) => x.sim >= 0.28 && x.appid !== d.appid)
+        .sort((a, b) => b.sim - a.sim)
+        .slice(0, k);
+    },
+  };
+  state._tasteModel = model;
+  return model;
 }
 
 function patchSettings(patch, { refetch = false, persistNow = false } = {}) {
@@ -214,34 +363,64 @@ function patchSettings(patch, { refetch = false, persistNow = false } = {}) {
 function computeResults() {
   const s = state.settings;
   const lib = state.library;
-  const hideOwned = s.hideOwned && lib.signedIn;
+  const mode = viewMode();
+  const personal = mode === "foryou";
+  const saleOnly = s.catalog !== "all";
+  const hideOwned = (s.hideOwned || personal) && lib.signedIn;
   const tags = s.selectedTags || [];
-  const base = state.deals.filter((d) => d.discount >= s.minDiscount && (d.rating ?? -1) >= s.minRating && d.reviews >= s.minReviews);
+  // For-you keeps a quality floor so recommendations are credible even with loose filters.
+  const minRating = personal ? Math.max(s.minRating, 80) : s.minRating;
+  const minReviews = personal ? Math.max(s.minReviews, 300) : s.minReviews;
+  const base = state.deals.filter((d) => (!saleOnly || d.discount >= s.minDiscount) && (d.rating ?? -1) >= minRating && d.reviews >= minReviews);
   const ownedInBase = lib.signedIn ? base.filter((d) => lib.owned.has(d.appid)).length : 0;
   let pool = hideOwned ? base.filter((d) => !lib.owned.has(d.appid)) : base;
   if (s.wishlistOnly && lib.signedIn) pool = pool.filter((d) => lib.wishlist.has(d.appid));
   if (tags.length) pool = pool.filter((d) => tags.every((t) => d.tagids.includes(t)));
 
+  // Score: discount / rating / popularity. In All-games mode discount drops out so the
+  // ranking is "best games", not "best bargains".
   const maxReviews = pool.reduce((m, d) => Math.max(m, d.reviews), 1);
   const logMax = Math.log10(maxReviews) || 1;
-  const w = normWeights(s.weights);
+  const w = saleOnly ? normWeights(s.weights) : normWeights({ discount: 0, rating: s.weights?.rating ?? 35, popularity: s.weights?.popularity ?? 25 });
+  state.activeWeights = w;
   for (const d of pool) {
     d.popularity = d.reviews > 0 ? (100 * Math.log10(d.reviews)) / logMax : 0;
     d.parts = { discount: w.discount * d.discount, rating: w.rating * (d.rating ?? 0), popularity: w.popularity * d.popularity };
     d.score = d.parts.discount + d.parts.rating + d.parts.popularity;
   }
+
+  // Taste match: z-scored tag lift squashed to 0–100, then blended with the deal score.
+  const model = personal ? tasteModel() : null;
+  if (model && pool.length) {
+    const raws = pool.map((d) => model.raw(d));
+    const mean = raws.reduce((a, b) => a + b, 0) / raws.length;
+    const sd = Math.sqrt(raws.reduce((a, r) => a + (r - mean) ** 2, 0) / raws.length) || 1;
+    const p = Math.max(0, Math.min(100, Number(s.personalWeight ?? 60))) / 100;
+    pool.forEach((d, i) => {
+      d.match = 100 / (1 + Math.exp(-1.4 * ((raws[i] - mean) / sd)));
+      d.recScore = p * d.match + (1 - p) * d.score;
+    });
+  } else {
+    for (const d of pool) {
+      d.match = null;
+      d.recScore = d.score;
+    }
+  }
+
   const q = state.query.trim().toLowerCase();
   let list = q ? pool.filter((d) => d.name.toLowerCase().includes(q)) : pool.slice();
   const by = {
+    match: (a, b) => b.recScore - a.recScore,
     score: (a, b) => b.score - a.score,
-    discount: (a, b) => b.discount - a.discount || b.score - a.score,
+    discount: (a, b) => b.discount - a.discount || b.recScore - a.recScore,
     rating: (a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.reviews - a.reviews,
     reviews: (a, b) => b.reviews - a.reviews,
-    price: (a, b) => (a.priceCents ?? 1e12) - (b.priceCents ?? 1e12) || b.score - a.score,
+    price: (a, b) => (a.priceCents ?? 1e12) - (b.priceCents ?? 1e12) || b.recScore - a.recScore,
     name: (a, b) => a.name.localeCompare(b.name),
   };
-  list.sort(by[s.sort] || by.score);
-  return { list, ownedHidden: hideOwned ? ownedInBase : 0, poolSize: pool.length };
+  const sortKey = s.sort === "match" && !model ? "score" : s.sort;
+  list.sort(by[sortKey] || by.score);
+  return { list, ownedHidden: hideOwned ? ownedInBase : 0, poolSize: pool.length, mode, personalized: Boolean(model) };
 }
 
 function updateResults() {
@@ -249,6 +428,9 @@ function updateResults() {
   const r = computeResults();
   state.results = r.list;
   state.ownedHidden = r.ownedHidden;
+  state.mode = r.mode;
+  state.personalized = r.personalized;
+  renderForYouHead();
   renderStats();
   renderGrid(true);
 }
@@ -346,7 +528,7 @@ function renderBrowse() {
     renderTopbar(),
     el("div", { id: "banners" }),
     el("div", { class: "stats", id: "stats" }),
-    el("div", { class: "scroller", id: "scroller" }, el("div", { class: "grid", id: "grid" }), el("div", { class: "sentinel", id: "sentinel" })),
+    el("div", { class: "scroller", id: "scroller" }, el("div", { id: "foryou-head" }), el("div", { class: "grid", id: "grid" }), el("div", { class: "sentinel", id: "sentinel" })),
   );
   app.append(el("div", { class: "browse" }, sidebar, content));
   renderSidebar();
@@ -361,20 +543,74 @@ function renderTopbar() {
     state.query = search.value;
     updateResults();
   });
-  const sort = el("select", { class: "select", id: "sort", "aria-label": "Sort" }, SORTS.map(([v, l]) => el("option", { value: v, selected: state.settings.sort === v }, l)));
-  sort.addEventListener("change", () => patchSettings({ sort: sort.value }, { persistNow: true }));
   const refresh = el("button", { class: "btn btn-icon", title: "Refresh deals", "aria-label": "Refresh", html: ICON.refresh });
   refresh.addEventListener("click", () => loadAll({ force: true }));
-  return el(
+  const bar = el(
     "div",
     { class: "topbar" },
+    el("div", { class: "seg", id: "seg", role: "tablist" }),
+    el("div", { class: "seg", id: "seg-catalog", role: "tablist" }),
     el("div", { class: "search", html: ICON.search }, search, el("kbd", {}, "/")),
-    sort,
+    el("span", { id: "sort-slot" }),
     el("div", { class: "spacer" }),
     el("span", { class: "updated", id: "updated" }),
     refresh,
     renderAccountChip(),
   );
+  // Fill after the bar exists so helpers can re-render these pieces later.
+  queueMicrotask(() => {
+    renderSeg();
+    renderSortSelect();
+  });
+  return bar;
+}
+
+function renderSeg() {
+  const host = $("#seg");
+  const cat = $("#seg-catalog");
+  if (!host || !cat) return;
+  host.innerHTML = "";
+  cat.innerHTML = "";
+  const personal = isPersonal();
+  const mode = viewMode();
+  const saleOnly = state.settings.catalog !== "all";
+  const btn = (on, label, icon, disabled, title, onClick) => {
+    const b = el("button", { class: `seg-btn ${on ? "on" : ""}`, role: "tab", "aria-selected": on, disabled, title, html: icon }, el("span", {}, label));
+    b.addEventListener("click", onClick);
+    return b;
+  };
+  host.append(
+    btn(mode === "foryou", "For you", ICON.sparkle, !personal, personal ? "Ranked by how well each game matches your library" : "Sign in through Steam to get personal picks", () => setView("foryou")),
+    btn(mode === "all", "Browse", ICON.grid, false, "Everything, ranked by score", () => setView("all")),
+  );
+  cat.append(
+    btn(saleOnly, "On sale", ICON.tag, false, "Only games currently discounted", () => setCatalog("sale")),
+    btn(!saleOnly, "All games", ICON.library, false, "The whole Steam catalog, on sale or not", () => setCatalog("all")),
+  );
+}
+
+function setCatalog(catalog) {
+  if (state.settings.catalog === catalog) return;
+  const depth = Number(state.settings.scanDepth);
+  const patch = { catalog };
+  if (catalog === "all" && depth === 0) patch.scanDepth = 25000; // "everything" only exists for the sale list
+  state.deals = [];
+  state._tasteModel = null;
+  patchSettings(patch, { refetch: true, persistNow: true });
+  renderSeg();
+  renderSidebar();
+}
+
+function renderSortSelect() {
+  const slot = $("#sort-slot");
+  if (!slot) return;
+  const mode = viewMode();
+  const options = mode === "foryou" ? [["match", "Best match"], ...SORTS.filter(([v]) => v !== "match")] : SORTS.filter(([v]) => v !== "match");
+  const current = options.some(([v]) => v === state.settings.sort) ? state.settings.sort : options[0][0];
+  const sort = el("select", { class: "select", id: "sort", "aria-label": "Sort" }, options.map(([v, l]) => el("option", { value: v, selected: current === v }, l)));
+  sort.addEventListener("change", () => patchSettings({ sort: sort.value }, { persistNow: true }));
+  slot.innerHTML = "";
+  slot.append(sort);
 }
 
 function renderUpdated() {
@@ -483,10 +719,12 @@ function renderSidebar() {
   };
 
   const signedIn = state.library.signedIn;
+  const saleOnly = s.catalog !== "all";
+  const depths = saleOnly ? SCAN_DEPTHS : SCAN_DEPTHS.filter(([v]) => v !== 0);
   side.append(
     el("div", {}, el("div", { class: "section-title" }, "Filters", el("button", { class: "btn btn-ghost btn-sm", onclick: resetFilters }, "Reset")),
       el("div", { style: { display: "grid", gap: "14px" } },
-        range("minDiscount", "Min discount", 50, 95, 5, (v) => `${v}%`),
+        saleOnly ? range("minDiscount", "Min discount", 50, 95, 5, (v) => `${v}%`) : el("div", { class: "muted", style: { fontSize: "12px" } }, "Showing the whole catalog. Switch to “On sale” to filter by discount."),
         range("minRating", "Min rating", 50, 95, 5, (v) => `${v}%`),
         select("minReviews", "Min reviews", REVIEW_MINS),
       ),
@@ -507,12 +745,14 @@ function renderSidebar() {
 
 function resetFilters() {
   patchSettings({ ...DEFAULT_FILTERS }, { persistNow: true });
+  syncSortWithView();
+  api.settings.update({ sort: state.settings.sort });
   state.query = "";
   const s = $("#search");
   if (s) s.value = "";
   renderSidebar();
-  const sort = $("#sort");
-  if (sort) sort.value = "score";
+  renderSortSelect();
+  updateResults();
 }
 
 function renderTags() {
@@ -576,6 +816,65 @@ function renderBanners() {
   }
 }
 
+// ----- For-you header: what the app learned from the library -----
+function renderForYouHead() {
+  const host = $("#foryou-head");
+  if (!host) return;
+  host.innerHTML = "";
+  if (viewMode() !== "foryou") return;
+
+  if (state.tasteLoading) {
+    const p = state.tasteProgress;
+    host.append(
+      el("div", { class: "fy-head" },
+        el("div", { class: "fy-title", html: ICON.sparkle }, el("span", {}, "Learning your taste")),
+        el("div", { class: "muted" }, p?.total ? `Reading tags for ${fmtInt(p.done)} of ${fmtInt(p.total)} games you own…` : "Looking at your library and playtime…"),
+        el("div", { class: "fy-bar" }, el("span", { style: { width: p?.total ? `${(p.done / p.total) * 100}%` : "15%" }, class: p?.total ? "" : "pulse" })),
+      ),
+    );
+    return;
+  }
+  const t = state.taste;
+  if (!t) {
+    const msg = state.tasteReason === "session_expired" ? "Your Steam session expired. Sign in again to get personal picks." : "Couldn't build a taste profile from your library.";
+    host.append(el("div", { class: "fy-head" }, el("div", { class: "fy-title", html: ICON.warning }, el("span", {}, "No taste profile yet")), el("div", { class: "muted" }, msg),
+      el("div", {}, el("button", { class: "btn btn-sm", onclick: state.tasteReason === "session_expired" ? signInFromBrowse : rebuildTaste }, state.tasteReason === "session_expired" ? "Sign in again" : "Try again"))));
+    return;
+  }
+  const model = tasteModel();
+  const shown = state.settings.showTaste !== false;
+  const toggle = el("button", { class: "btn btn-ghost btn-sm", title: shown ? "Hide this panel" : "Show your taste profile", "aria-expanded": shown },
+    shown ? "Hide" : "Show");
+  toggle.addEventListener("click", () => {
+    patchSettings({ showTaste: !shown }, { persistNow: true });
+    renderForYouHead();
+  });
+  const chips = (model?.topTags || []).map((id) => el("span", { class: "chip on" }, tagName(id)));
+  const title = el("div", { class: "fy-title", html: ICON.sparkle }, el("span", {}, "Your taste"));
+
+  if (!shown) {
+    host.append(
+      el("div", { class: "fy-head fy-collapsed" },
+        el("div", { class: "fy-row" }, title,
+          el("span", { class: "muted fy-basis" }, `${fmtInt(chips.length)} signature tags · learned from ${fmtInt(t.basedOn)} games${t.builtAt ? ` · updated ${timeAgo(t.builtAt)}` : ""}`),
+          el("div", { class: "spacer" }), toggle)),
+    );
+    return;
+  }
+  const basis = `Learned from ${fmtInt(t.basedOn)} of your ${fmtInt(t.libraryCount)} games${t.hasPlaytime ? ", weighted by hours played" : ""}. It re-learns from your playtime every time the app refreshes.`;
+  const top = (t.anchors || []).slice(0, 3).map((a) => (a.hours ? `${a.name} (${fmtInt(Math.round(a.hours))} h)` : a.name)).join(" · ");
+  const lately = (t.anchors || []).filter((a) => a.recent > 0).sort((a, b) => b.recent - a.recent).slice(0, 3).map((a) => a.name).join(" · ");
+  host.append(
+    el("div", { class: "fy-head" },
+      el("div", { class: "fy-row" }, title, el("div", { class: "spacer" }),
+        el("button", { class: "btn btn-ghost btn-sm", title: "Re-read your library and playtime now", html: `${ICON.refresh}<span>Rebuild</span>`, onclick: rebuildTaste }),
+        toggle),
+      el("div", { class: "tags-wrap" }, chips.length ? chips : el("span", { class: "muted" }, "Not enough tagged games to find a pattern yet.")),
+      el("div", { class: "muted fy-basis" }, basis, top ? ` Most played: ${top}.` : "", lately ? ` Lately: ${lately}.` : ""),
+    ),
+  );
+}
+
 function renderStats() {
   const host = $("#stats");
   if (!host) return;
@@ -585,20 +884,27 @@ function renderStats() {
     return;
   }
   const list = state.results;
+  const saleOnly = state.settings.catalog !== "all";
   const best = list.reduce((m, d) => Math.max(m, d.discount), 0);
   const dot = () => el("span", { class: "dot" });
-  host.append(el("span", {}, el("strong", {}, fmtInt(list.length)), " deals"));
+  host.append(el("span", {}, el("strong", {}, fmtInt(list.length)), saleOnly ? " deals" : " games"));
   if (state.ownedHidden) host.append(dot(), el("span", {}, el("strong", {}, fmtInt(state.ownedHidden)), " owned hidden"));
-  if (best) host.append(dot(), el("span", {}, "best discount ", el("strong", {}, `${best}%`)));
+  if (saleOnly && best) host.append(dot(), el("span", {}, "best discount ", el("strong", {}, `${best}%`)));
   if (state.meta.total) {
+    const what = saleOnly ? "discounted items" : "items on Steam";
     host.append(
       dot(),
       el("span", { class: "muted", title: `${fmtInt(state.deals.length)} of those are purchasable games (the rest are DLC, bundles, software, etc.)` },
-        `scanned the ${fmtInt(state.meta.scanned)} most popular of ${fmtInt(state.meta.total)} discounted items`),
+        state.meta.streaming
+          ? `scanning… ${fmtInt(state.meta.scanned)} of ${fmtInt(state.meta.total)} ${what}`
+          : `scanned the ${fmtInt(state.meta.scanned)} most popular of ${fmtInt(state.meta.total)} ${what}`),
     );
   }
-  const w = normWeights(state.settings.weights);
-  host.append(el("span", { class: "spacer" }), el("span", { class: "pill pill-info", title: "Score weights: discount / rating / popularity" }, `${Math.round(w.discount * 100)} · ${Math.round(w.rating * 100)} · ${Math.round(w.popularity * 100)}`));
+  const w = state.activeWeights || normWeights(state.settings.weights);
+  const label = saleOnly
+    ? `Score weights · ${Math.round(w.discount * 100)} discount / ${Math.round(w.rating * 100)} rating / ${Math.round(w.popularity * 100)} popularity`
+    : `Score weights · ${Math.round(w.rating * 100)} rating / ${Math.round(w.popularity * 100)} popularity`;
+  host.append(el("span", { class: "spacer" }), el("button", { class: "pill pill-info pill-btn", title: "Open settings to change the score weights", onclick: openSettings, html: ICON.settings }, el("span", {}, label)));
 }
 
 // ----- grid -----
@@ -619,7 +925,7 @@ function renderGrid(reset) {
   if (reset) {
     grid.innerHTML = "";
     state.shown = 0;
-    $("#scroller").scrollTop = 0;
+    if (!state.meta?.streaming) $("#scroller").scrollTop = 0; // keep the reader's place while pages stream in
   }
   if (state.loading && !state.deals.length) {
     for (let i = 0; i < 12; i++) grid.append(el("div", { class: "skeleton" }, el("div", { class: "sk sk-art" }), el("div", { class: "sk sk-line" }), el("div", { class: "sk sk-line short" })));
@@ -665,19 +971,29 @@ function imgEl(src, cls) {
 function cardEl(d, rank) {
   const owned = state.library.owned.has(d.appid);
   const wished = state.library.wishlist.has(d.appid);
+  const personal = state.personalized && d.match != null;
+  const model = personal ? tasteModel() : null;
+  const similar = model ? model.similar(d, 2) : [];
+  const ring = personal
+    ? el("div", { class: "ring match", style: { "--p": Math.round(d.match) }, title: `${Math.round(d.match)}% match · deal score ${d.score.toFixed(1)} · #${rank}` }, el("span", { class: "num" }, `${Math.round(d.match)}%`))
+    : el("div", { class: "ring", style: { "--p": Math.round(d.score) }, title: `Score ${d.score.toFixed(1)} · #${rank}` }, el("span", { class: "num" }, Math.round(d.score)));
   const card = el(
     "button",
     { class: "card", dataset: { appid: d.appid }, "aria-label": `${d.name}, ${d.discount}% off, ${d.price}` },
     el("div", { class: "card-art" },
       imgEl(d.image, ""),
-      el("span", { class: "badge-discount num" }, `-${d.discount}%`),
-      el("div", { class: "ring", style: { "--p": Math.round(d.score) }, title: `Score ${d.score.toFixed(1)} · #${rank}` }, el("span", { class: "num" }, Math.round(d.score))),
+      d.discount > 0 ? el("span", { class: "badge-discount num" }, `-${d.discount}%`) : null,
+      ring,
       owned ? el("span", { class: "ribbon" }, "Owned") : null,
       wished ? el("span", { class: "heart", html: ICON.heart, title: "On your wishlist" }) : null,
     ),
     el("div", { class: "card-body" },
       el("div", { class: "card-title", title: d.name }, d.name),
-      el("div", { class: "price-row" }, el("span", { class: "price num" }, d.price ?? "—"), d.originalPrice ? el("span", { class: "price-orig num" }, d.originalPrice) : null),
+      personal
+        ? el("div", { class: "because", title: similar.map((x) => x.name).join(", ") },
+            similar.length ? ["Because you played ", el("b", {}, similar.map((x) => x.name).join(" · "))] : ["Matches your taste in ", el("b", {}, (model.contributions(d).filter((c) => c.v > 0).slice(0, 2).map((c) => tagName(c.id)).join(" · ")) || "these tags")])
+        : null,
+      el("div", { class: "price-row" }, el("span", { class: "price num" }, d.price ?? "—"), d.discount > 0 && d.originalPrice ? el("span", { class: "price-orig num" }, d.originalPrice) : null),
       el("div", { class: `rating-row ${ratingClass(d.rating)}` },
         el("span", { class: "pct num" }, d.rating != null ? `${d.rating}%` : "n/a"),
         d.reviewLabel ? el("span", { class: "lbl" }, d.reviewLabel) : null,
@@ -688,6 +1004,26 @@ function cardEl(d, rank) {
   );
   card.addEventListener("click", () => openDrawer(d));
   return card;
+}
+
+// "Why this is for you": top contributing tags and the owned games it resembles.
+function whyBox(d) {
+  if (!state.personalized || d.match == null) return null;
+  const model = tasteModel();
+  if (!model) return null;
+  const contribs = model.contributions(d);
+  const pos = contribs.filter((c) => c.v > 0).slice(0, 4);
+  const neg = contribs.filter((c) => c.v < -0.02).slice(-2).reverse();
+  const similar = model.similar(d, 3);
+  return el("div", { class: "why-box" },
+    el("div", { class: "score-head" }, el("span", { class: "muted" }, "Match with your taste"), el("span", { class: "big num match-color" }, `${Math.round(d.match)}%`)),
+    pos.length ? el("div", { class: "why-row" }, el("span", { class: "muted" }, "You tend to play"), el("div", { class: "tags-wrap" }, pos.map((c) => el("span", { class: "chip on chip-sm" }, tagName(c.id))))) : null,
+    neg.length ? el("div", { class: "why-row" }, el("span", { class: "muted" }, "Less your thing"), el("div", { class: "tags-wrap" }, neg.map((c) => el("span", { class: "chip chip-sm" }, tagName(c.id))))) : null,
+    similar.length
+      ? el("div", { class: "why-row" }, el("span", { class: "muted" }, "Similar to games you own"),
+          el("div", { class: "why-similar" }, similar.map((x) => el("span", {}, el("b", {}, x.name), x.hours ? el("span", { class: "muted num" }, ` · ${fmtInt(Math.round(x.hours))} h`) : null))))
+      : null,
+  );
 }
 
 // ---------- drawer ----------
@@ -713,8 +1049,8 @@ function openDrawer(d) {
         wished ? el("span", { class: "chip chip-sm", style: { color: "var(--pink)", borderColor: "rgba(255,126,182,.5)" } }, "On your wishlist") : null,
       ),
       el("div", { class: "buy-row" },
-        el("span", { class: "badge-discount num" }, `-${d.discount}%`),
-        el("div", {}, el("div", { class: "price num" }, d.price ?? "—"), d.originalPrice ? el("div", { class: "price-orig num" }, d.originalPrice) : null),
+        d.discount > 0 ? el("span", { class: "badge-discount num" }, `-${d.discount}%`) : null,
+        el("div", {}, el("div", { class: "price num" }, d.price ?? "—"), d.discount > 0 && d.originalPrice ? el("div", { class: "price-orig num" }, d.originalPrice) : null),
         el("div", { class: "actions" },
           el("button", { class: "btn btn-primary btn-sm", html: `${ICON.external}<span>Open on Steam</span>`, onclick: () => api.openExternal(d.url) }),
           el("button", { class: "btn btn-sm", title: "Open in the Steam app", html: `${ICON.play}<span>Steam app</span>`, onclick: () => api.openExternal(`steam://store/${d.appid}`) }),
@@ -738,6 +1074,7 @@ function openDrawer(d) {
         d.reviewLabel ? el("span", { class: "lbl" }, `· ${d.reviewLabel}`) : null,
         el("span", { class: "muted num" }, `· ${fmtInt(d.reviews)} reviews`),
       ),
+      whyBox(d),
       el("div", { class: "tags-wrap" }, d.tagids.map((t) => el("span", { class: "chip" }, tagName(t)))),
       d.description ? el("p", { class: "desc" }, d.description) : null,
     ),
@@ -804,6 +1141,18 @@ function openSettings() {
         el("div", { class: "weights" }, weightRow("discount", "Discount depth"), weightRow("rating", "Review rating"), weightRow("popularity", "Popularity")),
         el("div", { class: "muted", style: { fontSize: "12.5px" } }, "Popularity is the review count on a log scale, relative to the most-reviewed game in your current results."),
       ),
+      el("div", { class: "settings-group" }, el("h3", {}, "For you"),
+        (() => {
+          const val = el("span", { class: "val num" }, `${s.personalWeight ?? 60}%`);
+          const input = el("input", { type: "range", min: 0, max: 100, step: 5, value: s.personalWeight ?? 60 });
+          input.addEventListener("input", () => {
+            val.textContent = `${input.value}%`;
+            patchSettings({ personalWeight: Number(input.value) });
+          });
+          return el("div", { class: "weights" }, el("div", { class: "weight" }, el("span", {}, "Taste over deal"), input, val));
+        })(),
+        el("div", { class: "muted", style: { fontSize: "12.5px" } }, "How much the For-you ranking favours games that match your library over games that are simply the best bargains. 100% is pure taste match; 0% is the plain deal score."),
+      ),
       el("div", { class: "settings-group" }, el("h3", {}, "Account"), accountRow),
       el("div", { class: "settings-group" }, el("h3", {}, "About"),
         el("div", { class: "about", id: "about" }, "Steam Deals pulls discounts straight from Steam's public store API, hides what you own, and ranks what's left. No accounts, no telemetry, no third parties. Not affiliated with Valve Corporation.")),
@@ -854,9 +1203,19 @@ function onKey(e) {
 async function init() {
   const s = await api.settings.get();
   state.settings = s.settings;
+  // Older builds offered different scan depths; snap anything unknown to the standard depth.
+  if (!SCAN_DEPTHS.some(([v]) => v === Number(state.settings.scanDepth))) {
+    state.settings.scanDepth = 10000;
+    api.settings.update({ scanDepth: 10000 });
+  }
   const st = await api.auth.status();
   state.account = st.ok ? st.account : null;
   api.deals.onProgress(setProgress);
+  api.deals.onPartial(onDealsPartial);
+  api.taste.onProgress((p) => {
+    state.tasteProgress = p;
+    if (state.tasteLoading) renderForYouHead();
+  });
   document.addEventListener("keydown", onKey);
   setInterval(renderUpdated, 30000);
   if (!state.account) renderLogin();

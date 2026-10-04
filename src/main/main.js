@@ -135,8 +135,81 @@ async function profileFor(steamid) {
 
 const ALLOWED_SETTING_KEYS = new Set([
   "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights",
-  "hideOwned", "wishlistOnly", "sort", "selectedTags",
+  "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste",
 ]);
+const TASTE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+
+function sendToUI(channel, payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
+}
+
+// Learn what the signed-in person likes from their library. Playtime comes from
+// IPlayerService via a store-session token (no API key needed); if that path is
+// unavailable we fall back to the plain owned list without playtime.
+const ITEM_TAGS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+async function buildTaste({ force = false } = {}) {
+  const s = settings.get();
+  const a = s.account;
+  if (!a || a.method === "guest" || !a.steamid) return { taste: null, reason: "guest" };
+  const key = `taste:v2:${a.method}:${a.steamid}:${s.language}`;
+  const cached = cache.get(key, TASTE_TTL_MS);
+
+  // 1. The current library with playtime: one request. This runs on every refresh, which is
+  //    what lets the profile follow what the person is actually playing.
+  let games = null;
+  let source = null;
+  if (a.method === "steam") {
+    try {
+      const token = await steam.fetchWebApiToken({ fetchImpl: auth.sessionFetch });
+      games = await steam.fetchOwnedGamesDetailed({ steamid: a.steamid, accessToken: token });
+      source = "session";
+    } catch (err) {
+      console.warn("[taste] token path unavailable:", err.message);
+    }
+    if (!games) {
+      const ud = await steam.fetchUserData({ fetchImpl: auth.sessionFetch, steamid: a.steamid });
+      if (!ud.signedIn) {
+        return cached ? { taste: cached.value, fromCache: true, stale: true } : { taste: null, reason: "session_expired" };
+      }
+      games = ud.owned.map((appid) => ({ appid, name: null, playtime: 0, recent: 0 }));
+      source = "userdata";
+    }
+  } else {
+    games = await steam.fetchOwnedGamesDetailed({ steamid: a.steamid, apiKey: s.apiKey });
+    source = "apikey";
+  }
+
+  // 2. Nothing changed since last time (same games, same hours)? Reuse the profile.
+  const sample = steam.pickSample(games, 220);
+  const fingerprint = steam.libraryFingerprint(sample);
+  if (!force && cached && cached.value?.fingerprint === fingerprint) return { taste: cached.value, fromCache: true };
+
+  // 3. Tags: remember every game we've looked up, so a rebuild only fetches newcomers.
+  const tagKey = `itemtags:v1:${s.language}`;
+  const known = cache.get(tagKey, ITEM_TAGS_TTL_MS)?.value || {};
+  const missing = sample.filter((g) => !known[g.appid] || (force && known[g.appid].type === -1)).map((g) => g.appid);
+  sendToUI("taste:progress", { done: 0, total: missing.length });
+  if (missing.length) {
+    const fetched = await steam.fetchItems(missing, {
+      language: s.language,
+      country: s.country,
+      onProgress: (p) => sendToUI("taste:progress", p),
+    });
+    for (const it of fetched) known[it.appid] = { name: it.name, type: it.type, tags: it.tags };
+    for (const id of missing) if (!known[id]) known[id] = { name: null, type: -1, tags: [] }; // delisted/unknown: remember the miss
+    cache.set(tagKey, known);
+  }
+  const items = sample.map((g) => ({ appid: g.appid, ...(known[g.appid] || { name: null, type: -1, tags: [] }) }));
+
+  const taste = steam.buildTasteProfile(sample, items);
+  taste.source = source;
+  taste.libraryCount = games.length;
+  taste.builtAt = Date.now();
+  taste.fingerprint = fingerprint;
+  cache.set(key, taste);
+  return { taste, fromCache: false };
+}
 
 // ---------- IPC ----------
 handle("app:version", () => ({ value: app.getVersion() }));
@@ -240,7 +313,11 @@ handle("library:fetch", async ({ force = false } = {}) => {
 
 handle("deals:fetch", async ({ force = false } = {}) => {
   const s = settings.get();
-  const key = `deals:${s.country}:${s.language}:${s.scanDepth}:${steam.SERVER_MIN_DISCOUNT}`;
+  const discounted = s.catalog !== "all";
+  // scanDepth 0 = "everything on sale" (the discounted list is ~70k items; the whole catalog is ~240k, so it stays capped there).
+  const depth = Number(s.scanDepth);
+  const limit = depth === 0 && discounted ? Infinity : Math.min(Math.max(depth || 10000, 500), 25000);
+  const key = `catalog:v2:${discounted ? "sale" : "all"}:${s.country}:${s.language}:${s.scanDepth}:${steam.SERVER_MIN_DISCOUNT}`;
   if (!force) {
     const hit = cache.get(key, DEALS_TTL_MS);
     if (hit) return { ...hit.value, fromCache: true, age: hit.age };
@@ -248,18 +325,20 @@ handle("deals:fetch", async ({ force = false } = {}) => {
   if (dealsAbort) dealsAbort.abort();
   const controller = new AbortController();
   dealsAbort = controller;
+  const runId = Date.now();
   try {
     const result = await steam.fetchDeals({
       country: s.country,
       language: s.language,
-      limit: s.scanDepth,
+      limit,
+      discounted,
       signal: controller.signal,
-      onProgress: (p) => {
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("deals:progress", p);
-      },
+      onProgress: (p) => sendToUI("deals:progress", p),
+      // Stream each page so the UI can show results while the scan continues.
+      onPage: (items, meta) => sendToUI("deals:partial", { runId, items, ...meta, discounted }),
     });
     cache.set(key, result);
-    return { ...result, fromCache: false };
+    return { ...result, runId, fromCache: false };
   } finally {
     if (dealsAbort === controller) dealsAbort = null;
   }
@@ -279,6 +358,8 @@ handle("tags:fetch", async () => {
   cache.set(key, tags);
   return { tags, fromCache: false };
 });
+
+handle("taste:build", (opts) => buildTaste(opts));
 
 handle("shell:openExternal", (url) => ({ value: openExternal(url) }));
 

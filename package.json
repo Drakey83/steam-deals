@@ -1,0 +1,57 @@
+{
+  "name": "steam-deals",
+  "productName": "Steam Deals",
+  "version": "1.0.0",
+  "description": "Find the best Steam discounts on games you don't already own.",
+  "author": "Reid Carlisle",
+  "license": "MIT",
+  "private": true,
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "selftest": "node src/main/steam.js --selftest",
+    "icon": "python scripts/make-icon.py",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.steamdeals.app",
+    "productName": "Steam Deals",
+    "copyright": "Not affiliated with Valve Corporation. Steam is a trademark of Valve Corporation.",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "${productName} Setup ${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Steam Deals",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

@@ -16,13 +16,13 @@ explanation on every card. Everything you own is hidden.
 
 | | What you need | Best for |
 |---|---|---|
-| **[Website](https://steam-deals-olive.vercel.app)** | A browser | Trying it right now, on any computer or phone |
+| **[Website](https://steamdeal.vercel.app)** | A browser | Trying it right now, on any computer or phone |
 | **[Windows app](https://github.com/Drakey83/steam-deals/releases/latest)** | Windows 10 or 11 | Everyday use; works with private Steam profiles |
 | **Run it yourself** | [Node.js](https://nodejs.org) 20.11+ | Running everything on your own machine, or tinkering |
 
 ### Website
 
-Open **https://steam-deals-olive.vercel.app**. Nothing to install. Sign in through Steam, paste your own
+Open **https://steamdeal.vercel.app**. Nothing to install. Sign in through Steam, paste your own
 Steam Web API key, or browse as a guest. Signing in through Steam needs your profile's **Game details**
 set to Public. Using your own key does not.
 

@@ -1,11 +1,12 @@
 // Electron main process: window, lifecycle, and every IPC handler the UI can call.
-const { app, BrowserWindow, ipcMain, shell, Menu } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Menu, Tray, nativeImage } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const settings = require("./settings");
 const cache = require("./cache");
 const steam = require("./steam");
 const auth = require("./auth");
+const createSync = require("./sync");
 
 const DEALS_TTL_MS = 30 * 60 * 1000;
 const LIBRARY_TTL_MS = 10 * 60 * 1000;
@@ -14,6 +15,9 @@ const BG = "#0b0f14";
 
 let mainWindow = null;
 let dealsAbort = null;
+let tray = null;
+let quitting = false;
+const startHidden = process.argv.includes("--hidden"); // "Start with Windows" launches straight into the tray
 
 // ---------- steamdeals:// links (the website hands baskets to the app this way) ----------
 const PROTOCOL = "steamdeals";
@@ -55,11 +59,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", (_e, argv) => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    showWindow();
     const link = deepLinkIn(argv);
     if (link) handleDeepLink(link);
   });
@@ -95,12 +95,15 @@ function createWindow() {
       sandbox: true,
       nodeIntegration: false,
       spellcheck: false,
+      backgroundThrottling: false, // keep syncing at full speed while hidden in the tray
     },
   });
 
   if (b.maximized) mainWindow.maximize();
   mainWindow.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
-  mainWindow.once("ready-to-show", () => mainWindow.show());
+  mainWindow.once("ready-to-show", () => {
+    if (!startHidden) mainWindow.show();
+  });
 
   // Remember size/position.
   let saveTimer = null;
@@ -123,6 +126,20 @@ function createWindow() {
   mainWindow.on("unmaximize", () => {
     saveBounds();
     mainWindow.webContents.send("window:maximized", false);
+  });
+  // The X button hides the app to the tray, so the basket keeps syncing with the phone. Quit from the tray menu.
+  mainWindow.on("close", (e) => {
+    if (quitting || settings.get().closeToTray === false || !tray) return;
+    e.preventDefault();
+    mainWindow.hide();
+    if (!settings.get().trayHintShown) {
+      settings.update({ trayHintShown: true });
+      try {
+        tray.displayBalloon({ title: "Steam Deals is still running", content: "It keeps your Steam cart in sync with your phone from here. Right-click the icon to quit or change that.", iconType: "info" });
+      } catch {
+        /* balloons are optional */
+      }
+    }
   });
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -181,7 +198,7 @@ async function profileFor(steamid) {
 const ALLOWED_SETTING_KEYS = new Set([
   "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights",
   "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste", "showTastePhone",
-  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "pairAutoCart",
+  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows",
 ]);
 const TASTE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -265,7 +282,12 @@ handle("settings:get", () => ({ settings: settings.publicView() }));
 handle("settings:update", (patch) => {
   const clean = {};
   for (const [k, v] of Object.entries(patch || {})) if (ALLOWED_SETTING_KEYS.has(k)) clean[k] = v;
+  const before = settings.get();
   settings.update(clean);
+  if ("basket" in clean) sync.onLocalBasketChange(before.basket, clean.basket);
+  if ("pairAutoCart" in clean || "syncPaused" in clean) sync.kick();
+  if ("startWithWindows" in clean) applyLoginItem();
+  if ("closeToTray" in clean || "syncPaused" in clean || "startWithWindows" in clean) refreshTray();
   return { settings: settings.publicView() };
 });
 
@@ -291,12 +313,14 @@ handle("auth:signIn", async () => {
     signedInAt: Date.now(),
   };
   settings.update({ account, apiKey: null, manualSteamId: null });
+  sync.kick(); // a fresh Steam session can now mirror the basket into the cart
   return { account };
 });
 
 handle("auth:signOut", async () => {
   await auth.signOut();
   settings.update({ account: null, apiKey: null, manualSteamId: null });
+  sync.kick();
   return { settings: settings.publicView() };
 });
 
@@ -446,8 +470,8 @@ handle("items:lookup", async ({ appids = [] } = {}) => {
   return { items: await steam.lookupItems(ids, { language: s.language, country: s.country }) };
 });
 
-// ---------- phone pairing: baskets sent from the website on a phone land in this app ----------
-const SITE = "https://steamdeal.vercel.app";
+// ---------- pairing + the shared basket (the engine lives in sync.js) ----------
+const SITE = process.env.STEAM_DEALS_SITE || "https://steamdeal.vercel.app"; // override only for testing against a preview deploy
 async function pairApi(action, extra = {}) {
   const res = await fetch(`${SITE}/api/pair`, {
     method: "POST",
@@ -459,66 +483,100 @@ async function pairApi(action, extra = {}) {
   if (!res.ok) throw new steam.SteamError(data?.error?.message || "Pairing service didn't answer", res.status, data?.error?.code || "pair");
   return data;
 }
-let pairTimer = null;
-let lastSeenSentAt = 0;
-let pairPolling = false;
-async function pollPairInbox() {
-  const s = settings.get();
-  if (!s.pairId || !mainWindow || mainWindow.isDestroyed() || pairPolling) return;
-  pairPolling = true; // one check at a time, so a basket is never delivered twice
-  try {
-    const { box } = await pairApi("inbox", { pairId: s.pairId });
-    if (box && box.status === "sent" && box.sentAt > lastSeenSentAt) {
-      lastSeenSentAt = box.sentAt;
-      console.log(`[pair] basket from phone: ${box.items.length} item(s)`);
-      sendToUI("pair:basket", { items: box.items, sentAt: box.sentAt });
-    }
-  } catch {
-    /* offline or service down: try again next tick */
-  } finally {
-    pairPolling = false;
-  }
-}
-function startPairPolling() {
-  clearInterval(pairTimer);
-  if (!settings.get().pairId) return;
-  pairTimer = setInterval(pollPairInbox, 12000);
-  pollPairInbox();
-}
 
+const sync = createSync({
+  settings,
+  steam,
+  cartSession,
+  sessionFetch: auth.sessionFetch,
+  pairApi,
+  sendToUI,
+  version: app.getVersion(),
+  // Toasts cover it while the window is in front; otherwise a Windows notification.
+  shouldNotify: () => !mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible() || !mainWindow.isFocused(),
+  onNotificationClick: () => showWindow(),
+  log: (m) => console.log(m),
+});
+
+let pairStartDevices = 0;
 handle("pair:start", async () => {
-  const r = await pairApi("start");
+  const r = await pairApi("start", { pairId: settings.get().pairId || undefined });
   if (r.enabled === false) throw new steam.SteamError("Pairing isn't available right now.", null, "pair_down");
+  pairStartDevices = r.devices || 0;
   return { code: r.code, pairId: r.pairId, expiresIn: r.expiresIn };
 });
 handle("pair:check", async ({ pairId } = {}) => {
   const r = await pairApi("check", { pairId });
-  if (r.claimed) {
-    settings.update({ pairId });
-    lastSeenSentAt = Date.now(); // ignore anything older than the pairing itself
-    startPairPolling();
+  const joined = Boolean(r.claimed) && (r.devices || 0) > pairStartDevices;
+  if (joined && settings.get().pairId !== pairId) {
+    settings.update({ pairId, basketRev: 0 });
+    await sync.afterPaired();
+    refreshTray();
   }
-  return { claimed: Boolean(r.claimed), expired: Boolean(r.expired) };
+  return { claimed: joined, expired: Boolean(r.expired), devices: r.devices || 0 };
 });
-handle("pair:status", () => ({ paired: Boolean(settings.get().pairId), autoCart: settings.get().pairAutoCart !== false }));
-handle("pair:ack", async ({ sentAt, status, result } = {}) => {
-  const s = settings.get();
-  if (!s.pairId) return { value: false };
-  await pairApi("ack", { pairId: s.pairId, sentAt, status, result }).catch(() => {});
-  return { value: true };
-});
+handle("pair:status", () => ({ paired: Boolean(settings.get().pairId), autoCart: settings.get().pairAutoCart !== false, sync: sync.status() }));
 handle("pair:unpair", async () => {
   const s = settings.get();
   if (s.pairId) await pairApi("unpair", { pairId: s.pairId }).catch(() => {});
-  settings.update({ pairId: null });
-  clearInterval(pairTimer);
+  settings.update({ pairId: null, basketRev: 0, mirror: {} });
+  sync.afterUnpaired();
+  refreshTray();
   return { value: true };
 });
-handle("pair:poll", async () => {
-  await pollPairInbox();
+handle("sync:status", () => sync.status());
+handle("sync:now", () => {
+  sync.syncNow();
   return { value: true };
 });
-app.whenReady().then(() => setTimeout(startPairPolling, 4000));
+app.whenReady().then(() => setTimeout(() => sync.start(), 3000));
+
+// ---------- tray, close-to-tray, start with Windows ----------
+function showWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return createWindow();
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+function applyLoginItem() {
+  if (!app.isPackaged) return; // a dev run must never register itself to start with Windows
+  try {
+    app.setLoginItemSettings({ openAtLogin: Boolean(settings.get().startWithWindows), path: process.execPath, args: ["--hidden"] });
+  } catch {
+    /* not fatal */
+  }
+}
+function refreshTray() {
+  if (!tray) return;
+  const s = settings.get();
+  tray.setToolTip(!s.pairId ? "Steam Deals" : s.syncPaused ? "Steam Deals · syncing paused" : "Steam Deals · basket synced with your phone");
+  const toggled = () => {
+    refreshTray();
+    sendToUI("settings:changed", settings.publicView());
+  };
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Open Steam Deals", click: showWindow },
+      { type: "separator" },
+      { label: "Pause syncing with my phone", type: "checkbox", checked: Boolean(s.syncPaused), enabled: Boolean(s.pairId), click: (mi) => { settings.update({ syncPaused: mi.checked }); sync.kick(); toggled(); } },
+      { label: "Close to tray instead of quitting", type: "checkbox", checked: s.closeToTray !== false, click: (mi) => { settings.update({ closeToTray: mi.checked }); toggled(); } },
+      { label: "Start with Windows", type: "checkbox", checked: Boolean(s.startWithWindows), enabled: app.isPackaged, click: (mi) => { settings.update({ startWithWindows: mi.checked }); applyLoginItem(); toggled(); } },
+      { type: "separator" },
+      { label: "Quit Steam Deals", click: () => { quitting = true; app.quit(); } },
+    ]),
+  );
+}
+function createTray() {
+  const ico = path.join(__dirname, "..", "..", "build", "icon.ico");
+  const png = path.join(__dirname, "..", "..", "build", "icon.png");
+  let image = fs.existsSync(ico) ? nativeImage.createFromPath(ico) : fs.existsSync(png) ? nativeImage.createFromPath(png).resize({ width: 16, height: 16 }) : null;
+  if (!image || image.isEmpty()) return;
+  tray = new Tray(image);
+  tray.on("click", showWindow);
+  tray.on("double-click", showWindow);
+  refreshTray();
+}
+
 
 handle("cart:supported", () => ({ value: settings.get().account?.method === "steam" }));
 
@@ -546,11 +604,16 @@ handle("window:isMaximized", () => ({ value: Boolean(mainWindow?.isMaximized()) 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   createWindow();
+  createTray();
+  applyLoginItem();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
+app.on("before-quit", () => {
+  quitting = true;
+});
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

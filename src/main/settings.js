@@ -26,7 +26,13 @@ const DEFAULTS = Object.freeze({
   taxCustomRate: 0,
   taxRegionAuto: false, // true while the region came from location detection and hasn't been changed by hand
   pairId: null, // shared secret with the person's phone (website); baskets sent from it land here
-  pairAutoCart: true, // put baskets from the phone straight into the Steam cart (still never a purchase)
+  pairAutoCart: true, // keep the Steam cart in step with the shared basket (adds and removals; never a purchase)
+  basketRev: 0, // revision of the shared basket last seen on the relay
+  mirror: {}, // appid -> { packageid, lineItemId, addedAt }: cart lines this app put there, so only those are ever removed
+  syncPaused: false,
+  closeToTray: true, // the X button hides the app to the tray so syncing keeps running
+  startWithWindows: false,
+  trayHintShown: false,
   account: null, // { steamid, name, avatar, method: 'steam' | 'apikey', signedInAt }
   apiKey: null,
   manualSteamId: null,
@@ -39,10 +45,13 @@ function filePath() {
   return path.join(app.getPath("userData"), "settings.json");
 }
 
+// Objects that are replaced as a whole rather than merged key by key.
+const REPLACE_KEYS = new Set(["mirror", "account", "windowBounds"]);
+
 function deepMerge(base, patch) {
   const out = { ...base };
   for (const [k, v] of Object.entries(patch || {})) {
-    if (v && typeof v === "object" && !Array.isArray(v) && base[k] && typeof base[k] === "object" && !Array.isArray(base[k])) {
+    if (!REPLACE_KEYS.has(k) && v && typeof v === "object" && !Array.isArray(v) && base[k] && typeof base[k] === "object" && !Array.isArray(base[k])) {
       out[k] = deepMerge(base[k], v);
     } else {
       out[k] = v;

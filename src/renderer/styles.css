@@ -1490,6 +1490,85 @@ details.advanced summary:hover {
   margin-left: auto;
 }
 
+/* ---------- narrow screens (website on phones and small windows) ---------- */
+.filters-btn,
+.sidebar-done {
+  display: none;
+}
+@media (max-width: 860px) {
+  .browse {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    position: fixed;
+    top: var(--titlebar-h);
+    left: 0;
+    bottom: 0;
+    width: min(320px, 88vw);
+    z-index: 65;
+    transform: translateX(-102%);
+    transition: transform var(--t-med) var(--ease);
+    box-shadow: 20px 0 50px rgba(0, 0, 0, 0.45);
+  }
+  body.filters-open .sidebar {
+    transform: none;
+  }
+  .filters-btn {
+    display: inline-flex;
+  }
+  .sidebar-done {
+    display: inline-flex;
+    align-self: flex-end;
+    flex: none;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  .topbar .spacer,
+  .updated {
+    display: none;
+  }
+  .search {
+    order: 10;
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  .seg-btn {
+    padding: 0 9px;
+  }
+  .seg-btn span {
+    font-size: 12.5px;
+  }
+  .account .name {
+    display: none;
+  }
+  .account {
+    padding: 0 4px;
+  }
+  .scroller {
+    padding: 12px 12px 28px;
+  }
+  .stats {
+    padding: 10px 12px 0;
+  }
+  .banner {
+    margin: 10px 12px 0;
+    flex-wrap: wrap;
+  }
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+    gap: 12px;
+  }
+  .drawer {
+    width: 100vw;
+  }
+  .login-card {
+    padding: 30px 22px 22px;
+  }
+}
+
 /* ---------- motion preference ---------- */
 @media (prefers-reduced-motion: reduce) {
   *,

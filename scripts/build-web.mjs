@@ -1,0 +1,25 @@
+// Assemble the website from the shared sources:
+//   src/renderer/{app.js,styles.css}  -> web/public/      (same UI as the desktop app)
+//   src/shared/core.js                -> web/public/ and web/api/_lib/  (shared scoring + taste logic)
+//   web/src/{index.html,web-api.js}   -> web/public/      (website shell + browser implementation)
+//   build/icon.png                    -> web/public/icon.png
+import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const pub = join(root, "web", "public");
+rmSync(pub, { recursive: true, force: true });
+mkdirSync(pub, { recursive: true });
+
+const copies = [
+  ["src/renderer/app.js", "web/public/app.js"],
+  ["src/renderer/styles.css", "web/public/styles.css"],
+  ["src/shared/core.js", "web/public/core.js"],
+  ["src/shared/core.js", "web/api/_lib/core.js"],
+  ["web/src/index.html", "web/public/index.html"],
+  ["web/src/web-api.js", "web/public/web-api.js"],
+  ["build/icon.png", "web/public/icon.png"],
+];
+for (const [from, to] of copies) cpSync(join(root, from), join(root, to));
+console.log(`web build: ${copies.length} files -> web/public, web/api/_lib`);

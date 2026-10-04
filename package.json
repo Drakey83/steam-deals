@@ -12,7 +12,9 @@
     "selftest": "node src/main/steam.js --selftest",
     "icon": "python scripts/make-icon.py",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder --win --x64"
+    "dist": "electron-builder --win --x64",
+    "web:build": "node scripts/build-web.mjs",
+    "web:deploy": "node scripts/build-web.mjs && cd web && vercel deploy --prod --yes"
   },
   "devDependencies": {
     "electron": "^44.5.1",

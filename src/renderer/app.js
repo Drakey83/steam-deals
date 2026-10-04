@@ -344,6 +344,10 @@ function tasteModel() {
   return model;
 }
 
+// Settings that don't change which games are shown or in what order. Changing them must not
+// redraw the grid (which would also scroll it back to the top).
+const NON_RESULT_KEYS = new Set(["basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "cartButtonSeen", "showTaste"]);
+
 function patchSettings(patch, { refetch = false, persistNow = false } = {}) {
   state.settings = { ...state.settings, ...patch };
   clearTimeout(saveTimer);
@@ -354,7 +358,7 @@ function patchSettings(patch, { refetch = false, persistNow = false } = {}) {
     api.deals.cancel();
     state.loading = false;
     loadAll();
-  } else {
+  } else if (Object.keys(patch).some((k) => !NON_RESULT_KEYS.has(k))) {
     updateResults();
   }
 }
@@ -1006,9 +1010,11 @@ function cardEl(d, rank) {
   const ring = personal
     ? el("div", { class: "ring match", style: { "--p": Math.round(d.match) }, title: `${Math.round(d.match)}% match · deal score ${d.score.toFixed(1)} · #${rank}` }, el("span", { class: "num" }, `${Math.round(d.match)}%`))
     : el("div", { class: "ring", style: { "--p": Math.round(d.score) }, title: `Score ${d.score.toFixed(1)} · #${rank}` }, el("span", { class: "num" }, Math.round(d.score)));
+  // A div with button semantics, not a <button>: the card contains its own basket button, and
+  // nested buttons are invalid HTML with inconsistent focus and scroll behaviour.
   const card = el(
-    "button",
-    { class: "card", dataset: { appid: d.appid }, "aria-label": `${d.name}, ${d.discount}% off, ${d.price}` },
+    "div",
+    { class: "card", role: "button", tabindex: 0, dataset: { appid: d.appid }, "aria-label": `${d.name}, ${d.discount}% off, ${d.price}` },
     el("div", { class: "card-art" },
       imgEl(d.image, ""),
       d.discount > 0 ? el("span", { class: "badge-discount num" }, `-${d.discount}%`) : null,
@@ -1032,6 +1038,13 @@ function cardEl(d, rank) {
     ),
   );
   card.addEventListener("click", () => openDrawer(d));
+  card.addEventListener("keydown", (e) => {
+    if (e.target !== card) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openDrawer(d);
+    }
+  });
   return card;
 }
 

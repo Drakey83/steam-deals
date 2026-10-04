@@ -247,8 +247,10 @@
   // ---------- config + return from Steam sign-in ----------
   const features = { steamSignIn: false };
   // Anonymous user counter: a random id made in this browser, counted at most once a day.
+  // Test loads (the ?device= override used by the layout test rig) are never counted.
   async function countUser() {
     try {
+      if (new URLSearchParams(location.search).has("device")) return;
       let id = store.get("sd:uid");
       if (!id) {
         id = crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");

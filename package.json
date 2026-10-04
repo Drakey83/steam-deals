@@ -1,7 +1,7 @@
 {
   "name": "steam-deals",
   "productName": "Steam Deals",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Find the best Steam discounts on games you don't already own.",
   "author": "Reid Carlisle",
   "license": "MIT",
@@ -14,7 +14,8 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win --x64",
     "web:build": "node scripts/build-web.mjs",
-    "web:deploy": "node scripts/build-web.mjs && cd web && vercel deploy --prod --yes"
+    "web:deploy": "node scripts/build-web.mjs && cd web && vercel deploy --prod --yes",
+    "web:local": "node scripts/serve-web.mjs"
   },
   "devDependencies": {
     "electron": "^44.5.1",

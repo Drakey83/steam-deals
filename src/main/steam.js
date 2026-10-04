@@ -250,6 +250,64 @@ async function fetchItems(appids, { language = "english", country = "US", tagCou
   return out;
 }
 
+// ---------- Steam account cart (needs the store session's web API token) ----------
+
+/** Country code Steam uses for this signed-in store session (the cart service wants it to match). */
+async function fetchStoreCountry({ fetchImpl, signal } = {}) {
+  try {
+    const html = await fetchText(`${STORE}/cart/`, { fetchImpl, signal });
+    const m = html.match(/data-userinfo="([^"]+)"/);
+    if (m) {
+      const info = JSON.parse(m[1].replace(/&quot;/g, '"'));
+      if (/^[A-Z]{2}$/.test(info.country_code || "")) return info.country_code;
+    }
+  } catch {
+    /* fall through */
+  }
+  return "US";
+}
+
+async function cartCall(method, token, input, { post = false, signal } = {}) {
+  const url = `${API}/IAccountCartService/${method}/v1/?access_token=${encodeURIComponent(token)}`;
+  const res = post
+    ? await fetch(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `input_json=${encodeURIComponent(JSON.stringify(input))}`, signal })
+    : await fetch(`${url}&input_json=${encodeURIComponent(JSON.stringify(input))}`, { signal });
+  const eresult = res.headers.get("x-eresult");
+  if (!res.ok) throw new SteamError(`Steam's cart service answered HTTP ${res.status}`, res.status, res.status === 401 ? "session_expired" : "cart");
+  if (eresult && eresult !== "1") throw new SteamError(`Steam's cart service refused (code ${eresult})`, 200, "cart");
+  const data = await res.json();
+  return data?.response ?? {};
+}
+
+function normalizeCart(cart) {
+  const items = (cart?.line_items ?? []).map((li) => ({
+    lineItemId: String(li.line_item_id),
+    packageid: Number(li.packageid) || null,
+    bundleid: Number(li.bundleid) || null,
+    priceCents: Number(li.price_when_added?.amount_in_cents) || 0,
+    price: li.price_when_added?.formatted_amount ?? null,
+  }));
+  return { items, subtotal: cart?.subtotal?.formatted_amount ?? null, subtotalCents: Number(cart?.subtotal?.amount_in_cents) || 0 };
+}
+
+async function getCart(token, country, opts) {
+  return normalizeCart((await cartCall("GetCart", token, { user_country: country }, opts)).cart);
+}
+
+/** Add packages to the account cart. Returns the new cart plus the line-item ids just added (for undo). */
+async function addToCart(token, packageids, country, opts) {
+  const ids = [...new Set(packageids.map(Number).filter((n) => n > 0))];
+  if (!ids.length) throw new SteamError("Nothing to add", null, "empty");
+  const res = await cartCall("AddItemsToCart", token, { user_country: country, items: ids.map((packageid) => ({ packageid })) }, { ...opts, post: true });
+  return { ...normalizeCart(res.cart), added: (res.line_item_ids ?? []).map(String) };
+}
+
+async function removeFromCart(token, lineItemIds, country, opts) {
+  let cart = null;
+  for (const id of lineItemIds) cart = (await cartCall("RemoveItemFromCart", token, { line_item_id: String(id), user_country: country }, { ...opts, post: true })).cart;
+  return normalizeCart(cart);
+}
+
 /** Keyless wishlist appids for a public profile (used by the API-key path; the store session path gets it from userdata). */
 async function fetchWishlist(steamid, { signal, fetchImpl } = {}) {
   const res = await fetchJSON(`${API}/IWishlistService/GetWishlist/v1/?steamid=${encodeURIComponent(steamid)}`, { signal, fetchImpl });
@@ -297,6 +355,10 @@ module.exports = {
   fetchWishlist,
   fetchOwnedWithKey,
   fetchWebApiToken,
+  fetchStoreCountry,
+  getCart,
+  addToCart,
+  removeFromCart,
   fetchOwnedGamesDetailed,
   fetchItems,
   pickSample,

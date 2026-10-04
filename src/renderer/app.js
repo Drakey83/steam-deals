@@ -576,8 +576,10 @@ function renderTopbar() {
     el("div", { class: "spacer" }),
     el("span", { class: "updated", id: "updated" }),
     refresh,
+    basketButtonEl(),
     renderAccountChip(),
   );
+  queueMicrotask(renderBasketButton);
   // Fill after the bar exists so helpers can re-render these pieces later.
   queueMicrotask(() => {
     renderSeg();
@@ -1020,7 +1022,7 @@ function cardEl(d, rank) {
         ? el("div", { class: "because", title: similar.map((x) => x.name).join(", ") },
             similar.length ? ["Because you played ", el("b", {}, similar.map((x) => x.name).join(" · "))] : ["Matches your taste in ", el("b", {}, (model.contributions(d).filter((c) => c.v > 0).slice(0, 2).map((c) => tagName(c.id)).join(" · ")) || "these tags")])
         : null,
-      el("div", { class: "price-row" }, el("span", { class: "price num" }, d.price ?? "—"), d.discount > 0 && d.originalPrice ? el("span", { class: "price-orig num" }, d.originalPrice) : null),
+      el("div", { class: "price-row" }, el("span", { class: "price num" }, d.price ?? "—"), d.discount > 0 && d.originalPrice ? el("span", { class: "price-orig num" }, d.originalPrice) : null, el("span", { class: "spacer" }), basketToggleEl(d)),
       el("div", { class: `rating-row ${ratingClass(d.rating)}` },
         el("span", { class: "pct num" }, d.rating != null ? `${d.rating}%` : "n/a"),
         d.reviewLabel ? el("span", { class: "lbl" }, d.reviewLabel) : null,
@@ -1053,11 +1055,369 @@ function whyBox(d) {
   );
 }
 
+// ---------- basket ----------
+const Core = window.SteamCore;
+ICON.basket = svg('<path d="M3 10h18l-1.6 8.2a2 2 0 0 1-2 1.8H6.6a2 2 0 0 1-2-1.8z"/><path d="m7 10 3-6"/><path d="m17 10-3-6"/><path d="M10 14v3"/><path d="M14 14v3"/>');
+ICON.plus = svg('<path d="M12 5v14"/><path d="M5 12h14"/>');
+ICON.check = svg('<path d="m5 12 5 5L20 7"/>');
+ICON.trash = svg('<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/>');
+ICON.copy = svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>');
+ICON.undo = svg('<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>');
+
+const basket = () => (Array.isArray(state.settings.basket) ? state.settings.basket : []);
+const inBasket = (appid) => basket().some((b) => b.appid === appid);
+const fmtCents = (cents, sample) => {
+  // Format like Steam does for this region: reuse the currency symbol from a real price string.
+  const m = String(sample || "$0.00").match(/^([^\d\s]*)\s?[\d.,]+\s?([^\d\s]*)$/);
+  const [pre, post] = m ? [m[1], m[2]] : ["$", ""];
+  const n = (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${pre}${n}${post}`;
+};
+
+function basketItem(d) {
+  return { appid: d.appid, packageid: d.packageid ?? null, name: d.name, price: d.price, priceCents: d.priceCents ?? null, originalCents: d.originalCents ?? null, discount: d.discount || 0 };
+}
+function toggleBasket(d) {
+  const list = basket().slice();
+  const i = list.findIndex((b) => b.appid === d.appid);
+  if (i >= 0) list.splice(i, 1);
+  else {
+    if (!d.packageid) toast("Steam doesn't sell this one as a single package, so it can't go in the cart. Open it on Steam instead.", { type: "err", timeout: 6000 });
+    list.push(basketItem(d));
+    toast(`Added to basket · ${fmtInt(list.length)} game${list.length === 1 ? "" : "s"}`, { type: "ok", timeout: 2500 });
+  }
+  patchSettings({ basket: list }, { persistNow: true });
+  state.lastSent = null;
+  renderBasketButton();
+  refreshBasketToggles();
+  if ($("#drawer").classList.contains("basket-open")) openBasket();
+}
+function removeFromBasket(appid) {
+  patchSettings({ basket: basket().filter((b) => b.appid !== appid) }, { persistNow: true });
+  state.lastSent = null;
+  renderBasketButton();
+  refreshBasketToggles();
+  openBasket();
+}
+function clearBasket() {
+  patchSettings({ basket: [] }, { persistNow: true });
+  state.lastSent = null;
+  renderBasketButton();
+  refreshBasketToggles();
+  openBasket();
+}
+// Preselect the tax region from the person's location (country + state/province from the connection).
+// Runs once per session; a region the person chose by hand is never overwritten.
+let geoChecked = false;
+async function ensureTaxRegion() {
+  if (geoChecked || !api.geo) return;
+  geoChecked = true;
+  const s = state.settings;
+  if (s.taxRegion != null && !s.taxRegionAuto) return;
+  const r = await api.geo.detect().catch(() => null);
+  if (!r?.ok || !r.taxRegion) return;
+  if (r.taxRegion !== s.taxRegion) {
+    patchSettings({ taxRegion: r.taxRegion, taxRegionAuto: true }, { persistNow: true });
+    if ($("#drawer").classList.contains("basket-open")) openBasket();
+  }
+}
+
+function basketTotals() {
+  const items = basket();
+  const subtotal = items.reduce((s, b) => s + (b.priceCents || 0), 0);
+  const original = items.reduce((s, b) => s + (b.originalCents || b.priceCents || 0), 0);
+  const region = state.settings.taxRegion ?? Core.defaultTaxRegion(state.settings.country);
+  const { rate, taxCents } = Core.estimateTax(subtotal, region, state.settings.taxCustomRate);
+  return { items, subtotal, original, savings: Math.max(0, original - subtotal), region, rate, taxCents, total: subtotal + taxCents, sample: items.find((b) => b.price)?.price };
+}
+
+/** The small add/remove control used on cards and in the details panel. */
+function basketToggleEl(d, { size = "sm", label = false } = {}) {
+  const on = inBasket(d.appid);
+  const b = el("button", {
+    class: `btn btn-${size} basket-toggle ${on ? "on" : ""} ${label ? "" : "btn-icon"}`,
+    dataset: { appid: d.appid },
+    title: on ? "Remove from basket" : "Add to basket",
+    "aria-label": on ? `Remove ${d.name} from basket` : `Add ${d.name} to basket`,
+    "aria-pressed": on,
+    html: (on ? ICON.check : ICON.plus) + (label ? `<span>${on ? "In basket" : "Add to basket"}</span>` : ""),
+  });
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleBasket(d);
+  });
+  return b;
+}
+function refreshBasketToggles() {
+  for (const b of document.querySelectorAll(".basket-toggle")) {
+    const on = inBasket(Number(b.dataset.appid));
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", on);
+    b.title = on ? "Remove from basket" : "Add to basket";
+    const hasLabel = Boolean(b.querySelector("span"));
+    b.innerHTML = (on ? ICON.check : ICON.plus) + (hasLabel ? `<span>${on ? "In basket" : "Add to basket"}</span>` : "");
+  }
+}
+
+function basketButtonEl() {
+  const b = el("button", { class: "btn basket-btn", id: "basket-btn", title: "Your basket", "aria-label": "Basket" });
+  b.addEventListener("click", openBasket);
+  return b;
+}
+function renderBasketButton() {
+  const b = $("#basket-btn");
+  if (!b) return;
+  const t = basketTotals();
+  b.innerHTML = ICON.basket;
+  b.classList.toggle("has-items", t.items.length > 0);
+  if (t.items.length) {
+    b.append(el("span", { class: "basket-count num" }, fmtInt(t.items.length)), el("span", { class: "basket-total num" }, fmtCents(t.subtotal, t.sample)));
+  } else b.append(el("span", { class: "basket-label" }, "Basket"));
+}
+
+// ----- the basket panel (lives in the drawer) -----
+function openBasket() {
+  closeModal();
+  const drawer = $("#drawer");
+  drawer.innerHTML = "";
+  drawer.classList.add("basket-open");
+  const t = basketTotals();
+  const s = state.settings;
+  const needsRegion = t.region == null;
+
+  const regionSelect = el("select", { class: "select", id: "tax-region", "aria-label": "Tax region" });
+  regionSelect.append(el("option", { value: "", disabled: true, selected: needsRegion }, s.country === "CA" ? "Choose your province…" : "Choose your state…"));
+  let group = null;
+  for (const r of Core.TAX_REGIONS) {
+    if (r.group && r.group !== group?.label) {
+      group = el("optgroup", { label: r.group });
+      regionSelect.append(group);
+    }
+    const opt = el("option", { value: r.code, selected: t.region === r.code }, r.rate != null && r.group ? `${r.name} · ${r.rate}%` : r.name);
+    (r.group ? group : regionSelect).append(opt);
+  }
+  regionSelect.addEventListener("change", () => {
+    patchSettings({ taxRegion: regionSelect.value, taxRegionAuto: false }, { persistNow: true });
+    openBasket();
+  });
+  if (needsRegion) ensureTaxRegion();
+  const regionName = Core.TAX_REGIONS.find((r) => r.code === t.region)?.name;
+  const customRate = el("input", { class: "input num", type: "number", min: 0, max: 30, step: 0.001, value: s.taxCustomRate || "", placeholder: "%", style: { width: "90px" }, "aria-label": "Custom tax rate" });
+  customRate.addEventListener("change", () => {
+    patchSettings({ taxCustomRate: Number(customRate.value) || 0 }, { persistNow: true });
+    openBasket();
+  });
+
+  const rows = t.items.map((b) =>
+    el("div", { class: "basket-row" },
+      el("img", { class: "basket-thumb", src: Core.headerImage(b.appid), alt: "", loading: "lazy" }),
+      el("div", { class: "basket-info" },
+        el("div", { class: "basket-name" }, b.name),
+        el("div", { class: "basket-price-row" },
+          b.discount > 0 ? el("span", { class: "badge-discount num basket-badge" }, `-${b.discount}%`) : null,
+          el("span", { class: "price num" }, b.price ?? "—"),
+          b.discount > 0 && b.originalCents ? el("span", { class: "price-orig num" }, fmtCents(b.originalCents, b.price)) : null,
+          el("a", { class: "link basket-open-link", href: "#", onclick: (e) => { e.preventDefault(); api.openExternal(Core.storeUrl(b.appid)); } }, "Steam page"),
+        ),
+      ),
+      el("button", { class: "btn btn-icon btn-ghost", title: "Remove", "aria-label": `Remove ${b.name}`, html: ICON.close, onclick: () => removeFromBasket(b.appid) }),
+    ),
+  );
+
+  const summary = t.items.length
+    ? el("div", { class: "basket-summary" },
+        el("div", { class: "sum-row" }, el("span", {}, `Subtotal · ${fmtInt(t.items.length)} game${t.items.length === 1 ? "" : "s"}`), el("span", { class: "num" }, fmtCents(t.subtotal, t.sample))),
+        t.savings ? el("div", { class: "sum-row muted" }, el("span", {}, "You save"), el("span", { class: "num savings" }, fmtCents(t.savings, t.sample))) : null,
+        el("div", { class: "sum-row tax-row" },
+          el("div", { class: "tax-pick" },
+            el("span", {}, t.region === "included" ? "Tax" : "Estimated tax", s.taxRegionAuto && !needsRegion ? el("span", { class: "chip chip-sm auto-chip", title: "Picked from your location. Change it if Steam bills you somewhere else." }, "auto") : null),
+            regionSelect, t.region === "custom" ? customRate : null),
+          el("span", { class: "num" }, t.region === "included" ? "included" : needsRegion ? "—" : fmtCents(t.taxCents, t.sample)),
+        ),
+        el("div", { class: "sum-row total" }, el("span", {}, needsRegion ? "Total before tax" : "Estimated total"), el("span", { class: "num" }, fmtCents(t.total, t.sample))),
+        el("div", { class: "muted tax-note" },
+          t.region === "included" ? `Steam prices ${s.taxRegionAuto ? "where you are" : "in your region"} already include tax, so this total should match checkout.`
+          : needsRegion ? "Steam adds sales tax at checkout based on your billing address. Pick your region above for an estimate."
+          : `${s.taxRegionAuto && regionName ? `Looks like you're in ${regionName}. ` : ""}Estimate only: local taxes and digital-goods rules vary. Steam's checkout shows the exact amount before you pay.`),
+      )
+    : null;
+
+  drawer.append(
+    el("div", { class: "basket-head" },
+      el("div", { class: "fy-title", html: ICON.basket }, el("span", {}, "Your basket")),
+      el("div", { class: "spacer" }),
+      t.items.length ? el("button", { class: "btn btn-ghost btn-sm", html: `${ICON.trash}<span>Clear</span>`, onclick: clearBasket }) : null,
+      el("button", { class: "btn btn-icon btn-ghost", "aria-label": "Close", html: ICON.close, onclick: closeDrawer }),
+    ),
+    el("div", { class: "drawer-body basket-body" },
+      t.items.length ? el("div", { class: "basket-list" }, rows) : el("div", { class: "empty basket-empty" }, el("div", { class: "glyph", html: ICON.basket }), el("h3", {}, "Your basket is empty"), el("p", {}, "Use the + on any game to collect sales here and see what they add up to before you check out on Steam.")),
+      summary,
+      t.items.length ? sendPanel(t) : null,
+    ),
+  );
+  drawer.classList.add("open");
+  drawer.setAttribute("aria-hidden", "false");
+  $("#scrim").classList.add("open");
+  $("#scrim").onclick = () => { closeDrawer(); closeModal(); };
+  drawer.scrollTop = 0;
+}
+
+const appendKids = (parent, ...kids) => parent.append(...kids.flat(Infinity).filter((k) => k != null && k !== false));
+const STEAM_CART_URL = "https://store.steampowered.com/cart/";
+function sendPanel(t) {
+  const direct = api.cart?.mode === "direct";
+  const ids = t.items.map((b) => b.packageid).filter(Boolean);
+  const missing = t.items.length - ids.length;
+  const box = el("div", { class: "send-box" });
+  const openCartBtns = () => el("div", { class: "btn-row" },
+    el("button", { class: "btn btn-sm", html: `${ICON.play}<span>Open cart in Steam app</span>`, onclick: () => api.openExternal(`steam://openurl/${STEAM_CART_URL}`) }),
+    el("button", { class: "btn btn-sm", html: `${ICON.external}<span>Open cart in browser</span>`, onclick: () => api.openExternal(STEAM_CART_URL) }),
+  );
+
+  if (state.lastSent) {
+    const ls = state.lastSent;
+    appendKids(box, 
+      el("div", { class: "send-title ok", html: ICON.check }, el("span", {}, `Sent ${fmtInt(ls.count)} game${ls.count === 1 ? "" : "s"} to your Steam cart`)),
+      ls.subtotal ? el("div", { class: "muted" }, `Steam's cart subtotal: ${ls.subtotal}. Review and pay on Steam as usual.`) : null,
+      openCartBtns(),
+      ls.added?.length && direct
+        ? el("button", { class: "btn btn-ghost btn-sm", html: `${ICON.undo}<span>Undo: remove them from my Steam cart</span>`, onclick: undoSend })
+        : null,
+    );
+    return box;
+  }
+
+  if (direct) {
+    const canDirect = state.account?.method === "steam";
+    const sendBtn = el("button", { class: "btn btn-primary", disabled: !ids.length, html: `${ICON.basket}<span>Send to my Steam cart</span>` });
+    sendBtn.addEventListener("click", () => sendDirect(ids, sendBtn));
+    appendKids(box, 
+      el("div", { class: "send-title" }, "Ready to buy?"),
+      canDirect
+        ? el("div", { class: "muted" }, "One click puts these in your Steam cart. Nothing is purchased: you check out on Steam, in the app or the browser, as usual.")
+        : el("div", { class: "muted" }, "Sign in through Steam (account menu, top right) and this button fills your Steam cart in one click."),
+      canDirect ? sendBtn : el("button", { class: "btn btn-primary", html: `${ICON.login}<span>Sign in through Steam</span>`, onclick: signInFromBrowse }),
+      missing ? el("div", { class: "muted" }, `${fmtInt(missing)} game${missing === 1 ? " isn't" : "s aren't"} sold as a single package and will be skipped. Use its Steam page link above.`) : null,
+    );
+    return box;
+  }
+
+  // Website: hand the basket to the "Fill my Steam cart" button on Steam's own page.
+  const url = api.cart.handoffUrl(ids);
+  const dev = api.cart.device;
+  const seen = Boolean(state.settings.cartButtonSeen);
+  const step1 = el("button", { class: "btn btn-primary", disabled: !ids.length, html: `${ICON.external}<span>1 · Open my Steam cart</span>`, onclick: () => api.openExternal(url) });
+  const setup = el("details", { class: "setup", open: !seen },
+    el("summary", {}, seen ? "Set up the button again" : "One-time setup: get the “Fill my Steam cart” button"),
+    el("div", { class: "setup-body", id: "setup-body" }, el("div", { class: "muted" }, "Loading…")),
+  );
+  appendKids(box, 
+    el("div", { class: "send-title" }, "Send to Steam"),
+    el("div", { class: "muted" }, "Browsers don't let one website change your cart on another, so Steam Deals hands your basket to a small button that runs on Steam's own page. Nothing is purchased; you check out on Steam as usual."),
+    step1,
+    el("div", { class: "step2" }, el("b", {}, "2 · On the Steam page that opens, press your “Fill my Steam cart” button."), el("div", { class: "muted" }, "It reads your basket from that page's address, adds every game, and shows the cart. Your Steam sign-in stays on Steam.")),
+    setup,
+    missing ? el("div", { class: "muted" }, `${fmtInt(missing)} game${missing === 1 ? " isn't" : "s aren't"} sold as a single package and will be skipped.`) : null,
+    openCartBtns(),
+  );
+  fillSetup(dev, setup.querySelector("#setup-body"));
+  return box;
+}
+
+async function fillSetup(dev, host) {
+  const r = await api.cart.bookmarklet();
+  host.innerHTML = "";
+  if (!r.ok) return host.append(el("div", { class: "muted" }, "Couldn't load the button code. Refresh and try again."));
+  const href = r.value;
+  const rawCode = decodeURIComponent(href.replace(/^javascript:/, ""));
+  const copyBtn = (label, text) => {
+    const b = el("button", { class: "btn btn-sm", html: `${ICON.copy}<span>${label}</span>` });
+    b.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        toast("Copied", { type: "ok", timeout: 2000 });
+      } catch {
+        const ta = el("textarea", { readonly: true, style: { width: "100%", height: "120px" } }, text);
+        host.append(ta);
+        ta.select();
+        toast("Select the code below and copy it", { timeout: 4000 });
+      }
+    });
+    return b;
+  };
+  const done = el("button", { class: "btn btn-sm btn-primary", onclick: () => { patchSettings({ cartButtonSeen: true }, { persistNow: true }); openBasket(); toast("Great. Next time, just press “Open my Steam cart” and then your button.", { type: "ok", timeout: 5000 }); } }, "I've set it up");
+
+  if (dev === "desktop") {
+    const link = el("a", { class: "bookmarklet", href, draggable: true, html: `${ICON.basket}<span>Fill my Steam cart</span>` });
+    link.addEventListener("click", (e) => { e.preventDefault(); toast("Drag this button up to your bookmarks bar instead of clicking it.", { timeout: 5000 }); });
+    host.append(
+      el("ol", { class: "steps" },
+        el("li", {}, "Show your bookmarks bar if it's hidden (Ctrl+Shift+B in Chrome and Edge, Ctrl+Shift+B in Firefox)."),
+        el("li", {}, "Drag this button onto the bookmarks bar: ", link),
+        el("li", {}, "That's it. Press it whenever you're on the Steam cart page that step 1 opens."),
+      ),
+      el("div", { class: "muted" }, "No bookmarks bar? ", copyBtn("Copy button code", href), " then add a bookmark and paste the code as its address."),
+      done,
+    );
+  } else if (dev === "ios") {
+    host.append(
+      el("div", { class: "muted" }, "On iPhone and iPad the button is a Safari bookmark. Two minutes, once:"),
+      el("ol", { class: "steps" },
+        el("li", {}, copyBtn("Copy button code", href)),
+        el("li", {}, "In Safari, tap Share, then “Add Bookmark”, name it “Fill my Steam cart”, and save."),
+        el("li", {}, "Open Bookmarks, tap Edit, tap the new bookmark, delete its address and paste the code. Tap Done."),
+        el("li", {}, "After step 1 above opens your Steam cart in Safari, open Bookmarks and tap “Fill my Steam cart”."),
+      ),
+      el("div", { class: "muted" }, "If Steam's app opens instead of Safari in step 1, go back and long-press the button, then choose “Open in Safari”. Prefer Shortcuts? Create one with a “Run JavaScript on Web Page” action and paste this: ", copyBtn("Copy for Shortcuts", rawCode)),
+      done,
+    );
+  } else {
+    host.append(
+      el("div", { class: "muted" }, "On Android the button is a Chrome bookmark you run from the address bar. Two minutes, once:"),
+      el("ol", { class: "steps" },
+        el("li", {}, copyBtn("Copy button code", href)),
+        el("li", {}, "In Chrome, tap ⋮ then the star to bookmark this page. Tap the star again, then Edit."),
+        el("li", {}, "Name it “Fill my Steam cart”, replace the address with the pasted code, and save."),
+        el("li", {}, "After step 1 above opens your Steam cart, tap the address bar, type “Fill my” and tap the bookmark when it appears."),
+      ),
+      el("div", { class: "muted" }, "Using Firefox or Samsung Internet? The same bookmark trick works there."),
+      done,
+    );
+  }
+}
+
+async function sendDirect(ids, btn) {
+  btn.disabled = true;
+  btn.innerHTML = `${ICON.basket}<span>Sending…</span>`;
+  const r = await api.cart.add({ packageids: ids });
+  if (!r.ok) {
+    btn.disabled = false;
+    btn.innerHTML = `${ICON.basket}<span>Send to my Steam cart</span>`;
+    if (r.error.code === "session_expired" || r.error.code === "needs_steam") {
+      toast(r.error.message, { type: "err", action: signInFromBrowse, actionLabel: "Sign in", timeout: 8000 });
+    } else toast(r.error.message, { type: "err", timeout: 7000 });
+    return;
+  }
+  state.lastSent = { count: r.added?.length || ids.length, added: r.added || [], subtotal: r.cart?.subtotal || null };
+  toast(`${fmtInt(state.lastSent.count)} game${state.lastSent.count === 1 ? "" : "s"} added to your Steam cart`, { type: "ok" });
+  openBasket();
+}
+async function undoSend() {
+  const ls = state.lastSent;
+  if (!ls?.added?.length) return;
+  const r = await api.cart.remove({ lineItemIds: ls.added });
+  if (!r.ok) return toast(r.error.message, { type: "err" });
+  state.lastSent = null;
+  toast("Removed from your Steam cart. Your basket here is unchanged.", { type: "ok" });
+  openBasket();
+}
+
 // ---------- drawer ----------
 function openDrawer(d) {
   state.selected = d;
   const drawer = $("#drawer");
   drawer.innerHTML = "";
+  drawer.classList.remove("basket-open");
   const owned = state.library.owned.has(d.appid);
   const wished = state.library.wishlist.has(d.appid);
   const parts = d.parts || { discount: 0, rating: 0, popularity: 0 };
@@ -1079,7 +1439,8 @@ function openDrawer(d) {
         d.discount > 0 ? el("span", { class: "badge-discount num" }, `-${d.discount}%`) : null,
         el("div", {}, el("div", { class: "price num" }, d.price ?? "—"), d.discount > 0 && d.originalPrice ? el("div", { class: "price-orig num" }, d.originalPrice) : null),
         el("div", { class: "actions" },
-          el("button", { class: "btn btn-primary btn-sm", html: `${ICON.external}<span>Open on Steam</span>`, onclick: () => api.openExternal(d.url) }),
+          basketToggleEl(d, { size: "sm", label: true }),
+          el("button", { class: "btn btn-sm", html: `${ICON.external}<span>Open on Steam</span>`, onclick: () => api.openExternal(d.url) }),
           el("button", { class: "btn btn-sm", title: "Open in the Steam app", html: `${ICON.play}<span>Steam app</span>`, onclick: () => api.openExternal(`steam://store/${d.appid}`) }),
         ),
       ),
@@ -1114,7 +1475,7 @@ function openDrawer(d) {
 }
 function closeDrawer() {
   const drawer = $("#drawer");
-  drawer.classList.remove("open");
+  drawer.classList.remove("open", "basket-open");
   drawer.setAttribute("aria-hidden", "true");
   if (!$("#modal").classList.contains("open")) $("#scrim").classList.remove("open");
   state.selected = null;
@@ -1262,6 +1623,7 @@ async function init() {
     renderBrowse();
     loadAll();
   }
+  ensureTaxRegion();
   const f = api.features || {};
   if (f.justSignedIn) toast(`Welcome, ${f.justSignedIn}`, { type: "ok" });
   if (f.privateProfile) toast("Your Steam profile's Game details are private, so owned games can't be hidden. Set them to Public in Steam, then refresh.", { type: "err", timeout: 12000 });

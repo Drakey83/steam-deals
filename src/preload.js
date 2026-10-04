@@ -47,6 +47,19 @@ contextBridge.exposeInMainWorld("steamDeals", {
     onProgress: (cb) => subscribe("taste:progress", cb),
   },
 
+  geo: {
+    detect: () => invoke("geo:detect"),
+  },
+
+  // Desktop can fill the signed-in account's Steam cart directly.
+  cart: {
+    mode: "direct",
+    supported: () => invoke("cart:supported"),
+    get: () => invoke("cart:get"),
+    add: (payload) => invoke("cart:add", payload),
+    remove: (payload) => invoke("cart:remove", payload),
+  },
+
   openExternal: (url) => invoke("shell:openExternal", url),
   window: {
     isMaximized: () => invoke("window:isMaximized"),

@@ -19,7 +19,13 @@ const copies = [
   ["src/shared/core.js", "web/api/_lib/core.js"],
   ["web/src/index.html", "web/public/index.html"],
   ["web/src/web-api.js", "web/public/web-api.js"],
+  ["web/src/cart-bookmarklet.js", "web/public/cart-bookmarklet.js"],
+  ["web/src/manifest.webmanifest", "web/public/manifest.webmanifest"],
   ["build/icon.png", "web/public/icon.png"],
+  ["build/icon-192.png", "web/public/icon-192.png"],
+  ["build/icon-512.png", "web/public/icon-512.png"],
+  ["build/icon-512-maskable.png", "web/public/icon-512-maskable.png"],
+  ["build/apple-touch-icon.png", "web/public/apple-touch-icon.png"],
 ];
 for (const [from, to] of copies) cpSync(join(root, from), join(root, to));
 console.log(`web build: ${copies.length} files -> web/public, web/api/_lib`);

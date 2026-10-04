@@ -26,6 +26,7 @@ function normalizeItem(it, { requireDiscount = true } = {}) {
   const origCents = Number(bpo.original_price_in_cents);
   return {
     appid: it.appid,
+    packageid: Number.isFinite(Number(bpo.packageid)) ? Number(bpo.packageid) : null, // what Steam's cart takes
     name: it.name ?? `App ${it.appid}`,
     discount,
     price: bpo.formatted_final_price ?? null,
@@ -145,7 +146,60 @@ function buildQueryInput({ start = 0, count = 500, discounted = true, minDiscoun
   };
 }
 
-const api = { headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput };
+// ---------- sales-tax estimate for the basket ----------
+// Steam shows prices before tax in the US and Canada and adds tax at checkout from the billing
+// address. Everywhere else the price already includes tax. These are state/province base rates;
+// local add-ons and digital-goods rules vary, so the basket always calls this an estimate.
+const TAX_REGIONS = [
+  { code: "included", name: "Prices include tax", rate: 0, group: "" },
+  { code: "none", name: "No sales tax on games where I live", rate: 0, group: "" },
+  ...[
+    ["AL", "Alabama", 4], ["AK", "Alaska", 0], ["AZ", "Arizona", 5.6], ["AR", "Arkansas", 6.5], ["CA", "California", 7.25],
+    ["CO", "Colorado", 2.9], ["CT", "Connecticut", 6.35], ["DE", "Delaware", 0], ["DC", "District of Columbia", 6], ["FL", "Florida", 6],
+    ["GA", "Georgia", 4], ["HI", "Hawaii", 4], ["ID", "Idaho", 6], ["IL", "Illinois", 6.25], ["IN", "Indiana", 7], ["IA", "Iowa", 6],
+    ["KS", "Kansas", 6.5], ["KY", "Kentucky", 6], ["LA", "Louisiana", 5], ["ME", "Maine", 5.5], ["MD", "Maryland", 6],
+    ["MA", "Massachusetts", 6.25], ["MI", "Michigan", 6], ["MN", "Minnesota", 6.875], ["MS", "Mississippi", 7], ["MO", "Missouri", 4.225],
+    ["MT", "Montana", 0], ["NE", "Nebraska", 5.5], ["NV", "Nevada", 6.85], ["NH", "New Hampshire", 0], ["NJ", "New Jersey", 6.625],
+    ["NM", "New Mexico", 4.875], ["NY", "New York", 4], ["NC", "North Carolina", 4.75], ["ND", "North Dakota", 5], ["OH", "Ohio", 5.75],
+    ["OK", "Oklahoma", 4.5], ["OR", "Oregon", 0], ["PA", "Pennsylvania", 6], ["RI", "Rhode Island", 7], ["SC", "South Carolina", 6],
+    ["SD", "South Dakota", 4.2], ["TN", "Tennessee", 7], ["TX", "Texas", 6.25], ["UT", "Utah", 4.85], ["VT", "Vermont", 6],
+    ["VA", "Virginia", 5.3], ["WA", "Washington", 6.5], ["WV", "West Virginia", 6], ["WI", "Wisconsin", 5], ["WY", "Wyoming", 4],
+  ].map(([c, n, r]) => ({ code: `US-${c}`, name: n, rate: r, group: "United States (state base rate)" })),
+  ...[
+    ["AB", "Alberta", 5], ["BC", "British Columbia", 12], ["MB", "Manitoba", 12], ["NB", "New Brunswick", 15], ["NL", "Newfoundland and Labrador", 15],
+    ["NS", "Nova Scotia", 14], ["NT", "Northwest Territories", 5], ["NU", "Nunavut", 5], ["ON", "Ontario", 13], ["PE", "Prince Edward Island", 15],
+    ["QC", "Quebec", 14.975], ["SK", "Saskatchewan", 11], ["YT", "Yukon", 5],
+  ].map(([c, n, r]) => ({ code: `CA-${c}`, name: n, rate: r, group: "Canada (GST/HST/PST)" })),
+  { code: "custom", name: "Custom rate…", rate: null, group: "" },
+];
+
+/** Default tax region for a store country: US/CA people must pick a state/province; everyone else is tax-inclusive. */
+function defaultTaxRegion(country) {
+  return country === "US" || country === "CA" ? null : "included";
+}
+
+/** Map a detected country + state/province to a tax region code, or null when it can't be decided. */
+function taxRegionFor(country, region) {
+  if (!country) return null;
+  if (country === "US" || country === "CA") {
+    const code = `${country}-${String(region || "").toUpperCase()}`;
+    return TAX_REGIONS.some((t) => t.code === code) ? code : null;
+  }
+  return "included";
+}
+
+/** { rate, taxCents } for a subtotal in cents. `customRate` is a percent used when region is "custom". */
+function estimateTax(subtotalCents, region, customRate) {
+  let rate = 0;
+  if (region === "custom") rate = Math.max(0, Number(customRate) || 0);
+  else {
+    const r = TAX_REGIONS.find((t) => t.code === region);
+    rate = r && r.rate ? r.rate : 0;
+  }
+  return { rate, taxCents: Math.round((subtotalCents * rate) / 100) };
+}
+
+const api = { headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.SteamCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

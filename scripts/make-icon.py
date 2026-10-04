@@ -93,7 +93,17 @@ def main():
     sizes = [16, 24, 32, 48, 64, 128, 256]
     frames = [big.resize((s, s), Image.LANCZOS) for s in sizes]
     frames[-1].save(OUT / "icon.ico", format="ICO", sizes=[(s, s) for s in sizes], append_images=frames[:-1])
-    print(f"wrote {OUT / 'icon.png'} and {OUT / 'icon.ico'} ({', '.join(map(str, sizes))})")
+
+    # Web/PWA icons. Apple touch icons and "maskable" icons get a solid background with safe padding.
+    big.resize((192, 192), Image.LANCZOS).save(OUT / "icon-192.png")
+    big.resize((512, 512), Image.LANCZOS).save(OUT / "icon-512.png")
+    for name, size, pad in (("apple-touch-icon.png", 180, 0.0), ("icon-512-maskable.png", 512, 0.18)):
+        canvas = Image.new("RGBA", (size, size), (11, 15, 20, 255))
+        inner = int(size * (1 - 2 * pad))
+        glyph = render(1024).resize((inner, inner), Image.LANCZOS)
+        canvas.alpha_composite(glyph, ((size - inner) // 2, (size - inner) // 2))
+        canvas.convert("RGB").save(OUT / name)
+    print(f"wrote icon.png, icon.ico ({', '.join(map(str, sizes))}), icon-192/512, apple-touch-icon, maskable")
 
 
 if __name__ == "__main__":

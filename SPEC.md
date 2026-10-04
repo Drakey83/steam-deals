@@ -191,6 +191,24 @@ Streaming
 - The scan emits each page (`deals:partial`) as it arrives; the renderer renders and re-ranks every ~700 ms while the scan continues,
   without resetting scroll. Depths: 3,000 / 10,000 / 25,000, or everything on sale (~70k items; the full catalog of ~240k stays capped at 25k).
 
+## 13. Basket and Steam cart
+
+- Basket = `settings.basket` (appid, packageid, name, prices, discount), persisted like other settings. Toggle on cards and in the drawer;
+  top-bar button shows count + subtotal; the panel reuses the drawer. Totals: subtotal, savings, tax estimate, total.
+- Tax: `core.TAX_REGIONS` (US state base rates, Canadian GST/HST/PST, "included", "none", "custom"). US/CA default to "choose";
+  all other countries default to "included". Always labelled an estimate; Steam's checkout is the authority.
+- Steam's cart is account-wide and only changeable with the store session's `webapi_token`, via `IAccountCartService`
+  (`GetCart`, `AddItemsToCart`, `RemoveItemFromCart`, `user_country` must match the account). Verified 2026-10-04: the legacy
+  `/cart/` form, GET links, and API keys all fail; CORS to api.steampowered.com is allowed only for the store origin.
+- Desktop: `cart:add/get/remove` IPC use the signed-in session's token directly; success shows Steam's subtotal, "Open cart in
+  Steam app" (`steam://openurl/https://store.steampowered.com/cart/`), and an Undo that removes the added line items.
+- Website: handoff. "Open my Steam cart" opens `store.steampowered.com/cart/#sd=<packageids>`; the person runs the
+  "Fill my Steam cart" button (`web/src/cart-bookmarklet.js`, served as a `javascript:` bookmark) on that page. It reads the
+  ids from the hash, fetches the page's own token and country, calls `AddItemsToCart`, and reloads the cart. Setup is per
+  device (drag to bookmarks bar; Safari/Chrome bookmark with pasted code; optional iOS Shortcut) and remembered via
+  `cartButtonSeen`. Steam's page CSP blocks loading scripts from other hosts, so the whole code lives in the bookmark.
+- Phones/tablets: PWA manifest + icons, safe-area padding, filters drawer, full-width basket/drawer, bigger touch targets.
+
 ## 11. Work plan
 
 1. Scaffold package.json, install Electron + electron-builder, .gitignore, README.

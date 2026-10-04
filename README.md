@@ -1,5 +1,9 @@
 # Steam Deals
 
+[![Latest release](https://img.shields.io/github/v/release/Drakey83/steam-deals?label=release&color=4fc3f7)](https://github.com/Drakey83/steam-deals/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Drakey83/steam-deals/total?label=downloads&color=8bd450)](https://github.com/Drakey83/steam-deals/releases)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0b0f14)
+
 A Windows desktop app that finds Steam games you'll actually like and aren't already playing.
 Sign in with your Steam account and it learns your taste from your library, weighted by how much
 you've played each game, then ranks the current sales (or the whole catalog) by how well each game

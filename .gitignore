@@ -10,3 +10,4 @@ web/public/
 web/api/_lib/core.js
 .vercel/
 web/.vercel/
+.env

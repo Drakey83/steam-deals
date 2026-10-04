@@ -2,30 +2,68 @@
 
 [![Latest release](https://img.shields.io/github/v/release/Drakey83/steam-deals?label=release&color=4fc3f7)](https://github.com/Drakey83/steam-deals/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Drakey83/steam-deals/total?label=downloads&color=8bd450)](https://github.com/Drakey83/steam-deals/releases)
-![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0b0f14)
+![Platforms](https://img.shields.io/badge/runs%20on-web%20%7C%20Windows%20%7C%20local-0b0f14)
 
-A Windows desktop app that finds Steam games you'll actually like and aren't already playing.
-Sign in with your Steam account and it learns your taste from your library, weighted by how much
-you've played each game, then ranks the current sales (or the whole catalog) by how well each game
-matches you, with a "because you played …" explanation on every card. Everything you own is hidden.
+Find Steam games you'll actually like and aren't already playing. Sign in with your Steam account and
+it learns your taste from your library, weighted by how much you've played each game, then ranks the
+current sales (or the whole catalog) by how well each game matches you, with a "because you played …"
+explanation on every card. Everything you own is hidden.
 
 ![sign-in](docs/screenshot-signin.png)
 ![browse](docs/screenshot-browse.png)
 
-## Use it in your browser
+## Three ways to use it
 
-**https://steam-deals-olive.vercel.app** works on any computer or phone with nothing to install.
-Sign in through Steam, paste your own Steam Web API key, or browse as a guest.
-Signing in through Steam needs your profile's **Game details** set to Public; using your own key does not.
+| | What you need | Best for |
+|---|---|---|
+| **[Website](https://steam-deals-olive.vercel.app)** | A browser | Trying it right now, on any computer or phone |
+| **[Windows app](https://github.com/Drakey83/steam-deals/releases/latest)** | Windows 10 or 11 | Everyday use; works with private Steam profiles |
+| **Run it yourself** | [Node.js](https://nodejs.org) 20.11+ | Running everything on your own machine, or tinkering |
 
-## Install the desktop app (Windows)
+### Website
 
-1. Download `Steam Deals Setup x.y.z.exe` from the Releases page.
+Open **https://steam-deals-olive.vercel.app**. Nothing to install. Sign in through Steam, paste your own
+Steam Web API key, or browse as a guest. Signing in through Steam needs your profile's **Game details**
+set to Public. Using your own key does not.
+
+### Windows app
+
+1. Download `Steam Deals Setup x.y.z.exe` from the [latest release](https://github.com/Drakey83/steam-deals/releases/latest).
 2. Run it. Windows SmartScreen will say the publisher is unknown because the installer isn't code-signed.
    Click **More info → Run anyway**.
 3. Pick an install folder (or keep the default) and finish. A Start Menu entry and desktop shortcut are created.
 
 The app installs per-user and needs no admin rights. Uninstall from Windows Settings → Apps.
+It signs in through Steam's own login window, so it works even if your profile is private.
+
+### Run it yourself
+
+Download the code (green **Code** button → **Download ZIP**, or `git clone`), then in that folder:
+
+```bash
+npm install
+```
+
+Then either:
+
+```bash
+npm start
+```
+
+to run the desktop app from source (built and tested on Windows; Electron should also run it on macOS and Linux), or:
+
+```bash
+npm run web:local
+```
+
+to run the website on your own machine at http://localhost:3000. No accounts needed. The API-key and
+guest options work straight away. To turn on "Sign in through Steam" locally, create a file named `.env`
+in the folder with your own key and any long random string:
+
+```
+STEAM_API_KEY=your-32-character-key
+SESSION_SECRET=any-random-string-at-least-32-characters-long
+```
 
 ## Using it
 
@@ -64,9 +102,12 @@ pages arrive, so the first cards show up in about a second at any depth.
 
 ## Privacy
 
-- Sign-in happens on Steam's page. The only cookie the app reads is the one that identifies your SteamID64.
-- Your Steam session, settings, and caches stay in `%APPDATA%\Steam Deals` on your machine. Sign out wipes the session.
-- The app talks only to Steam domains. No telemetry, no third-party services.
+- Sign-in always happens on Steam's own page. Neither version ever sees your password.
+- **Windows app:** the only cookie it reads is the one that identifies your SteamID64. Your Steam session,
+  settings, and caches stay in `%APPDATA%\Steam Deals`. Sign out wipes the session. It talks only to Steam.
+- **Website:** settings and any API key you add stay in your browser. Your key is passed through to Steam
+  and never stored on the server. The visitor count is anonymous: one random id per browser, nothing tied
+  to you or your Steam account. No ads, no tracking.
 
 Not affiliated with Valve Corporation. Steam is a trademark of Valve Corporation.
 
@@ -92,6 +133,7 @@ login; it is enabled when the project has `STEAM_API_KEY` and `SESSION_SECRET` (
 environment variables. A visitor's own API key stays in their browser and is passed through to Steam only.
 
 ```bash
+npm run web:local       # run the website locally (plain Node, no accounts)
 npm run web:build       # assemble web/public from the shared sources
 npm run web:deploy      # build and deploy to production (needs `vercel login` and a linked project)
 ```

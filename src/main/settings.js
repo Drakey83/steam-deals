@@ -10,12 +10,16 @@ const DEFAULTS = Object.freeze({
   minDiscount: 50,
   minRating: 80,
   minReviews: 0,
-  scanDepth: 3000,
+  scanDepth: 10000, // 3000 | 10000 | 25000 most-popular items scanned
+  catalog: "sale", // 'sale' = discounted games only | 'all' = whole catalog
   weights: { discount: 40, rating: 35, popularity: 25 },
   hideOwned: true,
   wishlistOnly: false,
   sort: "score",
   selectedTags: [],
+  view: "foryou", // 'foryou' | 'all'
+  personalWeight: 60, // 0–100: how much the For-you ranking favours taste match over raw deal score
+  showTaste: true, // the "Your taste" panel above For-you results
   account: null, // { steamid, name, avatar, method: 'steam' | 'apikey', signedInAt }
   apiKey: null,
   manualSteamId: null,

@@ -35,10 +35,16 @@ contextBridge.exposeInMainWorld("steamDeals", {
     fetch: (opts) => invoke("deals:fetch", opts),
     cancel: () => invoke("deals:cancel"),
     onProgress: (cb) => subscribe("deals:progress", cb),
+    onPartial: (cb) => subscribe("deals:partial", cb),
   },
 
   tags: {
     fetch: () => invoke("tags:fetch"),
+  },
+
+  taste: {
+    build: (opts) => invoke("taste:build", opts),
+    onProgress: (cb) => subscribe("taste:progress", cb),
   },
 
   openExternal: (url) => invoke("shell:openExternal", url),

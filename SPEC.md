@@ -164,6 +164,33 @@ Visual language
 - [ ] Installer builds, installs per-user, creates shortcuts, app launches with correct icon and title, uninstaller works.
 - [ ] No console errors; no CSP violations; no network from the renderer.
 
+## 12. Personalization ("For you")
+
+Two toggles in the top bar, both persisted:
+- View: **For you** (taste-ranked; signed-in only) | **Browse** (plain score ranking).
+- Catalog: **On sale** (discounted games only; min-discount filter applies) | **All games** (whole catalog; discount drops out of the score).
+
+Taste profile (main process, `buildTaste`)
+1. Library with playtime: `pointssummary/ajaxgetasyncconfig` on the store session yields a `webapi_token`; `IPlayerService/GetOwnedGames`
+   with `access_token` returns owned games with `playtime_forever` and `playtime_2weeks`. Fallbacks: API key, then plain userdata (no playtime).
+2. Sample: everything played in the last two weeks, the 160 most-played, then a spread of unplayed games, up to 220.
+3. Fingerprint = owned appids + hours (to the hour) + recent hours. Unchanged fingerprint → reuse the cached profile. This runs on
+   every launch and refresh, so the profile follows what the person is playing now.
+4. Tags: `IStoreBrowseService/GetItems` (50 per request, weighted tags). A persistent appid→tags cache means a rebuild only fetches newcomers.
+5. Weights per game: `w = 1 + log2(1 + hours)` (0.35 if unplayed; 1 if no playtime data), `+ 1.5 + log2(1 + recentHours)` when played in the last two weeks.
+   Affinity[tag] = Σ w · tagWeight, normalized to shares. Anchors = top-80 weighted games with their tag vectors, for explanations.
+
+Matching (renderer, `tasteModel`)
+- Baseline tag share = mean tag weight across all scanned items. `lift[tag] = clamp(log2((affinity + ε) / (baseline + ε)), −2.5, 3)`.
+- `raw(game) = Σ tagWeight · lift`. Across the current pool: `match = 100 / (1 + e^(−1.4·z))` where z is raw's z-score.
+- `recScore = p · match + (1 − p) · dealScore`, `p` = "Taste over deal" slider (default 60%). Quality floor in For-you: rating ≥ 80, reviews ≥ 300.
+- Explanations: top positive tag contributions, and "Because you played X · Y" = anchors with cosine similarity ≥ 0.28 to the game's tag vector.
+- "Your taste" panel shows the top-12 tags by affinity × positive lift, most-played and recently played anchors; collapsible (Hide/Show), persisted.
+
+Streaming
+- The scan emits each page (`deals:partial`) as it arrives; the renderer renders and re-ranks every ~700 ms while the scan continues,
+  without resetting scroll. Depths: 3,000 / 10,000 / 25,000, or everything on sale (~70k items; the full catalog of ~240k stays capped at 25k).
+
 ## 11. Work plan
 
 1. Scaffold package.json, install Electron + electron-builder, .gitignore, README.

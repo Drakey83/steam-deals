@@ -293,11 +293,25 @@ handle("settings:update", (patch) => {
 
 handle("auth:status", async () => {
   const s = settings.get();
-  const steamid = await auth.readSteamId().catch(() => null);
   const account = s.account;
+  let steamid = await auth.readSteamId().catch(() => null);
+  if (account?.method === "steam" && steamid !== account.steamid) {
+    // The store session may just need renewing (a browser does this on every visit): let Steam's page do it.
+    steamid = await auth.keepAlive().catch(() => null);
+  }
   const sessionValid = account?.method === "steam" ? Boolean(steamid) && steamid === account.steamid : true;
   return { account, sessionValid };
 });
+
+// Renew the Steam sign-in now and then while the app runs, so the cart keeps working for weeks without
+// asking the person to sign in again (exactly as long as the Steam website would keep them signed in).
+const KEEPALIVE_MS = 6 * 60 * 60 * 1000;
+function scheduleKeepAlive() {
+  setInterval(() => {
+    if (settings.get().account?.method === "steam") auth.keepAlive().catch(() => {});
+  }, KEEPALIVE_MS);
+}
+app.whenReady().then(() => setTimeout(scheduleKeepAlive, 15000));
 
 handle("auth:signIn", async () => {
   // If an account is already set, the person is re-authenticating: start from a clean session.
@@ -442,7 +456,14 @@ async function cartSession() {
   try {
     token = await steam.fetchWebApiToken({ fetchImpl: auth.sessionFetch });
   } catch {
-    throw new steam.SteamError("Your Steam session has expired. Sign in again to use your cart.", null, "session_expired");
+    // Renew through Steam's own page first; only give up if the store still says no.
+    const renewed = await auth.keepAlive().catch(() => null);
+    try {
+      if (!renewed) throw new Error("not signed in");
+      token = await steam.fetchWebApiToken({ fetchImpl: auth.sessionFetch });
+    } catch {
+      throw new steam.SteamError("Your Steam session has expired. Sign in again to use your cart.", null, "session_expired");
+    }
   }
   storeCountry ||= await steam.fetchStoreCountry({ fetchImpl: auth.sessionFetch });
   return { token, country: storeCountry };

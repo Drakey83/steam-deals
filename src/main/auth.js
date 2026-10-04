@@ -115,6 +115,48 @@ async function signIn(parent, { fresh = false } = {}) {
   });
 }
 
+/**
+ * Keep the Steam sign-in alive the way a browser does: load the store front page in a hidden window on the
+ * same cookie partition and let Steam's own page renew the login (that is what "Remember me" is for). The
+ * app never looks at the page; afterwards it only checks whether the store still knows the SteamID.
+ * Resolves the SteamID64, or null if Steam no longer considers this device signed in.
+ */
+let keepAliveRun = null;
+function keepAlive({ timeoutMs = 12000 } = {}) {
+  if (keepAliveRun) return keepAliveRun;
+  keepAliveRun = new Promise((resolve) => {
+    let win;
+    try {
+      win = new BrowserWindow({
+        show: false,
+        width: 800,
+        height: 600,
+        webPreferences: { partition: PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false },
+      });
+    } catch {
+      return resolve(null);
+    }
+    let done = false;
+    const finish = async () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      const id = await readSteamId().catch(() => null);
+      if (!win.isDestroyed()) win.destroy();
+      resolve(id);
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    // Give the page a moment after it loads: the renewal is a short exchange the store page performs itself.
+    win.webContents.on("did-finish-load", () => setTimeout(finish, 3500));
+    win.webContents.on("did-fail-load", () => finish());
+    win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    win.loadURL("https://store.steampowered.com/").catch(() => finish());
+  }).finally(() => {
+    keepAliveRun = null;
+  });
+  return keepAliveRun;
+}
+
 /** Wipe the Steam cookie jar and caches. */
 async function signOut() {
   const ses = steamSession();
@@ -122,4 +164,4 @@ async function signOut() {
   await ses.clearCache().catch(() => {});
 }
 
-module.exports = { PARTITION, steamSession, sessionFetch, readSteamId, signIn, signOut };
+module.exports = { PARTITION, steamSession, sessionFetch, readSteamId, signIn, signOut, keepAlive };

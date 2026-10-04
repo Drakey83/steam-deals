@@ -1739,6 +1739,30 @@ details.advanced summary:hover {
   letter-spacing: 3px;
   font-weight: 700;
 }
+.connect-body {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+}
+.connect-body .steps {
+  text-align: left;
+}
+.connect-status {
+  text-align: center;
+  font-size: 14px;
+}
+.per-game {
+  display: grid;
+  gap: 10px;
+}
+.faster {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
 .steam-list {
   display: grid;
   gap: 8px;

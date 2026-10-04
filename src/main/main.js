@@ -181,7 +181,7 @@ async function profileFor(steamid) {
 const ALLOWED_SETTING_KEYS = new Set([
   "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights",
   "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste",
-  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto",
+  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "pairAutoCart",
 ]);
 const TASTE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -278,7 +278,9 @@ handle("auth:status", async () => {
 });
 
 handle("auth:signIn", async () => {
-  const r = await auth.signIn(mainWindow);
+  // If an account is already set, the person is re-authenticating: start from a clean session.
+  const fresh = Boolean(settings.get().account?.steamid);
+  const r = await auth.signIn(mainWindow, { fresh });
   if (!r.ok) return { account: null, cancelled: true };
   const profile = await profileFor(r.steamid);
   const account = {
@@ -444,25 +446,79 @@ handle("items:lookup", async ({ appids = [] } = {}) => {
   return { items: await steam.lookupItems(ids, { language: s.language, country: s.country }) };
 });
 
-// Basket codes live on the website's small store so a phone can hand a basket to this app.
+// ---------- phone pairing: baskets sent from the website on a phone land in this app ----------
 const SITE = "https://steamdeal.vercel.app";
-handle("basketcode:create", async ({ items = [] } = {}) => {
-  const res = await fetch(`${SITE}/api/basket`, {
+async function pairApi(action, extra = {}) {
+  const res = await fetch(`${SITE}/api/pair`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ items: items.map((i) => ({ appid: i.appid, packageid: i.packageid })) }),
+    body: JSON.stringify({ action, ...extra }),
     signal: AbortSignal.timeout(8000),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new steam.SteamError(data?.error?.message || "Couldn't create a basket code", res.status, "codes");
-  return { enabled: data.enabled !== false, code: data.code || null, expiresIn: data.expiresIn || null };
+  if (!res.ok) throw new steam.SteamError(data?.error?.message || "Pairing service didn't answer", res.status, data?.error?.code || "pair");
+  return data;
+}
+let pairTimer = null;
+let lastSeenSentAt = 0;
+let pairPolling = false;
+async function pollPairInbox() {
+  const s = settings.get();
+  if (!s.pairId || !mainWindow || mainWindow.isDestroyed() || pairPolling) return;
+  pairPolling = true; // one check at a time, so a basket is never delivered twice
+  try {
+    const { box } = await pairApi("inbox", { pairId: s.pairId });
+    if (box && box.status === "sent" && box.sentAt > lastSeenSentAt) {
+      lastSeenSentAt = box.sentAt;
+      console.log(`[pair] basket from phone: ${box.items.length} item(s)`);
+      sendToUI("pair:basket", { items: box.items, sentAt: box.sentAt });
+    }
+  } catch {
+    /* offline or service down: try again next tick */
+  } finally {
+    pairPolling = false;
+  }
+}
+function startPairPolling() {
+  clearInterval(pairTimer);
+  if (!settings.get().pairId) return;
+  pairTimer = setInterval(pollPairInbox, 12000);
+  pollPairInbox();
+}
+
+handle("pair:start", async () => {
+  const r = await pairApi("start");
+  if (r.enabled === false) throw new steam.SteamError("Pairing isn't available right now.", null, "pair_down");
+  return { code: r.code, pairId: r.pairId, expiresIn: r.expiresIn };
 });
-handle("basketcode:fetch", async ({ code = "" } = {}) => {
-  const res = await fetch(`${SITE}/api/basket?code=${encodeURIComponent(String(code).toUpperCase())}`, { signal: AbortSignal.timeout(8000) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new steam.SteamError(data?.error?.message || "That code didn't work", res.status, "codes");
-  return { items: data.items || [] };
+handle("pair:check", async ({ pairId } = {}) => {
+  const r = await pairApi("check", { pairId });
+  if (r.claimed) {
+    settings.update({ pairId });
+    lastSeenSentAt = Date.now(); // ignore anything older than the pairing itself
+    startPairPolling();
+  }
+  return { claimed: Boolean(r.claimed), expired: Boolean(r.expired) };
 });
+handle("pair:status", () => ({ paired: Boolean(settings.get().pairId), autoCart: settings.get().pairAutoCart !== false }));
+handle("pair:ack", async ({ sentAt, status, result } = {}) => {
+  const s = settings.get();
+  if (!s.pairId) return { value: false };
+  await pairApi("ack", { pairId: s.pairId, sentAt, status, result }).catch(() => {});
+  return { value: true };
+});
+handle("pair:unpair", async () => {
+  const s = settings.get();
+  if (s.pairId) await pairApi("unpair", { pairId: s.pairId }).catch(() => {});
+  settings.update({ pairId: null });
+  clearInterval(pairTimer);
+  return { value: true };
+});
+handle("pair:poll", async () => {
+  await pollPairInbox();
+  return { value: true };
+});
+app.whenReady().then(() => setTimeout(startPairPolling, 4000));
 
 handle("cart:supported", () => ({ value: settings.get().account?.method === "steam" }));
 

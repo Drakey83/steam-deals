@@ -314,6 +314,7 @@
 
   window.steamDeals = {
     platform: "web",
+    device: device(),
     features,
     ready,
     version: async () => ({ ok: true, value: "web" }),
@@ -414,10 +415,37 @@
       appLink: (items) => `steamdeals://cart?items=${items.map((i) => `${i.appid}:${i.packageid || 0}`).join(",")}&v=1`,
     },
 
-    basketCode: {
-      create: wrap(async (items) => {
-        const r = await http("/api/basket", { method: "POST", body: { items: items.map((i) => ({ appid: i.appid, packageid: i.packageid })) } });
-        return { enabled: r.enabled !== false, code: r.code || null, expiresIn: r.expiresIn || null };
+    // Pairing with the Steam Deals Windows app on a PC: a random key shared once, kept in this browser.
+    pair: {
+      isPaired: () => Boolean(store.get("sd:pair")),
+      claim: wrap(async (code) => {
+        const r = await http("/api/pair", { method: "POST", body: { action: "claim", code } });
+        if (r.enabled === false) throw new ApiError("Pairing isn't available on this site right now.", "pair_down");
+        store.set("sd:pair", r.pairId);
+        return { pairId: r.pairId };
+      }),
+      send: wrap(async (items) => {
+        const pairId = store.get("sd:pair");
+        if (!pairId) throw new ApiError("Not paired with a PC.", "bad_pair");
+        try {
+          const r = await http("/api/pair", { method: "POST", body: { action: "send", pairId, items: items.map((i) => ({ appid: i.appid, packageid: i.packageid })) } });
+          return { sentAt: r.sentAt };
+        } catch (err) {
+          if (err.code === "bad_pair") store.del("sd:pair");
+          throw err;
+        }
+      }),
+      status: wrap(async () => {
+        const pairId = store.get("sd:pair");
+        if (!pairId) throw new ApiError("Not paired with a PC.", "bad_pair");
+        const r = await http("/api/pair", { method: "POST", body: { action: "status", pairId } });
+        return { box: r.box };
+      }),
+      unpair: wrap(async () => {
+        const pairId = store.get("sd:pair");
+        if (pairId) http("/api/pair", { method: "POST", body: { action: "unpair", pairId } }).catch(() => {});
+        store.del("sd:pair");
+        return {};
       }),
     },
 

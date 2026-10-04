@@ -1266,7 +1266,7 @@ function openBasket() {
       t.items.length ? el("div", { class: "basket-list" }, rows) : el("div", { class: "empty basket-empty" }, el("div", { class: "glyph", html: ICON.basket }), el("h3", {}, "Your basket is empty"), el("p", {}, "Use the + on any game to collect sales here and see what they add up to before you check out on Steam.")),
       summary,
       t.items.length ? sendPanel(t) : null,
-      api.cart?.mode === "direct" && api.basketCode ? importCodeRow() : null,
+      api.cart?.mode === "direct" && api.pair?.start ? pairRow() : null,
     ),
   );
   drawer.classList.add("open");
@@ -1291,7 +1291,7 @@ function sendPanel(t) {
   if (state.lastSent) {
     const ls = state.lastSent;
     appendKids(box, 
-      el("div", { class: "send-title ok", html: ICON.check }, el("span", {}, `Sent ${fmtInt(ls.count)} game${ls.count === 1 ? "" : "s"} to your Steam cart`)),
+      el("div", { class: "send-title ok", html: ICON.check }, el("span", {}, ls.count ? `Sent ${fmtInt(ls.count)} game${ls.count === 1 ? "" : "s"} to your Steam cart` : "Already in your Steam cart")),
       ls.subtotal ? el("div", { class: "muted" }, `Steam's cart subtotal: ${ls.subtotal}. Review and pay on Steam as usual.`) : null,
       openCartBtns(),
       ls.added?.length && direct
@@ -1316,76 +1316,24 @@ function sendPanel(t) {
     return box;
   }
 
-  // Website: Steam only lets its own app change the cart, so each game opens in Steam (the Steam
-  // desktop client on a computer, the Steam mobile app on a phone) with its own Add to Cart button
-  // ready. The Steam Deals Windows app, which is signed into Steam itself, can do all of them at
-  // once and is offered as an optional shortcut.
-  const dev = api.cart.device;
+  // Website. First the universal path: each game opens in Steam (desktop client or mobile app) with
+  // its own Add to Cart button. Below it, the faster path through the Steam Deals Windows app: on a
+  // Windows PC the website opens the app directly; a phone (or Mac/Linux browser) pairs once with
+  // the app on a PC and then sends baskets to it in one tap. The cart is shared across devices.
+  const dev = api.device;
+  const windows = dev === "windows";
   const phone = dev === "ios" || dev === "android";
-  const inSteam = (appid) => (phone ? `https://store.steampowered.com/app/${appid}/` : `steam://store/${appid}`);
-  const cartInSteam = phone ? STEAM_CART_URL : `steam://openurl/${STEAM_CART_URL}`;
-  const opened = (state.openedInSteam ||= new Set());
-
-  const progress = el("div", { class: "muted small", id: "open-progress" });
-  const renderProgress = () => {
-    const n = t.items.filter((b) => opened.has(b.appid)).length;
-    progress.textContent = n ? `${fmtInt(n)} of ${fmtInt(t.items.length)} opened in Steam` : "";
-  };
-  const rows = t.items.map((b) => {
-    const done = opened.has(b.appid);
-    const btn = el("button", { class: `btn btn-sm ${done ? "" : "btn-primary"}`, html: `${done ? ICON.check : ICON.play}<span>${done ? "Opened" : "Open in Steam"}</span>` });
-    const row = el("div", { class: `steam-row ${done ? "done" : ""}` },
-      el("img", { class: "basket-thumb small", src: Core.headerImage(b.appid), alt: "", loading: "lazy" }),
-      el("div", { class: "basket-info" }, el("div", { class: "basket-name" }, b.name), el("div", { class: "muted small num" }, b.price ?? "")),
-      btn);
-    btn.addEventListener("click", () => {
-      api.openExternal(inSteam(b.appid));
-      opened.add(b.appid);
-      row.classList.add("done");
-      btn.className = "btn btn-sm";
-      btn.innerHTML = `${ICON.check}<span>Opened</span>`;
-      renderProgress();
-      const next = row.nextElementSibling;
-      if (next && !next.classList.contains("done")) next.querySelector(".btn").classList.add("btn-primary");
-    });
-    return row;
-  });
-  // Only the first unopened game gets the strong button, so the eye goes to "next".
-  let first = true;
-  for (const r of rows) { const b = r.querySelector(".btn"); if (r.classList.contains("done")) continue; if (!first) b.classList.remove("btn-primary"); first = false; }
-  renderProgress();
-
-  const shortcut = el("details", { class: "shortcut" },
-    el("summary", {}, "Have the Steam Deals Windows app? Send all of them at once"),
-    el("div", { class: "shortcut-body", id: "shortcut-body" }));
-  shortcut.addEventListener("toggle", () => { if (shortcut.open && !shortcut.dataset.filled) { shortcut.dataset.filled = "1"; fillShortcut(shortcut.querySelector("#shortcut-body"), t, dev); } });
+  const getApp = () => el("a", { class: "link", href: "/app", target: "_blank", rel: "noopener" }, "free Steam Deals Windows app");
 
   appendKids(box,
     el("div", { class: "send-title" }, "Add to your Steam cart"),
-    el("div", { class: "muted" }, phone
-      ? "Each game opens in the Steam app with its Add to Cart button ready. Tap through the list, then open your cart to pay. Nothing is purchased until you check out in Steam."
-      : "Each game opens in Steam with its Add to Cart button ready. Go down the list, then open your cart to pay. Nothing is purchased until you check out in Steam."),
-    el("div", { class: "steam-list" }, rows),
-    progress,
-    el("div", { class: "btn-row" },
-      el("button", { class: "btn", html: `${ICON.basket}<span>Open my Steam cart</span>`, onclick: () => api.openExternal(cartInSteam) }),
-      !phone ? el("button", { class: "btn btn-sm", html: `${ICON.external}<span>Cart in browser</span>`, onclick: () => api.openExternal(STEAM_CART_URL) }) : null,
-    ),
+    perGameList(t),
     missing ? el("div", { class: "muted small" }, `${fmtInt(missing)} game${missing === 1 ? " isn't" : "s aren't"} sold as a single package; use its Steam page.`) : null,
-    shortcut,
   );
-  return box;
-}
 
-const DOWNLOAD_URL = "https://github.com/Drakey83/steam-deals/releases/latest";
-
-/** Optional one-click path for people who have the Steam Deals Windows app. */
-function fillShortcut(host, t, dev) {
-  host.innerHTML = "";
-  const downloadLink = () => el("a", { class: "link", href: "#", onclick: (e) => { e.preventDefault(); api.openExternal(DOWNLOAD_URL); } }, "Steam Deals Windows app");
-  const codeBox = el("div", { class: "code-box" });
-  if (dev === "windows") {
-    const sendBtn = el("button", { class: "btn btn-sm btn-primary", html: `${ICON.basket}<span>Send to the Steam Deals Windows app</span>` });
+  const faster = el("div", { class: "faster" }, el("div", { class: "send-title" }, "Faster: let the Steam Deals Windows app do it"));
+  if (windows) {
+    const sendBtn = el("button", { class: "btn btn-primary", disabled: !ids.length, html: `${ICON.basket}<span>Send all to my Steam cart with the Windows app</span>` });
     const after = el("div", { class: "after-send", hidden: true });
     sendBtn.addEventListener("click", () => {
       after.hidden = true;
@@ -1398,71 +1346,274 @@ function fillShortcut(host, t, dev) {
         after.hidden = false;
         after.innerHTML = "";
         if (left || document.visibilityState !== "visible") {
-          after.append(el("div", { class: "muted" }, "Opened in the Steam Deals Windows app. Press “Send to my Steam cart” there."));
+          after.append(el("div", { class: "send-title ok", html: ICON.check }, el("span", {}, "Opened in the Steam Deals Windows app")), el("div", { class: "muted" }, "Finish there: press “Send to my Steam cart”, then pay in Steam as usual."));
         } else {
-          after.append(el("div", { class: "muted" }, "It didn't open. Install the ", downloadLink(), " first, or type this code into its basket:"), codeBox);
-          fillCodeBox(codeBox, t.items);
+          after.append(el("div", { class: "send-title" }, "Didn't open?"), el("div", { class: "muted" }, "Install the ", getApp(), " first (it takes a minute), then press the button again."));
         }
       }, 2500);
     });
-    host.append(
-      el("div", { class: "muted small" }, "The Windows app is signed into Steam itself, so it can add every game in one click. It's optional; the list above works without it."),
+    faster.append(
+      el("div", { class: "muted" }, "The Windows app is signed into Steam itself, so one click puts every game in your cart at once. Nothing is purchased until you check out in Steam."),
       sendBtn, after,
+      el("div", { class: "muted small" }, "Don't have it? Get the ", getApp(), "."),
+    );
+  } else if (api.pair?.isPaired()) {
+    const sendBtn = el("button", { class: "btn btn-primary", disabled: !ids.length, html: `${ICON.basket}<span>Send all to my PC's Steam cart</span>` });
+    const statusBox = el("div", { class: "after-send", hidden: true });
+    sendBtn.addEventListener("click", () => sendToPc(t, sendBtn, statusBox));
+    faster.append(
+      el("div", { class: "muted" }, phone
+        ? "One tap sends these to the Steam Deals app on your PC, which puts them in your Steam cart. The cart is shared, so you can pay right here in the Steam app."
+        : "One click sends these to the Steam Deals app on your paired PC, which puts them in your Steam cart."),
+      sendBtn, statusBox,
+      el("div", { class: "muted small" }, "Paired with your PC. ", el("a", { class: "link", href: "#", onclick: (e) => { e.preventDefault(); unpairHere(); } }, "Unpair")),
     );
   } else {
-    host.append(
-      el("div", { class: "muted small" }, "On a Windows PC with the ", downloadLink(), ", open its basket, type this code under “Have a basket code?”, and press “Send to my Steam cart”. Codes last 24 hours and hold only the games."),
-      codeBox,
+    const codeInput = el("input", { class: "input code-input", type: "text", maxlength: 7, placeholder: "ABC123", autocomplete: "off", autocapitalize: "characters", spellcheck: "false", "aria-label": "Pairing code" });
+    const pairBtn = el("button", { class: "btn btn-primary btn-sm" }, "Pair");
+    const pairNow = async () => {
+      const code = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (code.length !== 6) return toast("A pairing code is 6 letters and numbers.", { type: "err" });
+      pairBtn.disabled = true;
+      const r = await api.pair.claim(code);
+      pairBtn.disabled = false;
+      if (!r.ok) return toast(r.error.message, { type: "err", timeout: 7000 });
+      toast("Paired with your PC", { type: "ok" });
+      openBasket();
+    };
+    pairBtn.addEventListener("click", pairNow);
+    codeInput.addEventListener("keydown", (e) => { if (e.key === "Enter") pairNow(); });
+    codeInput.addEventListener("input", () => { codeInput.value = codeInput.value.toUpperCase(); });
+    faster.append(
+      el("div", { class: "muted" }, phone
+        ? "Pair this phone once with the Steam Deals Windows app on your PC. After that, one tap here puts your whole basket in your Steam cart, and you pay right here in the Steam app."
+        : "Pair this browser once with the Steam Deals Windows app on your PC. After that, one click here puts your whole basket in your Steam cart."),
+      el("ol", { class: "steps" },
+        el("li", {}, "On your PC, open Steam Deals (", getApp(), "), open the basket and press “Pair with your phone”."),
+        el("li", {}, "Type the six-letter code it shows here:"),
+      ),
+      el("div", { class: "btn-row" }, codeInput, pairBtn),
     );
-    fillCodeBox(codeBox, t.items);
   }
+  box.append(faster);
+  return box;
 }
 
-/** Create a 24-hour basket code and show it big, with a copy button. */
-async function fillCodeBox(host, items) {
-  host.innerHTML = "";
-  host.append(el("div", { class: "muted" }, "Getting a code…"));
-  const r = await api.basketCode.create(items);
-  host.innerHTML = "";
-  if (!r.ok) return host.append(el("div", { class: "muted" }, `Couldn't get a code: ${r.error.message}`));
-  if (r.enabled === false) return host.append(el("div", { class: "muted" }, "Basket codes aren't available on this site right now."));
-  const copy = el("button", { class: "btn btn-sm", html: `${ICON.copy}<span>Copy</span>` });
-  copy.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(r.code);
-      toast("Code copied", { type: "ok", timeout: 2000 });
-    } catch {
-      toast(`Code: ${r.code}`, { timeout: 6000 });
+/** Phone → PC: hand the basket to the paired Windows app and watch for its report. */
+async function sendToPc(t, btn, statusBox) {
+  btn.disabled = true;
+  btn.innerHTML = `${ICON.basket}<span>Sending…</span>`;
+  statusBox.hidden = false;
+  statusBox.innerHTML = "";
+  const r = await api.pair.send(t.items);
+  if (!r.ok) {
+    btn.disabled = false;
+    btn.innerHTML = `${ICON.basket}<span>Send to my PC's Steam cart</span>`;
+    statusBox.hidden = true;
+    if (r.error.code === "bad_pair") { toast("Your PC unpaired this device. Pair again to continue.", { type: "err", timeout: 7000 }); openBasket(); return; }
+    return toast(r.error.message, { type: "err", timeout: 7000 });
+  }
+  const sentAt = r.sentAt;
+  const line = el("div", { class: "muted" }, "Sent. Waiting for your PC… (Steam Deals needs to be open there.)");
+  statusBox.append(line);
+  const started = Date.now();
+  const phone = api.device === "ios" || api.device === "android";
+  const cartBtns = () => el("div", { class: "btn-row" },
+    el("button", { class: "btn btn-sm btn-primary", html: `${ICON.play}<span>Open cart in Steam app</span>`, onclick: () => api.openExternal(phone ? STEAM_CART_URL : `steam://openurl/${STEAM_CART_URL}`) }),
+    el("button", { class: "btn btn-sm", html: `${ICON.external}<span>Cart in browser</span>`, onclick: () => api.openExternal(STEAM_CART_URL) }),
+  );
+  const tick = async () => {
+    const s = await api.pair.status();
+    const box = s.ok ? s.box : null;
+    if (box && box.sentAt === sentAt && box.status !== "sent") {
+      statusBox.innerHTML = "";
+      if (box.status === "added") {
+        const n = box.result?.added ?? t.items.length;
+        statusBox.append(
+          el("div", { class: "send-title ok", html: ICON.check }, el("span", {}, `Added ${fmtInt(n)} game${n === 1 ? "" : "s"} to your Steam cart`)),
+          box.result?.subtotal ? el("div", { class: "muted" }, `Steam's cart subtotal: ${box.result.subtotal}. Review and pay in Steam.`) : null,
+          cartBtns(),
+        );
+      } else if (box.status === "received") {
+        statusBox.append(el("div", { class: "send-title ok", html: ICON.check }, el("span", {}, "Your PC received the basket")), el("div", { class: "muted" }, "Press “Send to my Steam cart” there to finish, or turn on automatic adding in the PC app's basket."));
+      } else {
+        statusBox.append(el("div", { class: "send-title" }, "Your PC couldn't add them"), el("div", { class: "muted" }, box.result?.message || "Open Steam Deals on the PC and try from there."));
+      }
+      btn.disabled = false;
+      btn.innerHTML = `${ICON.basket}<span>Send again</span>`;
+      return;
     }
+    if (Date.now() - started > 90000) {
+      line.textContent = "Your PC hasn't picked it up yet. It will the moment Steam Deals is open there; this page will keep checking.";
+      setTimeout(tick, 15000);
+      return;
+    }
+    setTimeout(tick, 3000);
+  };
+  setTimeout(tick, 3000);
+}
+
+async function unpairHere() {
+  await api.pair.unpair();
+  toast("Unpaired", { type: "ok" });
+  openBasket();
+}
+
+/** One "Open in Steam" button per basket game, with progress, then "Open my Steam cart". */
+function perGameList(t) {
+  const phone = api.device === "ios" || api.device === "android";
+  const inSteam = (appid) => (phone ? `https://store.steampowered.com/app/${appid}/` : `steam://store/${appid}`);
+  const cartInSteam = phone ? STEAM_CART_URL : `steam://openurl/${STEAM_CART_URL}`;
+  const opened = (state.openedInSteam ||= new Set());
+  const progress = el("div", { class: "muted small" });
+  const renderProgress = () => {
+    const n = t.items.filter((b) => opened.has(b.appid)).length;
+    progress.textContent = n ? `${fmtInt(n)} of ${fmtInt(t.items.length)} opened in Steam` : "";
+  };
+  const rows = t.items.map((b) => {
+    const done = opened.has(b.appid);
+    const btn = el("button", { class: "btn btn-sm", html: `${done ? ICON.check : ICON.play}<span>${done ? "Opened" : "Open in Steam"}</span>` });
+    const row = el("div", { class: `steam-row ${done ? "done" : ""}` },
+      el("img", { class: "basket-thumb small", src: Core.headerImage(b.appid), alt: "", loading: "lazy" }),
+      el("div", { class: "basket-info" }, el("div", { class: "basket-name" }, b.name), el("div", { class: "muted small num" }, b.price ?? "")),
+      btn);
+    btn.addEventListener("click", () => {
+      api.openExternal(inSteam(b.appid));
+      opened.add(b.appid);
+      row.classList.add("done");
+      btn.innerHTML = `${ICON.check}<span>Opened</span>`;
+      renderProgress();
+    });
+    return row;
   });
-  host.append(
-    el("div", { class: "code-row" }, el("span", { class: "code num", "aria-label": "Basket code" }, r.code), copy),
-    el("div", { class: "muted small" }, "Valid for 24 hours. It holds only the games, nothing about you."),
+  renderProgress();
+  return el("div", { class: "per-game" },
+    el("div", { class: "muted small" }, "Each button opens the game in Steam with its Add to Cart button ready. Then open your cart to pay."),
+    el("div", { class: "steam-list" }, rows),
+    progress,
+    el("div", { class: "btn-row" },
+      el("button", { class: "btn btn-sm", html: `${ICON.basket}<span>Open my Steam cart</span>`, onclick: () => api.openExternal(cartInSteam) }),
+      !phone ? el("button", { class: "btn btn-sm", html: `${ICON.external}<span>Cart in browser</span>`, onclick: () => api.openExternal(STEAM_CART_URL) }) : null,
+    ),
   );
 }
 
-/** Desktop: import a basket code made on another device. */
-function importCodeRow() {
-  const input = el("input", { class: "input code-input", type: "text", maxlength: 7, placeholder: "ABC123", autocomplete: "off", spellcheck: "false", "aria-label": "Basket code" });
-  const btn = el("button", { class: "btn btn-sm" }, "Import");
-  const go = async () => {
-    const code = input.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (code.length !== 6) return toast("A basket code is 6 letters and numbers.", { type: "err" });
-    btn.disabled = true;
-    const r = await api.basketCode.fetch(code);
-    btn.disabled = false;
-    if (!r.ok) return toast(r.error.message, { type: "err", timeout: 6000 });
-    await receiveBasket(r.items, "code");
-  };
-  btn.addEventListener("click", go);
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
-  input.addEventListener("input", () => { input.value = input.value.toUpperCase(); });
-  return el("div", { class: "import-row" },
-    el("span", { class: "muted" }, "Have a basket code from your phone or another computer?"),
-    el("div", { class: "btn-row" }, input, btn));
+// ---------- desktop: pairing with the phone ----------
+function pairRow() {
+  const host = el("div", { class: "import-row", id: "pair-row" });
+  api.pair.status().then((s) => {
+    if (!s.ok) return;
+    if (!s.paired) {
+      host.append(
+        el("div", {}, el("b", {}, "Shop on your phone, send it here."), " Pair your phone once; after that, baskets you build on steamdeal.vercel.app land in this app and go to your Steam cart."),
+        el("div", { class: "btn-row" }, el("button", { class: "btn btn-sm btn-primary", html: `${ICON.login}<span>Pair with your phone</span>`, onclick: openPairDialog })),
+      );
+      return;
+    }
+    const auto = el("input", { type: "checkbox", checked: s.autoCart });
+    auto.addEventListener("change", () => patchSettings({ pairAutoCart: auto.checked }, { persistNow: true }));
+    host.append(
+      el("div", {}, el("b", {}, "Paired with your phone."), " Baskets sent from steamdeal.vercel.app arrive here."),
+      el("label", { class: "toggle" }, el("span", {}, "Add them to my Steam cart automatically"), auto, el("span", { class: "switch" })),
+      el("div", { class: "btn-row" }, el("button", { class: "btn btn-sm btn-ghost", onclick: async () => { await api.pair.unpair(); toast("Unpaired", { type: "ok" }); openBasket(); } }, "Unpair")),
+    );
+  });
+  return host;
 }
 
-/** Add games that arrived from the website (steamdeals:// link) or a basket code. */
+function openPairDialog() {
+  closeDrawer();
+  const modal = $("#modal");
+  modal.innerHTML = "";
+  let cancelled = false;
+  let timer = null;
+  const close = () => { cancelled = true; clearTimeout(timer); closeModal(); };
+  const body = el("div", { class: "connect-body" });
+  const status = el("div", { class: "muted connect-status", "aria-live": "polite" }, "Getting a pairing code…");
+  modal.append(
+    el("div", { class: "modal-head" }, el("h2", {}, "Pair with your phone"), el("button", { class: "btn btn-icon btn-ghost", "aria-label": "Close", html: ICON.close, onclick: close })),
+    el("div", { class: "modal-body" }, body, status,
+      el("div", { class: "muted small" }, "Pairing shares a random key between this app and your phone. It carries only the games you send; no account details. Unpair any time from the basket.")),
+  );
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  $("#scrim").classList.add("open");
+  $("#scrim").onclick = close;
+  const start = async () => {
+    body.innerHTML = "";
+    const r = await api.pair.start();
+    if (cancelled) return;
+    if (!r.ok) { status.textContent = r.error.message; body.append(el("button", { class: "btn", onclick: start }, "Try again")); return; }
+    body.append(
+      el("div", { class: "code-row" }, el("span", { class: "code num" }, r.code)),
+      el("ol", { class: "steps" },
+        el("li", {}, "On your phone, open ", el("b", {}, "steamdeal.vercel.app"), " and add a game to the basket."),
+        el("li", {}, "Open the basket and type this code under “Pair with my PC”."),
+      ),
+    );
+    status.textContent = "Waiting for your phone… (code lasts 10 minutes)";
+    const started = Date.now();
+    const tick = async () => {
+      if (cancelled) return;
+      const c = await api.pair.check(r.pairId);
+      if (cancelled) return;
+      if (c.ok && c.claimed) {
+        status.textContent = "Paired!";
+        toast("Paired with your phone", { type: "ok" });
+        setTimeout(() => { close(); openBasket(); }, 800);
+        return;
+      }
+      if ((c.ok && c.expired) || Date.now() - started > 10 * 60 * 1000) {
+        status.textContent = "That code expired.";
+        body.innerHTML = "";
+        body.append(el("button", { class: "btn btn-primary", onclick: start }, "Get a new code"));
+        return;
+      }
+      timer = setTimeout(tick, 3000);
+    };
+    timer = setTimeout(tick, 3000);
+  };
+  start();
+}
+
+/** A basket arrived from the paired phone. Merge it, and add to the Steam cart if that's switched on. */
+const phoneDeliveries = new Set();
+async function receiveFromPhone({ items, sentAt }) {
+  if (phoneDeliveries.has(sentAt)) return; // the same basket, delivered twice
+  phoneDeliveries.add(sentAt);
+  await receiveBasket(items, "phone");
+  let ids = (items || []).map((i) => Number(i.packageid)).filter((n) => n > 0);
+  const auto = state.settings.pairAutoCart !== false && state.account?.method === "steam" && ids.length;
+  if (!auto) {
+    api.pair.ack({ sentAt, status: "received" });
+    return;
+  }
+  // Don't add what's already sitting in the Steam cart.
+  const current = await api.cart.get();
+  if (current.ok) {
+    const inCart = new Set((current.cart?.items || []).map((li) => li.packageid));
+    ids = ids.filter((id) => !inCart.has(id));
+    if (!ids.length) {
+      state.lastSent = { count: 0, added: [], subtotal: current.cart?.subtotal || null };
+      toast("Your phone's basket is already in your Steam cart", { type: "ok", timeout: 6000 });
+      api.pair.ack({ sentAt, status: "added", result: { added: 0, subtotal: current.cart?.subtotal || "" } });
+      if ($("#grid")) openBasket();
+      return;
+    }
+  }
+  const r = await api.cart.add({ packageids: ids });
+  if (r.ok) {
+    state.lastSent = { count: r.added?.length || ids.length, added: r.added || [], subtotal: r.cart?.subtotal || null };
+    toast(`${fmtInt(state.lastSent.count)} game${state.lastSent.count === 1 ? "" : "s"} from your phone added to your Steam cart`, { type: "ok", timeout: 8000 });
+    api.pair.ack({ sentAt, status: "added", result: { added: state.lastSent.count, subtotal: state.lastSent.subtotal } });
+    if ($("#grid")) openBasket();
+  } else {
+    toast(`Couldn't add your phone's basket to the Steam cart: ${r.error.message}`, { type: "err", timeout: 10000 });
+    api.pair.ack({ sentAt, status: "failed", result: { message: r.error.message } });
+  }
+}
+
+/** Add games that arrived from the website (steamdeals:// link) or from the paired phone. */
 async function receiveBasket(items, source) {
   const wanted = (items || []).map((i) => ({ appid: Number(i.appid), packageid: Number(i.packageid) || null })).filter((i) => i.appid > 0);
   if (!wanted.length) return;
@@ -1486,7 +1637,8 @@ async function receiveBasket(items, source) {
   renderBasketButton();
   refreshBasketToggles();
   if ($("#grid")) openBasket();
-  toast(added ? `${fmtInt(added)} game${added === 1 ? "" : "s"} added from ${source === "code" ? "your basket code" : "the website"}` : "Those games are already in your basket", { type: "ok", timeout: 5000 });
+  const from = source === "phone" ? "your phone" : "the website";
+  toast(added ? `${fmtInt(added)} game${added === 1 ? "" : "s"} added from ${from}` : `Those games from ${from} are already in your basket`, { type: "ok", timeout: 5000 });
 }
 
 async function sendDirect(ids, btn) {
@@ -1732,6 +1884,7 @@ async function init() {
     api.deeplink.onBasket((p) => receiveBasket(p?.items, "web"));
     api.deeplink.pending().then((p) => { if (p?.ok && p.basket) receiveBasket(p.basket.items, "web"); });
   }
+  if (api.pair?.onBasket) api.pair.onBasket(receiveFromPhone);
   const f = api.features || {};
   if (f.justSignedIn) toast(`Welcome, ${f.justSignedIn}`, { type: "ok" });
   if (f.privateProfile) toast("Your Steam profile's Game details are private, so owned games can't be hidden. Set them to Public in Steam, then refresh.", { type: "err", timeout: 12000 });

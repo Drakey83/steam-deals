@@ -59,9 +59,15 @@ contextBridge.exposeInMainWorld("steamDeals", {
   items: {
     lookup: (appids) => invoke("items:lookup", { appids }),
   },
-  basketCode: {
-    create: (items) => invoke("basketcode:create", { items }),
-    fetch: (code) => invoke("basketcode:fetch", { code }),
+  // Phone pairing: baskets sent from the website on a phone arrive here.
+  pair: {
+    start: () => invoke("pair:start"),
+    check: (pairId) => invoke("pair:check", { pairId }),
+    status: () => invoke("pair:status"),
+    ack: (payload) => invoke("pair:ack", payload),
+    unpair: () => invoke("pair:unpair"),
+    poll: () => invoke("pair:poll"),
+    onBasket: (cb) => subscribe("pair:basket", cb),
   },
 
   // Desktop can fill the signed-in account's Steam cart directly.

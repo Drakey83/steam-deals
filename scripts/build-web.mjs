@@ -20,6 +20,7 @@ const copies = [
   ["web/src/index.html", "web/public/index.html"],
   ["web/src/web-api.js", "web/public/web-api.js"],
   ["web/src/manifest.webmanifest", "web/public/manifest.webmanifest"],
+  ["web/src/app.html", "web/public/app.html"],
   ["build/icon.png", "web/public/icon.png"],
   ["build/icon-192.png", "web/public/icon-192.png"],
   ["build/icon-512.png", "web/public/icon-512.png"],

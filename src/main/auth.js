@@ -41,9 +41,15 @@ async function readSteamId() {
  * Show Steam's login page and resolve once the store session cookie appears.
  * Resolves { ok: true, steamid } | { ok: false, cancelled: true }.
  */
-async function signIn(parent) {
-  const existing = await readSteamId().catch(() => null);
-  if (existing) return { ok: true, steamid: existing };
+async function signIn(parent, { fresh = false } = {}) {
+  if (fresh) {
+    // Re-authenticating (the store stopped honouring the session, e.g. after a password change):
+    // a stale cookie would otherwise make this look signed in without ever showing Steam's page.
+    await signOut().catch(() => {});
+  } else {
+    const existing = await readSteamId().catch(() => null);
+    if (existing) return { ok: true, steamid: existing };
+  }
 
   return new Promise((resolve) => {
     const win = new BrowserWindow({

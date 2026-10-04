@@ -205,7 +205,16 @@ Streaming
 - Website primary path (no install): one "Open in Steam" button per basket game (`steam://store/<appid>` on desktop,
   `https://store.steampowered.com/app/<appid>/` on phones so the Steam mobile app opens it), tracked as opened, then
   "Open my Steam cart". The user explicitly wants no requirement to download the Steam Deals app and no bookmarklets.
-- Website optional shortcut: hands the basket to the desktop app, never to a bookmark/script (a bookmarklet version was built, verified
+- Website order (user's decision): per-game "Open in Steam" list first (universal), then "Faster: the Steam Deals Windows app".
+- Phone ↔ PC pairing (`web/api/pair.js`, Redis): the desktop basket's "Pair with your phone" asks the relay for a 6-char code
+  (10 min) bound to a random 32-hex `pairId`; the phone's website basket claims the code and keeps the `pairId` in
+  localStorage; the desktop keeps it in settings. Phone "Send all to my PC's Steam cart" → relay box (ids only, 24 h) →
+  desktop polls every 12 s (single in-flight guard) → `receiveFromPhone` merges the basket and, with `pairAutoCart` on,
+  adds only the packages not already in the cart via the session token → acks `added|received|failed` with the result →
+  the phone polls status and shows "Added N games · Steam subtotal". Steam's cart is account-wide, so the phone's Steam app
+  shows it for checkout. Verified live 2026-10-04. Server-initiated QR/mobile-approval login was built, tested and removed:
+  Steam shows the Vercel server's location (Ashburn, VA) as suspicious and kills the challenge.
+- Website optional shortcut on Windows: hands the basket to the desktop app, never to a bookmark/script (a bookmarklet version was built, verified
   and then removed as too alarming for ordinary users). The app registers the `steamdeals://` scheme (electron-builder
   `protocols`, plus `setAsDefaultProtocolClient` in dev). `steamdeals://cart?items=<appid>:<packageid>,…&v=1` arrives via
   `second-instance` argv (Windows) or `open-url`; the renderer resolves unknown appids with `items:lookup` (GetItems) and

@@ -269,6 +269,7 @@
 
   async function ready() {
     const counted = countUser();
+    startSync();
     try {
       const c = await http("/api/config");
       features.steamSignIn = Boolean(c.steamSignIn);
@@ -300,9 +301,123 @@
     "basket", "taxRegion", "taxCustomRate", "taxRegionAuto",
   ]);
 
-  // The website can't touch a Steam cart itself (browsers block that on purpose). The Steam Deals
-  // desktop app can, so the website hands the basket to it: a steamdeals:// link on Windows, or a
-  // short basket code to type into the app from a phone or another computer.
+  // ---------- the shared basket (pairing with the Steam Deals Windows app) ----------
+  // A browser can't touch a Steam cart (browsers block that on purpose). The Windows app can, so once this
+  // browser is paired with it the basket lives on the relay (/api/pair) as one document shared by every
+  // paired device, and the PC keeps the real Steam cart matching it. This browser polls a tiny signal record
+  // every few seconds while the page is visible, pulls the basket when its revision changes, and pushes its
+  // own edits as add/remove operations. Nothing here is a purchase; checkout always happens in Steam.
+  const PAIR_KEY = "sd:pair";
+  const REV_KEY = "sd:pairrev";
+  const pairId = () => store.get(PAIR_KEY);
+  const isPhone = () => device() === "ios" || device() === "android";
+  let syncTimer = null;
+  let syncBusy = false;
+  let lastTouch = 0;
+  let lastRevSeen = Number(store.get(REV_KEY, 0)) || 0;
+  let pcState = { pc: 0, pcok: false, pcv: null, cart: null, at: 0, now: 0 };
+  const sameItems = (a, b) => JSON.stringify((a || []).map((i) => [i.appid, i.packageid])) === JSON.stringify((b || []).map((i) => [i.appid, i.packageid]));
+
+  async function relay(body) {
+    const r = await http("/api/pair", { method: "POST", body });
+    if (r.enabled === false) throw new ApiError("Pairing isn't available on this site right now.", "pair_down");
+    return r;
+  }
+  function diffOps(prev, next) {
+    const before = new Map((prev || []).map((i) => [i.appid, i]));
+    const after = new Map((next || []).map((i) => [i.appid, i]));
+    const ops = [];
+    for (const [appid] of before) if (!after.has(appid)) ops.push({ op: "remove", appid });
+    for (const [appid, item] of after) {
+      const old = before.get(appid);
+      if (!old || JSON.stringify(old) !== JSON.stringify(item)) ops.push({ op: "add", item });
+    }
+    return ops;
+  }
+  function adopt(items, rev, source) {
+    const changed = !sameItems(items, settings.basket);
+    settings.basket = Array.isArray(items) ? items : [];
+    saveSettings();
+    lastRevSeen = rev || 0;
+    store.set(REV_KEY, lastRevSeen);
+    if (changed) emit("basket:replaced", { items: settings.basket, source, rev: lastRevSeen });
+  }
+  function forgetPair() {
+    store.del(PAIR_KEY);
+    store.del(REV_KEY);
+    lastRevSeen = 0;
+    clearInterval(syncTimer);
+    syncTimer = null;
+    pcState = { pc: 0, pcok: false, pcv: null, cart: null, at: 0, now: 0 };
+  }
+  function syncStatus() {
+    const id = pairId();
+    const age = pcState.pc ? (pcState.now || Date.now()) - pcState.pc : null;
+    return {
+      paired: Boolean(id),
+      pcOnline: age != null && age < 90000,
+      pcSeenAgo: age,
+      pcok: pcState.pcok,
+      pcVersion: pcState.pcv,
+      status: pcState.cart?.status || {},
+      subtotal: pcState.cart?.subtotal || null,
+      cartAt: pcState.cart?.at || 0,
+      at: pcState.at,
+    };
+  }
+  async function syncTick(force) {
+    const id = pairId();
+    if (!id || syncBusy) return;
+    if (!force && document.visibilityState !== "visible") return;
+    syncBusy = true;
+    try {
+      const now = Date.now();
+      const touch = now - lastTouch > 45000; // "someone is looking": the PC polls faster while this is fresh
+      if (touch) lastTouch = now;
+      const sig = await relay({ action: "sig", pairId: id, touch, withCart: true });
+      pcState = { pc: sig.pc || 0, pcok: Boolean(sig.pcok), pcv: sig.pcv || null, cart: sig.cart || null, at: Date.now(), now: sig.now || Date.now() };
+      emit("cart:status", syncStatus());
+      if ((sig.rev || 0) !== lastRevSeen) {
+        const b = await relay({ action: "basket.get", pairId: id });
+        adopt(b.items, b.rev, "remote");
+      }
+    } catch (err) {
+      if (err.code === "bad_pair") {
+        forgetPair();
+        emit("cart:status", syncStatus());
+      }
+    } finally {
+      syncBusy = false;
+    }
+  }
+  function startSync() {
+    clearInterval(syncTimer);
+    if (!pairId()) return;
+    syncTimer = setInterval(() => syncTick(false), 4000);
+    syncTick(true);
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && pairId()) {
+      lastTouch = 0;
+      syncTick(true);
+    }
+  });
+  async function pushBasket(prev, next) {
+    const id = pairId();
+    if (!id) return;
+    const ops = diffOps(prev, next);
+    if (ops.length) {
+      try {
+        const r = await relay({ action: "basket.ops", pairId: id, ops, by: isPhone() ? "phone" : "web" });
+        adopt(r.items, r.rev, "merge");
+      } catch (err) {
+        if (err.code === "bad_pair") forgetPair();
+      }
+    }
+    lastTouch = 0;
+    setTimeout(() => syncTick(true), 1500);
+  }
+
   function device() {
     const forced = new URLSearchParams(location.search).get("device"); // testing aid: ?device=windows|mac|linux|ios|android
     if (["windows", "mac", "linux", "ios", "android"].includes(forced)) return forced;
@@ -324,8 +439,10 @@
     settings: {
       get: async () => ({ ok: true, settings: publicSettings() }),
       update: async (patch) => {
+        const prevBasket = settings.basket || [];
         for (const [k, v] of Object.entries(patch || {})) if (ALLOWED_SETTINGS.has(k)) settings[k] = v;
         saveSettings();
+        if (patch && "basket" in patch && pairId()) pushBasket(prevBasket, settings.basket || []);
         return { ok: true, settings: publicSettings() };
       },
     },
@@ -419,36 +536,35 @@
 
     // Pairing with the Steam Deals Windows app on a PC: a random key shared once, kept in this browser.
     pair: {
-      isPaired: () => Boolean(store.get("sd:pair")),
+      isPaired: () => Boolean(pairId()),
       claim: wrap(async (code) => {
-        const r = await http("/api/pair", { method: "POST", body: { action: "claim", code } });
-        if (r.enabled === false) throw new ApiError("Pairing isn't available on this site right now.", "pair_down");
-        store.set("sd:pair", r.pairId);
+        const r = await relay({ action: "claim", code });
+        store.set(PAIR_KEY, r.pairId);
+        // This browser's basket joins the shared one; from here on the shared basket is the basket.
+        const mine = settings.basket || [];
+        const b = mine.length
+          ? await relay({ action: "basket.ops", pairId: r.pairId, ops: mine.map((item) => ({ op: "add", item })), by: isPhone() ? "phone" : "web" })
+          : await relay({ action: "basket.get", pairId: r.pairId });
+        adopt(b.items, b.rev, "merge");
+        startSync();
         return { pairId: r.pairId };
       }),
-      send: wrap(async (items) => {
-        const pairId = store.get("sd:pair");
-        if (!pairId) throw new ApiError("Not paired with a PC.", "bad_pair");
-        try {
-          const r = await http("/api/pair", { method: "POST", body: { action: "send", pairId, items: items.map((i) => ({ appid: i.appid, packageid: i.packageid })) } });
-          return { sentAt: r.sentAt };
-        } catch (err) {
-          if (err.code === "bad_pair") store.del("sd:pair");
-          throw err;
-        }
-      }),
-      status: wrap(async () => {
-        const pairId = store.get("sd:pair");
-        if (!pairId) throw new ApiError("Not paired with a PC.", "bad_pair");
-        const r = await http("/api/pair", { method: "POST", body: { action: "status", pairId } });
-        return { box: r.box };
-      }),
+      // Only this browser forgets the pairing; the PC and any other devices keep theirs.
       unpair: wrap(async () => {
-        const pairId = store.get("sd:pair");
-        if (pairId) http("/api/pair", { method: "POST", body: { action: "unpair", pairId } }).catch(() => {});
-        store.del("sd:pair");
+        forgetPair();
+        emit("cart:status", syncStatus());
         return {};
       }),
+    },
+    sync: {
+      status: async () => ({ ok: true, ...syncStatus() }),
+      now: async () => {
+        lastTouch = 0;
+        await syncTick(true);
+        return { ok: true, value: true };
+      },
+      onBasket: (cb) => on("basket:replaced", cb),
+      onCart: (cb) => on("cart:status", cb),
     },
 
     openExternal: async (url) => {

@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0b0f14" />
     <title>Steam Deals for Windows</title>
-    <meta name="description" content="Download the free Steam Deals Windows app: the same deal finder as the website, plus one-click sending of your basket to your Steam cart." />
+    <meta name="description" content="The free Steam Deals Windows app: the complete deal finder on its own, and the bridge that keeps the Steam cart in sync with the basket on your phone or in any browser." />
     <link rel="icon" type="image/png" href="/icon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <style>
@@ -53,7 +53,7 @@
           radial-gradient(600px 260px at 100% 100%, rgba(139, 212, 80, 0.14), transparent 70%),
           var(--bg-elev); }
       .hero h1 { margin: 0; font: 800 clamp(28px, 5vw, 40px)/1.1 var(--font-display); letter-spacing: -0.6px; text-wrap: balance; }
-      .hero p { margin: 0; color: var(--fg-2); font-size: 17px; max-width: 60ch; }
+      .hero p { margin: 0; color: var(--fg-2); font-size: 17px; max-width: 62ch; }
       .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
       .btn { display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 22px; border-radius: 13px; border: 1px solid var(--border);
         background: var(--surface); color: var(--fg); font: 600 15px var(--font); cursor: pointer; transition: border-color 160ms, filter 160ms; }
@@ -62,19 +62,31 @@
       .btn-primary:hover { filter: brightness(1.06); }
       .btn svg { width: 18px; height: 18px; flex: none; }
       .fine { color: var(--fg-3); font-size: 13px; }
+      .fine code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12.5px; color: var(--fg-2); }
 
       h2 { margin: 0 0 14px; font: 700 22px/1.2 var(--font-display); letter-spacing: -0.3px; }
+      .lead { margin: -6px 0 16px; color: var(--fg-2); }
       .card { padding: 22px 24px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg-elev); }
       .card p { margin: 0 0 10px; color: var(--fg-2); }
       .card p:last-child { margin-bottom: 0; }
-      .card b { color: var(--fg); font-weight: 600; }
+      .card b, .tile b { color: var(--fg); font-weight: 600; }
       .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
       .tile { padding: 18px 20px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); display: grid; gap: 6px; min-width: 0; }
       .tile .t { font-weight: 700; display: flex; align-items: center; gap: 8px; }
-      .tile .t svg { width: 18px; height: 18px; color: var(--accent); }
+      .tile .t svg { width: 18px; height: 18px; color: var(--accent); flex: none; }
       .tile .d { color: var(--fg-2); font-size: 14.5px; }
+      .roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+      .role { padding: 22px 24px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg-elev); display: grid; gap: 10px; align-content: start; }
+      .role h3 { margin: 0; font: 700 18px/1.2 var(--font-display); display: flex; align-items: center; gap: 10px; }
+      .role h3 svg { width: 20px; height: 20px; color: var(--accent); flex: none; }
+      .role p { margin: 0; color: var(--fg-2); font-size: 15px; }
+      .role ul { margin: 4px 0 0; padding-left: 20px; color: var(--fg-2); font-size: 14.5px; display: grid; gap: 4px; }
       ol.steps { margin: 0; padding-left: 22px; display: grid; gap: 10px; color: var(--fg-2); }
       ol.steps b { color: var(--fg); font-weight: 600; }
+      .flow { display: grid; gap: 10px; }
+      .flow-row { display: grid; grid-template-columns: 28px 1fr; gap: 12px; align-items: start; }
+      .flow-row .n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; color: #06121c; background: linear-gradient(135deg, #6fd3ff, #8bd450); }
+      .flow-row p { margin: 0; color: var(--fg-2); }
       .note { padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(245, 185, 66, 0.35); background: rgba(245, 185, 66, 0.1); color: #ffe2a6; font-size: 14.5px; }
       .faq { display: grid; gap: 10px; }
       details { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 12px 16px; }
@@ -82,7 +94,7 @@
       details p { margin: 10px 0 0; color: var(--fg-2); }
       footer { color: var(--fg-3); font-size: 13px; }
       footer a { color: var(--fg-2); }
-      @media (max-width: 520px) { .hero { padding: 26px 20px; } .card { padding: 18px; } }
+      @media (max-width: 520px) { .hero { padding: 26px 20px; } .card, .role { padding: 18px; } }
     </style>
   </head>
   <body>
@@ -94,7 +106,7 @@
 
       <section class="hero">
         <h1>Steam Deals for Windows</h1>
-        <p>Everything the website does, plus the one thing a website isn't allowed to do: put your whole basket into your Steam cart in a single click. Free, no account, no ads.</p>
+        <p>The complete deal finder on your PC, and the bridge that lets your phone fill your Steam cart. Add a game to your basket anywhere; it's in your Steam cart within seconds. Free, open source, no ads, and it never buys anything for you.</p>
         <div class="cta">
           <a class="btn btn-primary" href="https://github.com/Drakey83/steam-deals/releases/latest/download/Steam-Deals-Setup.exe">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 19h16"/></svg>
@@ -102,25 +114,64 @@
           </a>
           <a class="btn" href="https://github.com/Drakey83/steam-deals/releases/latest">All versions &amp; release notes</a>
         </div>
-        <div class="fine">Windows 10 or 11 · about 110 MB · installs for your user account, no admin needed · <a href="https://github.com/Drakey83/steam-deals">open source</a></div>
+        <div class="fine">Windows 10 or 11 · about 110 MB · installs for your user account, no admin needed · the download is <code>Steam-Deals-Setup.exe</code> from the project's <a href="https://github.com/Drakey83/steam-deals">GitHub releases</a></div>
       </section>
 
       <section>
-        <h2>Why is an app needed for the cart?</h2>
+        <h2>Two jobs, one app</h2>
+        <div class="roles">
+          <div class="role">
+            <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>On its own: the whole thing</h3>
+            <p>Everything the website does, with nothing else needed:</p>
+            <ul>
+              <li>Every current Steam sale, minus the games you already own, ranked by discount, rating and popularity.</li>
+              <li><b>For you</b>: picks that match what you actually play, learned from your library and hours, with the reason for each match.</li>
+              <li>A basket with a running total and an estimated tax, so you know the damage before checkout.</li>
+              <li><b>Your Steam cart, kept in sync.</b> Whatever is in the basket is in your cart; take a game out and it leaves the cart too. You still pay in Steam's own checkout.</li>
+              <li>Works with private Steam profiles, because you sign in on Steam's own page inside the app.</li>
+            </ul>
+          </div>
+          <div class="role">
+            <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2.5"/><path d="M11 18h2"/></svg>With the website: the bridge</h3>
+            <p>A browser is never allowed to touch your Steam cart, on any site. The Windows app is. So when you shop on <a href="/">steamdeal.vercel.app</a> from your phone or any browser:</p>
+            <ul>
+              <li>Pair once with a six-letter code. From then on you share <b>one basket</b> with the app on your PC.</li>
+              <li>Add or remove a game on your phone and it appears in, or leaves, your Steam cart within seconds. No send button, nothing to copy.</li>
+              <li>Works from anywhere, mobile data included. The PC just needs to be on, with the app in its tray.</li>
+              <li>Your Steam cart belongs to your account, so you can check out right there in the Steam mobile app, or on the PC.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>How the bridge works</h2>
+        <p class="lead">Your phone and PC never talk to each other directly. Both talk to a small mailbox on this site.</p>
+        <div class="card flow">
+          <div class="flow-row"><span class="n">1</span><p><b>Pair.</b> In the Windows app, open the basket and press <b>Pair a phone or browser</b>. It shows a six-letter code, good for ten minutes. On your phone, open the basket on this site and type the code under <b>Already have it?</b> Both sides now hold a random pairing key and share one basket. Pair as many phones and browsers as you like.</p></div>
+          <div class="flow-row"><span class="n">2</span><p><b>Shop.</b> Add a game anywhere, on the phone, in a browser, or in the app. The change goes into the shared basket on this site: just game ids, names and prices.</p></div>
+          <div class="flow-row"><span class="n">3</span><p><b>Sync.</b> The app on your PC checks the shared basket every few seconds while a phone is looking, every half minute otherwise, and keeps your Steam cart matching it: it adds what's new and removes what you took out. It only ever removes games it added itself, so anything you put in the cart by hand on Steam stays put.</p></div>
+          <div class="flow-row"><span class="n">4</span><p><b>Pay.</b> Open your cart in Steam, on the phone or the PC, and check out as usual. Once you own the games, the app notices and clears them from the basket. The app itself never buys anything.</p></div>
+          <div class="flow-row"><span class="n">5</span><p><b>Stay ready.</b> Closing the window keeps the app running in the tray next to the clock, and <b>Start with Windows</b> launches it there at sign-in. If the PC is off, your basket waits; it syncs the moment the app is back.</p></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Why an app at all?</h2>
         <div class="card">
-          <p>Every browser enforces one rule: <b>a website can never act as you on another website.</b> If a page could add to your Steam cart, any page could also add to your Amazon cart, post as you on Facebook, or change your Steam account. Browsers can't tell a friendly cart-add from a hostile one, so they block all of it, and Steam offers no door around that. This is why every deal site stops at “View on Steam”.</p>
-          <p>The Steam Deals Windows app isn't a website. You sign into Steam inside it, on Steam's own login page, the same way the Steam client is signed in. That lets it talk to Steam's cart directly, so <b>one click sends every game in your basket to your real Steam cart.</b> You then pay in Steam as usual, on your PC or from the Steam app on your phone, because the cart belongs to your account.</p>
-          <p>Nothing is ever purchased by the app. It only adds items, and <b>Undo</b> takes them back out.</p>
+          <p>Every browser enforces one rule: <b>a website can never act as you on another website.</b> If a page could add to your Steam cart, any page could also add to your Amazon cart or post as you on Facebook. Browsers can't tell a friendly cart-add from a hostile one, so they block all of it, and Steam offers no door around that. This is why every deal site stops at "View on Steam".</p>
+          <p>The Steam Deals Windows app isn't a website. You sign into Steam inside it, on Steam's own login page, the same way the Steam client is signed in. That lets it talk to Steam's cart directly, for its own basket and for the one you share from your phone.</p>
+          <p>Nothing is ever purchased by the app. It adds and removes cart items to match your basket, and payment always happens in Steam's own checkout with your confirmation.</p>
         </div>
       </section>
 
       <section>
         <h2>What you get</h2>
         <div class="grid2">
-          <div class="tile"><div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18l-1.6 8.2a2 2 0 0 1-2 1.8H6.6a2 2 0 0 1-2-1.8z"/><path d="m7 10 3-6"/><path d="m17 10-3-6"/></svg>One-click Steam cart</div><div class="d">Collect sales in the basket, see the total with an estimated tax, then send them all to your Steam cart at once.</div></div>
+          <div class="tile"><div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2"/><path d="M3 12a9 9 0 0 1 15.5-6.2"/><path d="M3 17v-5h5"/><path d="M21 7v5h-5"/></svg>Live Steam cart</div><div class="d">The basket and your Steam cart are the same thing, whether you add from the app, the website or your phone.</div></div>
           <div class="tile"><div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v4"/><path d="M12 17v4"/><path d="M3 12h4"/><path d="M17 12h4"/><path d="m5.6 5.6 2.8 2.8"/><path d="m15.6 15.6 2.8 2.8"/><path d="m5.6 18.4 2.8-2.8"/><path d="m15.6 8.4 2.8-2.8"/></svg>Picks that fit you</div><div class="d">It learns your taste from your library and playtime, hides everything you own, and tells you why each game matched.</div></div>
-          <div class="tile"><div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Private by design</div><div class="d">You sign in on Steam's page; the app never sees your password. Works even if your Steam profile is private. No telemetry.</div></div>
-          <div class="tile"><div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 18v3"/></svg>Works with the website</div><div class="d">Build a basket on the website or your phone, then send it to the app with one link or a six-letter code.</div></div>
+          <div class="tile"><div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Private by design</div><div class="d">You sign in on Steam's page; the app never sees your password. Pairing shares only a random key and game ids. No telemetry.</div></div>
+          <div class="tile"><div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 18v3"/></svg>Lives in the tray</div><div class="d">Close the window and it keeps syncing from the tray. Optional start with Windows. Windows notifications when games land in your cart.</div></div>
         </div>
       </section>
 
@@ -131,7 +182,8 @@
             <li><b>Download</b> the installer with the button above.</li>
             <li><b>Run it.</b> Windows SmartScreen will say the publisher is unknown, because the installer isn't code-signed yet. Click <b>More info</b>, then <b>Run anyway</b>.</li>
             <li><b>Finish</b> the installer. It adds a Start Menu entry and a desktop shortcut, and opens the app.</li>
-            <li><b>Sign in through Steam</b> in the app once. That's what makes the one-click cart possible.</li>
+            <li><b>Sign in through Steam</b> in the app once. That's what lets it work with your cart.</li>
+            <li><b>Optional:</b> open the basket and pair your phone, and turn on <b>Start with Windows</b> in Settings so the PC is always ready.</li>
           </ol>
           <p style="margin-top:14px" class="note">The SmartScreen warning appears for any small app that hasn't paid for a code-signing certificate. The code is open source, so you can read exactly what it does.</p>
         </div>
@@ -140,12 +192,15 @@
       <section>
         <h2>Questions</h2>
         <div class="faq">
-          <details><summary>Does it work on a phone?</summary><p>Yes, with your PC doing the one click. Pair your phone once with the Windows app (the app shows a six-letter code; you type it into the website's basket on your phone). After that, “Send to my PC's Steam cart” on the phone puts the basket in your Steam cart within seconds, and because the cart is shared across devices you can pay right there in the Steam mobile app. Without pairing, each game in the basket has an “Open in Steam” button that opens its own Add to Cart button in the Steam app.</p></details>
-          <details><summary>Does the app need to be running for the phone to work?</summary><p>Yes. The PC does the adding, so Steam Deals has to be open there (it can sit in the background). If it isn't, the phone tells you, and the basket is added the moment you open the app.</p></details>
-          <details><summary>Mac or Linux?</summary><p>The one-click cart needs the Windows app for now. The website works everywhere, and you can run the app from source on any system with Node.js installed (see the GitHub page).</p></details>
-          <details><summary>Can it buy anything without me?</summary><p>No. It only adds games to your cart. Payment always happens in Steam's own checkout, with your confirmation.</p></details>
+          <details><summary>Does the PC have to be on the same Wi-Fi as my phone?</summary><p>No. Both sides talk to this site, so it works from anywhere with internet, including mobile data away from home. The PC just has to be on with the app running, in the tray is fine.</p></details>
+          <details><summary>What if my PC is off when I add a game on my phone?</summary><p>Your basket is saved. The moment the app is running again it catches up and puts the games in your Steam cart. "Start with Windows" makes that automatic after a reboot.</p></details>
+          <details><summary>Will it remove things I added to my cart on Steam myself?</summary><p>No. It only ever removes games that it put in the cart. Anything you add by hand on Steam is left alone. If you take a game out of the cart on Steam, the app doesn't fight you; it marks the game as "taken out on Steam" in the basket instead of re-adding it.</p></details>
+          <details><summary>What does the pairing share?</summary><p>A random key that both sides hold, and the basket itself: Steam game ids with the name and price shown in the app. No Steam account details, no names of people, nothing from your PC. Unpair at any time from the basket on either side; the PC's "Unpair all devices" also wipes the shared basket from the site.</p></details>
+          <details><summary>Can I use more than one phone or browser?</summary><p>Yes. Press "Pair another device" in the app for a new code. Every paired device sees the same basket.</p></details>
+          <details><summary>Does the app need to be signed in?</summary><p>For the cart part, yes: it has to be signed in through Steam, because only your own signed-in session may touch your cart. Steam expires that session now and then; the app shows a notification asking you to sign in again, and your basket waits meanwhile.</p></details>
+          <details><summary>Can it buy anything without me?</summary><p>No. It only adds games to your cart and removes them again. Payment always happens in Steam's own checkout, with your confirmation.</p></details>
+          <details><summary>Mac or Linux?</summary><p>The cart sync needs the Windows app for now. The website works everywhere, and you can run the app from source on any system with Node.js installed (see the GitHub page).</p></details>
           <details><summary>Is my Steam account safe?</summary><p>You sign in on Steam's own login page inside the app; the app never sees your password and only reads which games you own and how long you've played them. Your session, settings and caches stay in a folder on your PC, and signing out wipes the session.</p></details>
-          <details><summary>Where does the download come from?</summary><p>Directly from the project's GitHub releases page, where every version is listed with notes.</p></details>
         </div>
       </section>
 

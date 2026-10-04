@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("steamDeals", {
   settings: {
     get: () => invoke("settings:get"),
     update: (patch) => invoke("settings:update", patch),
+    onChanged: (cb) => subscribe("settings:changed", cb), // the tray menu can flip a few settings
   },
 
   auth: {
@@ -59,15 +60,19 @@ contextBridge.exposeInMainWorld("steamDeals", {
   items: {
     lookup: (appids) => invoke("items:lookup", { appids }),
   },
-  // Phone pairing: baskets sent from the website on a phone arrive here.
+  // Pairing with phones and browsers: one shared basket, mirrored into the Steam cart by this app.
   pair: {
     start: () => invoke("pair:start"),
     check: (pairId) => invoke("pair:check", { pairId }),
     status: () => invoke("pair:status"),
-    ack: (payload) => invoke("pair:ack", payload),
     unpair: () => invoke("pair:unpair"),
-    poll: () => invoke("pair:poll"),
-    onBasket: (cb) => subscribe("pair:basket", cb),
+  },
+  sync: {
+    status: () => invoke("sync:status"),
+    now: () => invoke("sync:now"),
+    onBasket: (cb) => subscribe("basket:replaced", cb),
+    onCart: (cb) => subscribe("cart:status", cb),
+    onStatus: (cb) => subscribe("sync:status", cb),
   },
 
   // Desktop can fill the signed-in account's Steam cart directly.

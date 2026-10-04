@@ -234,6 +234,54 @@ Streaming
   sidebar but lets the top bar wrap. Verified with CDP viewport sweeps at 360×640, 375×553, 390×660, 412×830,
   430×740, 844×330, 768×1000, 820×1150 and 1024×740: fixed chrome is 55px on every phone size (was ~470px).
 
+## 14. Shared basket and live cart sync (v1.6.0)
+
+Supersedes the one-shot phone→PC hand-off in §13 (the relay still answers `send/inbox/ack/status` for older apps).
+
+- **Roles.** The Windows app is the complete product on its own (browse, For-you, basket, and now a Steam cart
+  kept in step with the basket). Paired with the website it is the bridge: every paired phone/browser and the
+  app share one basket, and the app mirrors that basket into the real Steam cart.
+- **Relay** (`web/api/pair.js`, Upstash Redis, free plan ≈500k commands/month). Keys per pairing id (32 hex):
+  `sd:pair:<id>` meta {createdAt, claimedAt, devices}; `sd:basket:<id>` {rev, items[{appid, packageid, name,
+  price, priceCents, originalCents, discount}], updatedAt, by}; `sd:sig:<id>` HASH {rev, active, pc, pcok, pcv}
+  (the cheap poll record); `sd:cart:<id>` the PC's report {status{appid:{s,msg,at}}, subtotal, count}. All
+  live 365 days past last use. `sd:paircode:<code>` → id, 10 minutes. Actions: `start` (with pairId = another
+  code for the same pairing, so more devices can join), `claim`, `check` (devices count; the app treats
+  "claimed" as devices > count at start), `sig` (HGETALL; touch=true marks a phone active for 2 min; pc={ok,v}
+  is the PC heartbeat; withCart adds the cart report; 404 bad_pair when the hash is gone), `basket.get`,
+  `basket.ops` (add/remove/clear, sanitized, max 100 items, applied with a Lua compare-and-set on the rev and
+  retried up to 4×; verified with 6 parallel adds), `cart.set`, `unpair` (deletes everything).
+- **Budget-aware polling.** Website: while visible and paired, `sig` (+cart) every 4 s and a touch every 45 s;
+  pulls the basket only when rev changed; stops when the tab is hidden. Desktop (`src/main/sync.js`): `sig`
+  every 3 s while a phone is active or within 60 s of a change, else every 30 s; heartbeat on fast ticks and at
+  least every 5 min; reconciles the Steam cart on changes and on a 1 min (fast) / 5 min (slow) heartbeat. An
+  idle paired PC costs ≈2.9k commands/day. Unpaired, the desktop still reconciles its own basket every 5 min
+  and on every basket edit.
+- **Mirroring rules** (`reconcileOnce`): GetCart → for each basket item with a packageid: in cart → "added";
+  not in cart and never added by us → add; not in cart but in `settings.mirror` (we added it) → not re-added:
+  if now owned → "owned" and dropped from the basket (ops by pc), else "removed_on_steam". Items that left the
+  basket are removed from the cart only if they are in `mirror` (never hand-added cart lines). Statuses:
+  added, failed, no_package, needs_steam, removed_on_steam, owned. Reported to the relay via `cart.set` when
+  changed (or every 10 min) and to the renderer as `cart:status`.
+- **Desktop plumbing.** `settings:update` with `basket` → `sync.onLocalBasketChange(prev, next)` → ops to
+  relay (+ reconcile). Relay rev change → `pull` → `settings.basket` replaced, `basket:replaced` to the
+  renderer, reconcile. `settings.mirror` and `basketRev` persist; `REPLACE_KEYS` in settings.js stops
+  deepMerge from resurrecting removed mirror entries. Pairing dropped (404) → pairId cleared quietly.
+- **Tray.** `createTray` (icon from `build/icon.ico`, now packaged); X hides to tray when `closeToTray`
+  (default on; balloon once); tray menu: open, pause syncing, close-to-tray, start with Windows, quit.
+  `startWithWindows` → `app.setLoginItemSettings({openAtLogin, args:["--hidden"]})`, packaged only; the app
+  starts hidden with `--hidden`. `backgroundThrottling:false` keeps the hidden renderer responsive.
+  Notifications (main process) when the window is hidden/unfocused: games from the phone added/removed,
+  sign-in needed, cart failures (rate-limited per kind).
+- **Renderer.** Basket rows carry a `.cart-badge` per game; the send panel is "Synced with your Steam cart"
+  (desktop, with Check now / Switch to a Send button) or "Synced with your PC's Steam cart" (website, with PC
+  status line, per-game Open in Steam in a `<details>`, Unpair this device); unpaired website shows the
+  per-game buttons then the Windows-app promo (benefits, direct download, /app, pairing-code field, and on
+  Windows the steamdeals:// hand-off). Settings → "Windows app" group (desktop toggles; website explanation +
+  link). Login screen links to /app on the website.
+- **Verified 2026-10-04** against the real Steam cart with POSTAL 2 ($0.99): phone add → cart within ~9 s,
+  phone remove → cart emptied, PC add/remove → phone basket follows, PC unpair → phone forgets. Cart left empty.
+
 ## 11. Work plan
 
 1. Scaffold package.json, install Electron + electron-builder, .gitignore, README.

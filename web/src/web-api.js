@@ -246,13 +246,34 @@
 
   // ---------- config + return from Steam sign-in ----------
   const features = { steamSignIn: false };
+  // Anonymous user counter: a random id made in this browser, counted at most once a day.
+  async function countUser() {
+    try {
+      let id = store.get("sd:uid");
+      if (!id) {
+        id = crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+        store.set("sd:uid", id);
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      const r = store.get("sd:counted") === today ? await http("/api/stats") : await http("/api/stats", { method: "POST", body: { id } });
+      if (r.enabled) {
+        store.set("sd:counted", today);
+        features.users = { total: r.total, week: r.week };
+      }
+    } catch {
+      /* the counter is decoration; never block the app on it */
+    }
+  }
+
   async function ready() {
+    const counted = countUser();
     try {
       const c = await http("/api/config");
       features.steamSignIn = Boolean(c.steamSignIn);
     } catch {
       features.steamSignIn = false;
     }
+    await Promise.race([counted, new Promise((r) => setTimeout(r, 1500))]);
     const hash = location.hash.replace(/^#/, "");
     if (hash === "signedin" || hash === "signin-cancelled") history.replaceState(null, "", location.pathname + location.search);
     if (hash === "signedin") {

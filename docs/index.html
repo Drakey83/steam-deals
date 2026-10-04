@@ -82,6 +82,8 @@
     display: grid;
     gap: 28px;
   }
+  .wrap > *, section, .card { min-width: 0; } /* wide table scrolls inside its wrapper, never the page */
+  header > div { min-width: 0; }
 
   header {
     display: flex;

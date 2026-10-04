@@ -73,6 +73,18 @@ Fallbacks
 - Advanced: paste a Steam Web API key + SteamID64 (or vanity name). Uses `IPlayerService/GetOwnedGames`
   with `include_played_free_games=1&include_free_sub=1`. Stored locally, never displayed after entry.
 
+### 4.1 Staying signed in (v1.6.1)
+
+Electron does not keep session cookies (no expiry) across restarts, even in a `persist:` partition (verified
+with a dummy cookie), and Steam's store login cookie is a session cookie. Until 1.6.0 that meant a fresh sign-in
+on every launch, and a dead session after Steam's short-lived login expired, because the app never loaded a store
+page where Steam's own script renews the login from the persistent "Remember me" cookie. `auth.keepAlive()` now
+loads `https://store.steampowered.com/` in a hidden sandboxed window on the Steam partition, waits ~3.5 s after
+load for the page's own renewal, then only re-reads the SteamID from the cookie; it runs when `auth:status`
+finds the SteamID missing (launch), every 6 hours, and once more before `cartSession` gives up with
+`session_expired`. The app never touches the page or any token. Verified: after a restart the app came back
+signed in with the cart working, with no prompt.
+
 ## 5. Data
 
 Deals: `IStoreQueryService/Query/v1` (keyless)

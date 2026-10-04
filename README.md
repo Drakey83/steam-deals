@@ -83,7 +83,10 @@ SESSION_SECRET=any-random-string-at-least-32-characters-long
 ## Using it
 
 - **Sign in through Steam** opens Steam's own login page in a window. Sign in there as usual, including Steam Guard.
-  The app never sees your password. It only reads which games you own and what's on your wishlist.
+  The app never sees your password. It only reads which games you own and what's on your wishlist. Leave
+  **Remember me** ticked on Steam's page and you stay signed in for as long as the Steam website would keep you
+  signed in (weeks to months): the app renews the session itself on launch and every few hours, the same way a
+  browser does when you open the store. You only sign in again after changing your password or signing out.
 - **Browse as guest** shows deals without hiding owned games.
 - **Use a Steam Web API key instead** is for people who prefer not to sign in. Get a free key at
   <https://steamcommunity.com/dev/apikey>; your profile's Game details must be public.

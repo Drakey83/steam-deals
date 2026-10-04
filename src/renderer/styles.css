@@ -561,8 +561,20 @@ details.advanced summary:hover {
 }
 .search {
   position: relative;
-  flex: 1;
+  flex: 1 1 200px;
+  min-width: 150px;
   max-width: 460px;
+}
+@media (max-width: 1500px) {
+  .search kbd {
+    display: none;
+  }
+  .seg-btn {
+    padding: 0 10px;
+  }
+  .updated {
+    display: none;
+  }
 }
 .search .input {
   width: 100%;

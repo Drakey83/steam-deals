@@ -1,7 +1,7 @@
 {
   "name": "steam-deals",
   "productName": "Steam Deals",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Find the best Steam discounts on games you don't already own.",
   "author": "Reid Carlisle",
   "license": "MIT",

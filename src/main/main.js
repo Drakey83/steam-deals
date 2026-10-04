@@ -136,6 +136,7 @@ async function profileFor(steamid) {
 const ALLOWED_SETTING_KEYS = new Set([
   "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights",
   "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste",
+  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "cartButtonSeen",
 ]);
 const TASTE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -360,6 +361,48 @@ handle("tags:fetch", async () => {
 });
 
 handle("taste:build", (opts) => buildTaste(opts));
+
+// ---------- Steam cart (desktop: the signed-in store session can fill the cart directly) ----------
+let storeCountry = null;
+async function cartSession() {
+  const a = settings.get().account;
+  if (!a || a.method !== "steam") throw new steam.SteamError("Sign in through Steam to send your basket to your Steam cart.", null, "needs_steam");
+  let token;
+  try {
+    token = await steam.fetchWebApiToken({ fetchImpl: auth.sessionFetch });
+  } catch {
+    throw new steam.SteamError("Your Steam session has expired. Sign in again to use your cart.", null, "session_expired");
+  }
+  storeCountry ||= await steam.fetchStoreCountry({ fetchImpl: auth.sessionFetch });
+  return { token, country: storeCountry };
+}
+
+// Tax-region detection: ask the Steam Deals website, which sees the connection's country and
+// state/province. One small request, nothing stored; the person can always change the region.
+handle("geo:detect", async () => {
+  const res = await fetch("https://steamdeal.vercel.app/api/geo", { signal: AbortSignal.timeout(6000) });
+  if (!res.ok) throw new steam.SteamError("Location lookup unavailable", res.status, "geo");
+  const g = await res.json();
+  return { country: g.country ?? null, region: g.region ?? null, taxRegion: g.taxRegion ?? null };
+});
+
+handle("cart:supported", () => ({ value: settings.get().account?.method === "steam" }));
+
+handle("cart:get", async () => {
+  const { token, country } = await cartSession();
+  return { cart: await steam.getCart(token, country) };
+});
+
+handle("cart:add", async ({ packageids = [] } = {}) => {
+  const { token, country } = await cartSession();
+  const result = await steam.addToCart(token, packageids, country);
+  return { cart: { items: result.items, subtotal: result.subtotal, subtotalCents: result.subtotalCents }, added: result.added };
+});
+
+handle("cart:remove", async ({ lineItemIds = [] } = {}) => {
+  const { token, country } = await cartSession();
+  return { cart: await steam.removeFromCart(token, lineItemIds, country) };
+});
 
 handle("shell:openExternal", (url) => ({ value: openExternal(url) }));
 

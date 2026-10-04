@@ -24,7 +24,8 @@ explanation on every card. Everything you own is hidden.
 
 Open **https://steamdeal.vercel.app**. Nothing to install. Sign in through Steam, paste your own
 Steam Web API key, or browse as a guest. Signing in through Steam needs your profile's **Game details**
-set to Public. Using your own key does not.
+set to Public. Using your own key does not. On a phone or tablet, use your browser's **Add to Home Screen**
+to keep it as an app.
 
 ### Windows app
 
@@ -80,6 +81,19 @@ Two toggles at the top:
 - **On sale / All games.** On sale shows only discounted games. All games covers the whole catalog, so For you
   becomes "the highest-rated games I'd probably like, whether or not they're on sale."
 
+**Basket.** Press **+** on any game to collect sales. The basket shows the subtotal, what you're saving, an
+estimated tax for your state or province (Steam adds US and Canadian sales tax at checkout; elsewhere prices
+already include it), and the total. When you're ready, **Send to my Steam cart** puts everything in your real
+Steam cart. Nothing is purchased: you review and pay in Steam's own checkout, in the Steam app, the website,
+or on your phone, since the cart belongs to your account.
+
+- In the **Windows app**, one click does it (you need to be signed in through Steam).
+- On the **website**, browsers don't allow one site to change your cart on another, so Steam Deals hands the
+  basket to a small **“Fill my Steam cart” button** that runs on Steam's own page. Set it up once: drag it to
+  your bookmarks bar on a computer, or save it as a bookmark on iPhone, iPad or Android (the basket walks you
+  through it). Then it's two taps: *Open my Steam cart*, then your button. The button only ever runs on
+  steampowered.com and only adds items; your Steam sign-in never leaves Steam.
+
 Filters live in the left sidebar: minimum discount and rating, minimum review count, tags, hide-owned and wishlist-only.
 Click any card for details, a score breakdown, and why it matched you, plus buttons to open the store page in your
 browser or in the Steam client.
@@ -104,7 +118,10 @@ pages arrive, so the first cards show up in about a second at any depth.
 
 - Sign-in always happens on Steam's own page. Neither version ever sees your password.
 - **Windows app:** the only cookie it reads is the one that identifies your SteamID64. Your Steam session,
-  settings, and caches stay in `%APPDATA%\Steam Deals`. Sign out wipes the session. It talks only to Steam.
+  settings, and caches stay in `%APPDATA%\Steam Deals`. Sign out wipes the session. It talks only to Steam,
+  plus one request to steamdeal.vercel.app to guess your state or province for the basket's tax estimate
+  (nothing is stored there; you can change the region by hand).
+- **Basket tax estimate:** the region is guessed from your connection's location and can be changed in the basket.
 - **Website:** settings and any API key you add stay in your browser. Your key is passed through to Steam
   and never stored on the server. The visitor count is anonymous: one random id per browser, nothing tied
   to you or your Steam account. No ads, no tracking.

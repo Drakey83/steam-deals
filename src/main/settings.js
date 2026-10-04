@@ -20,6 +20,11 @@ const DEFAULTS = Object.freeze({
   view: "foryou", // 'foryou' | 'all'
   personalWeight: 60, // 0–100: how much the For-you ranking favours taste match over raw deal score
   showTaste: true, // the "Your taste" panel above For-you results
+  basket: [], // [{ appid, packageid, name, price, priceCents, originalCents, discount }]
+  taxRegion: null, // null = not chosen yet (US/CA), "included", "none", "US-WA", "CA-ON", "custom"
+  taxCustomRate: 0,
+  taxRegionAuto: false, // true while the region came from location detection and hasn't been changed by hand
+  cartButtonSeen: false, // website: the person has set up the "Fill my Steam cart" button
   account: null, // { steamid, name, avatar, method: 'steam' | 'apikey', signedInAt }
   apiKey: null,
   manualSteamId: null,

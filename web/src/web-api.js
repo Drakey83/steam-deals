@@ -294,7 +294,29 @@
   const ALLOWED_SETTINGS = new Set([
     "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights", "hideOwned",
     "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste",
+    "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "cartButtonSeen",
   ]);
+
+  // The website can't touch a Steam cart itself (browsers block that on purpose), so it hands the
+  // basket to a "Fill my Steam cart" button that runs on Steam's own page. See cart-bookmarklet.js.
+  let bookmarkletCode = null;
+  async function bookmarklet() {
+    if (!bookmarkletCode) {
+      const src = await (await fetch("/cart-bookmarklet.js")).text();
+      // Drop comment-only lines, keep everything else verbatim, encode so it survives as a bookmark URL.
+      const code = src.split("\n").filter((l) => !/^\s*\/\//.test(l)).join("\n").trim();
+      bookmarkletCode = "javascript:" + encodeURIComponent(code);
+    }
+    return bookmarkletCode;
+  }
+  function device() {
+    const forced = new URLSearchParams(location.search).get("device"); // testing aid: ?device=ios|android|desktop
+    if (["ios", "android", "desktop"].includes(forced)) return forced;
+    const ua = navigator.userAgent;
+    const iOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const android = /Android/.test(ua);
+    return iOS ? "ios" : android ? "android" : "desktop";
+  }
 
   window.steamDeals = {
     platform: "web",
@@ -379,6 +401,23 @@
     taste: {
       build: wrap(buildTaste),
       onProgress: (cb) => on("taste-progress", cb),
+    },
+
+    geo: {
+      // Country + state/province from the connection, via the site's own endpoint. Nothing stored server-side.
+      detect: wrap(async () => {
+        const g = await http("/api/geo");
+        return { country: g.country, region: g.region, taxRegion: g.taxRegion };
+      }),
+    },
+
+    cart: {
+      mode: "handoff",
+      device: device(),
+      supported: async () => ({ ok: true, value: false }),
+      /** Steam cart page carrying the basket in its address; the button on that page does the adding. */
+      handoffUrl: (packageids) => `https://store.steampowered.com/cart/#sd=${packageids.join(",")}`,
+      bookmarklet: wrap(async () => ({ value: await bookmarklet() })),
     },
 
     openExternal: async (url) => {

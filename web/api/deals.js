@@ -16,7 +16,7 @@ module.exports = handler(async (req, res) => {
   for (const it of raw) {
     const n = core.normalizeItem(it, { requireDiscount: discounted });
     if (n && (!discounted || n.discount >= 50)) {
-      delete n.image; // the browser rebuilds these from the appid
+      delete n.image; // the browser rebuilds these from the appid (packageid stays: the cart needs it)
       delete n.url;
       delete n.tagids;
       items.push(n);

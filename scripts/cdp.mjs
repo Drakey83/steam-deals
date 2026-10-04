@@ -53,6 +53,14 @@ if (cmd === "shot") {
 } else if (cmd === "eval") {
   const r = await c.send("Runtime.evaluate", { expression: rest.join(" "), awaitPromise: true, returnByValue: true });
   console.log(r.exceptionDetails ? "EXCEPTION: " + JSON.stringify(r.exceptionDetails, null, 1) : JSON.stringify(r.result.value, null, 1));
+} else if (cmd === "reload") {
+  await c.send("Page.reload", { ignoreCache: true });
+  console.log("reloaded (cache ignored)");
+} else if (cmd === "ua") {
+  // node scripts/cdp.mjs ua "<user agent>" <width> <height> [mobile]
+  await c.send("Network.setUserAgentOverride", { userAgent: rest[0] });
+  if (rest[1]) await c.send("Emulation.setDeviceMetricsOverride", { width: Number(rest[1]), height: Number(rest[2] || 800), deviceScaleFactor: 2, mobile: rest[3] === "mobile" });
+  console.log("user agent + metrics overridden; reload to apply");
 } else if (cmd === "logs") {
   const ms = Number(rest[0] || 3000);
   await c.send("Runtime.enable");

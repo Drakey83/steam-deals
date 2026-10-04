@@ -202,7 +202,10 @@ Streaming
   `/cart/` form, GET links, and API keys all fail; CORS to api.steampowered.com is allowed only for the store origin.
 - Desktop: `cart:add/get/remove` IPC use the signed-in session's token directly; success shows Steam's subtotal, "Open cart in
   Steam app" (`steam://openurl/https://store.steampowered.com/cart/`), and an Undo that removes the added line items.
-- Website: hands the basket to the desktop app, never to a bookmark/script (a bookmarklet version was built, verified
+- Website primary path (no install): one "Open in Steam" button per basket game (`steam://store/<appid>` on desktop,
+  `https://store.steampowered.com/app/<appid>/` on phones so the Steam mobile app opens it), tracked as opened, then
+  "Open my Steam cart". The user explicitly wants no requirement to download the Steam Deals app and no bookmarklets.
+- Website optional shortcut: hands the basket to the desktop app, never to a bookmark/script (a bookmarklet version was built, verified
   and then removed as too alarming for ordinary users). The app registers the `steamdeals://` scheme (electron-builder
   `protocols`, plus `setAsDefaultProtocolClient` in dev). `steamdeals://cart?items=<appid>:<packageid>,…&v=1` arrives via
   `second-instance` argv (Windows) or `open-url`; the renderer resolves unknown appids with `items:lookup` (GetItems) and

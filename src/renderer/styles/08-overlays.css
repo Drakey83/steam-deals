@@ -61,6 +61,7 @@
   margin-top: -36px;
   position: relative;
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* never wider than the panel, whatever a row contains */
   gap: 16px;
 }
 .drawer h2 {
@@ -78,6 +79,7 @@
 }
 .buy-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
@@ -95,6 +97,8 @@
 .buy-row .actions {
   margin-left: auto;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
 }
 .score-box {

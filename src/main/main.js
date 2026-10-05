@@ -197,7 +197,7 @@ async function profileFor(steamid) {
 
 const ALLOWED_SETTING_KEYS = new Set([
   "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights",
-  "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste", "showTastePhone",
+  "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste", "showTastePhone", "deckCompat", "machineCompat",
   "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows",
 ]);
 const TASTE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
@@ -403,7 +403,7 @@ handle("deals:fetch", async ({ force = false } = {}) => {
   // scanDepth 0 = "everything on sale" (the discounted list is ~70k items; the whole catalog is ~240k, so it stays capped there).
   const depth = Number(s.scanDepth);
   const limit = depth === 0 && discounted ? Infinity : Math.min(Math.max(depth || 10000, 500), 25000);
-  const key = `catalog:v2:${discounted ? "sale" : "all"}:${s.country}:${s.language}:${s.scanDepth}:${steam.SERVER_MIN_DISCOUNT}`;
+  const key = `catalog:v3:${discounted ? "sale" : "all"}:${s.country}:${s.language}:${s.scanDepth}:${steam.SERVER_MIN_DISCOUNT}`;
   if (!force) {
     const hit = cache.get(key, DEALS_TTL_MS);
     if (hit) return { ...hit.value, fromCache: true, age: hit.age };

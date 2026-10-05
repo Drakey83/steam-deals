@@ -257,7 +257,7 @@ async function lookupItems(appids, { language = "english", country = "US", signa
     const input = {
       ids: appids.slice(i, i + 50).map((appid) => ({ appid })),
       context: { language, country_code: country, steam_realm: 1 },
-      data_request: { include_basic_info: true, include_reviews: true, include_release: true, include_tag_count: 8 },
+      data_request: { include_basic_info: true, include_reviews: true, include_release: true, include_tag_count: 8, include_platforms: true },
     };
     const res = await fetchJSON(`${API}/IStoreBrowseService/GetItems/v1/?input_json=${encodeURIComponent(JSON.stringify(input))}`, { signal, fetchImpl });
     for (const it of res?.response?.store_items ?? []) {

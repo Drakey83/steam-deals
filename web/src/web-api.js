@@ -54,6 +54,8 @@
     wishlistOnly: false,
     sort: "score",
     selectedTags: [],
+    deckCompat: "any",
+    machineCompat: "any",
     view: "foryou",
     personalWeight: 60,
     showTaste: true,
@@ -160,7 +162,7 @@
     const runId = Date.now();
     // "Refresh" asks the edge for a newer copy at most every 10 minutes, so Steam isn't hammered.
     const bust = force ? `&r=${Math.floor(Date.now() / 600000)}` : "";
-    const qs = (start) => `/api/deals?catalog=${discounted ? "sale" : "all"}&start=${start}&cc=${s.country}&l=${s.language}${bust}`;
+    const qs = (start) => `/api/deals?catalog=${discounted ? "sale" : "all"}&start=${start}&cc=${s.country}&l=${s.language}&v=2${bust}`;
 
     const first = await http(qs(0), { signal: controller.signal });
     const total = first.total ?? 0;
@@ -298,7 +300,7 @@
   const ALLOWED_SETTINGS = new Set([
     "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights", "hideOwned",
     "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste", "showTastePhone",
-    "basket", "taxRegion", "taxCustomRate", "taxRegionAuto",
+    "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "deckCompat", "machineCompat",
   ]);
 
   // ---------- the shared basket (pairing with the Steam Deals Windows app) ----------

@@ -1,0 +1,305 @@
+/* Basket panel, totals, Steam-cart section, pairing. */
+/* ---------- basket ---------- */
+.basket-btn {
+  gap: 8px;
+  padding: 0 12px;
+}
+.basket-btn.has-items {
+  border-color: rgba(139, 212, 80, 0.45);
+  background: rgba(139, 212, 80, 0.1);
+}
+.basket-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--green);
+  color: #0b1a07;
+  font-size: 12px;
+  font-weight: 800;
+  display: inline-grid;
+  place-items: center;
+}
+.basket-total {
+  font-weight: 700;
+}
+.basket-label {
+  font-weight: 600;
+}
+.basket-toggle {
+  flex: none;
+}
+.basket-toggle.on {
+  background: rgba(139, 212, 80, 0.18);
+  border-color: rgba(139, 212, 80, 0.55);
+  color: #d6f5bd;
+}
+.price-row .basket-toggle {
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+}
+.card .price-row {
+  align-items: center;
+}
+.basket-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 12px 22px;
+  background: #0e141b;
+  border-bottom: 1px solid var(--border);
+}
+.basket-body {
+  margin-top: 0;
+  padding-top: 16px;
+}
+.basket-list {
+  display: grid;
+  gap: 10px;
+}
+.basket-row {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.basket-thumb {
+  width: 96px;
+  aspect-ratio: 460 / 215;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #121923;
+}
+.basket-info {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.basket-name {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.basket-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.basket-price-row .price {
+  font-size: 15px;
+}
+.basket-badge {
+  position: static;
+  box-shadow: none;
+  font-size: 11.5px;
+  padding: 2px 6px;
+}
+.basket-open-link {
+  font-size: 12px;
+}
+.basket-summary {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+.sum-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+.sum-row.total {
+  font-weight: 700;
+  font-size: 17px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.savings {
+  color: var(--green);
+}
+.tax-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tax-pick .select {
+  height: 32px;
+  max-width: 260px;
+}
+.tax-note {
+  font-size: 12px;
+}
+.auto-chip {
+  margin-left: 6px;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(79, 195, 247, 0.14);
+  border-color: rgba(79, 195, 247, 0.4);
+  color: #bfe9ff;
+}
+.send-box {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(79, 195, 247, 0.3);
+  background: radial-gradient(500px 160px at 0% 0%, rgba(79, 195, 247, 0.12), transparent 70%), var(--surface);
+}
+.send-title {
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.send-title svg {
+  width: 18px;
+  height: 18px;
+}
+.send-title.ok svg {
+  color: var(--green);
+}
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.step2 {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+.steps {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+.basket-empty {
+  margin-top: 40px;
+}
+
+.muted.small {
+  font-size: 12.5px;
+}
+.after-send {
+  display: grid;
+  gap: 8px;
+}
+.code-box {
+  display: grid;
+  gap: 6px;
+}
+.code-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.code {
+  font: 800 30px/1 var(--font-display);
+  letter-spacing: 6px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px dashed rgba(79, 195, 247, 0.6);
+  color: #d8f3ff;
+  user-select: all;
+}
+.import-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13.5px;
+}
+.code-input {
+  width: 130px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-weight: 700;
+}
+.connect-body {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  text-align: center;
+}
+.connect-body .steps {
+  text-align: left;
+}
+.connect-status {
+  text-align: center;
+  font-size: 14px;
+}
+.per-game {
+  display: grid;
+  gap: 10px;
+}
+.faster {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.steam-list {
+  display: grid;
+  gap: 8px;
+}
+.steam-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: opacity var(--t-fast);
+}
+.steam-row.done {
+  opacity: 0.6;
+}
+.basket-thumb.small {
+  width: 64px;
+}
+details.shortcut {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+details.shortcut summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-2);
+}
+details.shortcut summary:hover {
+  color: var(--text);
+}
+.shortcut-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}

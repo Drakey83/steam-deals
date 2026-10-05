@@ -1,0 +1,40 @@
+/* Toast messages. */
+/* ---------- toasts ---------- */
+.toasts {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  display: grid;
+  gap: 8px;
+  z-index: 120;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #141c26;
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  min-width: 240px;
+  max-width: 380px;
+  animation: pop 160ms var(--ease) both;
+}
+.toast.err {
+  border-color: rgba(255, 107, 107, 0.4);
+}
+.toast.ok {
+  border-color: rgba(139, 212, 80, 0.4);
+}
+.toast .btn {
+  margin-left: auto;
+}
+
+.users-line {
+  font-size: 11.5px;
+  color: var(--text-3);
+  text-align: center;
+  margin-top: 6px;
+}

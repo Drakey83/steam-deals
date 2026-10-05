@@ -1,0 +1,90 @@
+/* Website shell: no window chrome; toggles that scroll away. */
+/* ---------- website: no window chrome, real viewport height ---------- */
+body.web {
+  --titlebar-h: 0px;
+  padding-top: 0;
+}
+body.web .titlebar {
+  display: none;
+}
+body.web .topbar {
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+}
+body.web .browse,
+body.web .login {
+  height: 100vh;
+  height: 100dvh;
+}
+.brand-inline {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+}
+body.web .brand-inline {
+  display: flex;
+}
+.brand-inline .brand-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+}
+.brand-inline .brand-mark svg {
+  width: 13px;
+  height: 13px;
+}
+.viewbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#viewbar-top {
+  display: contents;
+}
+#viewbar-slot:empty {
+  display: none;
+}
+#viewbar-slot .viewbar {
+  padding: 0 0 10px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#viewbar-slot .viewbar::-webkit-scrollbar {
+  display: none;
+}
+#viewbar-slot .seg,
+#viewbar-slot .select {
+  flex: none;
+}
+.search-toggle {
+  display: none;
+}
+
+/* stats and banners live inside the scrolling area; on wide screens the stats stay pinned */
+.stats {
+  padding: 0 0 12px;
+}
+.banner {
+  margin: 0 0 12px;
+}
+@media (min-width: 861px) and (min-height: 501px) {
+  /* The deal-count strip pins to the top of the list. No negative top margin: a sticky element pins by its
+     margin edge, so a negative margin would leave a strip of scrolled cards showing above it. */
+  .scroller {
+    padding-top: 0;
+  }
+  .stats {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--bg);
+    margin: 0 -20px 12px;
+    padding: 12px 20px 8px;
+  }
+  #banners > .banner:first-child {
+    margin-top: 12px;
+  }
+}

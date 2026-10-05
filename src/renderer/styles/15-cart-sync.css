@@ -1,0 +1,89 @@
+/* Shared basket: per-game cart badges, sync line, Windows-app promo. */
+/* ---------- shared basket: per-game cart state, sync line, Windows-app promo ---------- */
+.basket-sync:empty {
+  display: none;
+}
+.cart-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.04);
+  max-width: 100%;
+}
+.cart-badge svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+.cart-badge.ok {
+  color: #d6f5bd;
+  border-color: rgba(139, 212, 80, 0.45);
+  background: rgba(139, 212, 80, 0.12);
+}
+.cart-badge.wait {
+  color: #bfe6ff;
+  border-color: rgba(79, 195, 247, 0.4);
+  background: rgba(79, 195, 247, 0.1);
+}
+.cart-badge.wait svg {
+  animation: spin 1.6s linear infinite;
+}
+.cart-badge.warn {
+  color: #ffe2a6;
+  border-color: rgba(245, 185, 66, 0.45);
+  background: rgba(245, 185, 66, 0.1);
+}
+.cart-badge.err {
+  color: #ffc4c4;
+  border-color: rgba(255, 99, 99, 0.45);
+  background: rgba(255, 99, 99, 0.1);
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.sync-line:empty {
+  display: none;
+}
+.app-promo .promo-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.app-promo .btn-row a.btn {
+  text-decoration: none;
+}
+.pair-have {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+.row-toggle {
+  align-items: center;
+  gap: 16px;
+}
+.row-toggle .row-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.login-app {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cart-badge.wait svg {
+    animation: none;
+  }
+}

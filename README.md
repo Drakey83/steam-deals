@@ -165,16 +165,17 @@ Requires Node 20.11 or newer.
 ```bash
 npm install
 npm start               # run from source
-npm run selftest        # hit the Steam endpoints from plain Node
-npm run dist            # build release/Steam Deals Setup x.y.z.exe
+npm run check           # lint, import check and unit tests
+npm run dist            # check, then build release/Steam Deals Setup x.y.z.exe
 ```
 
-Layout: `src/main` (Electron main process: window, Steam HTTP, sign-in, settings, cache), `src/preload.js`
-(the only bridge to the UI), `src/renderer` (vanilla HTML/CSS/JS, shared by the desktop app and the website),
-`src/shared/core.js` (scoring and taste logic, shared by both). `SPEC.md` describes the design in detail.
+The interface is plain ES modules shared by the desktop app and the website, split into small files by
+layer: pure logic (unit-tested), data loading, shared widgets and views. The Windows app's main process is
+split the same way (window, tray, deep links, IPC handlers per feature, the cart-sync engine).
+[ARCHITECTURE.md](ARCHITECTURE.md) maps every folder; `SPEC.md` describes the design in detail.
 
 **Website** (`web/`): static page plus serverless functions on Vercel's free Hobby plan. `web/src/web-api.js`
-implements the same interface the desktop preload exposes, backed by `web/api/*`. Deal pages are cached at
+(with `web/src/browser-api/`) implements the same interface the desktop preload exposes, backed by `web/api/*`. Deal pages are cached at
 Vercel's edge for three hours, so every visitor shares one scan. "Sign in through Steam" is Steam's OpenID
 login; it is enabled when the project has `STEAM_API_KEY` and `SESSION_SECRET` (32+ chars) set as
 environment variables. A visitor's own API key stays in their browser and is passed through to Steam only.
@@ -182,7 +183,7 @@ environment variables. A visitor's own API key stays in their browser and is pas
 ```bash
 npm run web:local       # run the website locally (plain Node, no accounts)
 npm run web:build       # assemble web/public from the shared sources
-npm run web:deploy      # build and deploy to production (needs `vercel login` and a linked project)
+npm run web:deploy      # check, build and deploy to production (needs `vercel login` and a linked project)
 ```
 
 `scripts/make-icon.py` regenerates the icon (needs Python with Pillow). `scripts/cdp.mjs` drives a running

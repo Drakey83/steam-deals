@@ -1,0 +1,33 @@
+/* Steam Deck / Steam Machine rating badges. */
+/* ---------- Steam Deck / Steam Machine ratings ---------- */
+.compat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.compat-badge.ok {
+  color: #d6f5bd;
+  border-color: rgba(139, 212, 80, 0.4);
+  background: rgba(139, 212, 80, 0.1);
+}
+.compat-badge.mid {
+  color: #ffe2a6;
+  border-color: rgba(245, 185, 66, 0.4);
+  background: rgba(245, 185, 66, 0.08);
+}
+.compat-badge.no {
+  opacity: 0.7;
+}
+.rating-row .compat-badge.compact {
+  margin-left: 2px;
+}
+.rating-row {
+  flex-wrap: wrap;
+}

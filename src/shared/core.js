@@ -205,7 +205,28 @@ function estimateTax(subtotalCents, region, customRate) {
   return { rate, taxCents: Math.round((subtotalCents * rate) / 100) };
 }
 
-const api = { COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
+// ---------- shared basket (used by the desktop sync engine and the website) ----------
+
+/** True when two baskets hold the same games (ignores names and prices). */
+function sameBasket(a, b) {
+  const key = (list) => JSON.stringify((list || []).map((i) => [i.appid, i.packageid]));
+  return key(a) === key(b);
+}
+
+/** The add/remove operations that turn basket `prev` into `next` (sent to the pairing relay). */
+function basketOps(prev, next) {
+  const before = new Map((prev || []).map((i) => [i.appid, i]));
+  const after = new Map((next || []).map((i) => [i.appid, i]));
+  const ops = [];
+  for (const [appid] of before) if (!after.has(appid)) ops.push({ op: "remove", appid });
+  for (const [appid, item] of after) {
+    const old = before.get(appid);
+    if (!old || JSON.stringify(old) !== JSON.stringify(item)) ops.push({ op: "add", item });
+  }
+  return ops;
+}
+
+const api = { sameBasket, basketOps, COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.SteamCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

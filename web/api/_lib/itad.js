@@ -77,10 +77,13 @@ async function steamLows(ids, country) {
   return out;
 }
 
+/** ITAD accepts ISO 8601 without fractional seconds only ("…T12:00:00Z"); with milliseconds it answers 400. */
+const isoSeconds = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+
 /** One game's Steam price log since `since` (ms). */
 async function steamHistory(id, country, since) {
-  const log = await call("/games/history/v2", { query: { id, country, shops: String(STEAM_SHOP), since: new Date(since).toISOString() } });
+  const log = await call("/games/history/v2", { query: { id, country, shops: String(STEAM_SHOP), since: isoSeconds(since) } });
   return steamPoints(log);
 }
 
-module.exports = { configured, lookupIds, steamLows, steamHistory, idsFromLookup, steamLow, steamPoints, STEAM_SHOP };
+module.exports = { configured, lookupIds, steamLows, steamHistory, idsFromLookup, steamLow, steamPoints, isoSeconds, STEAM_SHOP };

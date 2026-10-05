@@ -5,10 +5,12 @@ import { $, el } from "../lib/dom.js";
 import { ICON } from "../lib/icons.js";
 import { api, isWeb } from "../lib/platform.js";
 import { normWeights } from "../logic/ranking.js";
-import { patchSettings, state } from "../state.js";
+import { dismissedList, patchSettings, state } from "../state.js";
+import { Core } from "../lib/platform.js";
 import { avatarEl } from "../ui/common.js";
 import { closeDrawer, modalHead, showModal } from "../ui/overlays.js";
 import { signInFromBrowse, signOut } from "./account.js";
+import { restoreAll, restoreGame } from "./dismiss.js";
 import { renderStats } from "./feed.js";
 import { renderSidebar } from "./sidebar.js";
 
@@ -35,6 +37,7 @@ export function openSettings() {
     group("Score weights", weightSliders(s), el("div", { class: "muted", style: NOTE }, "Popularity is the review count on a log scale: 1,000 reviews scores 50, a million or more scores 100. The scale is fixed, so a game's score doesn't change with what else is loaded.")),
     group("For you", tasteSlider(s), el("div", { class: "muted", style: NOTE }, "How much the For-you ranking favours games that match your library over games that are simply the best bargains. 100% is pure taste match; 0% is the plain deal score.")),
     group("Account", accountRow()),
+    group("Not interested", dismissedSection()),
     isWeb
       ? group("Windows app", el("div", { class: "muted", style: { fontSize: "13px" } },
           "The free Steam Deals Windows app does everything this site does and adds the one thing a browser can't: it fills your Steam cart. Pair this browser with it (basket → “Already have it?”) and your basket becomes your Steam cart, live, from anywhere. ",
@@ -91,6 +94,30 @@ function accountRow() {
     el("div", { style: { display: "flex", gap: "10px", alignItems: "center" } }, avatarEl(a),
       el("div", {}, el("div", { style: { fontWeight: 600 } }, a.name), el("div", { class: "muted", style: { fontSize: "12px" } }, a.method === "steam" ? "Signed in through Steam" : "Steam Web API key"))),
     el("button", { class: "btn btn-sm btn-danger", onclick: signOut }, "Sign out"));
+}
+
+/** The games marked "Not interested", newest first, each with Restore. Redraws itself in place. */
+function dismissedSection() {
+  const host = el("div", { class: "dismissed-section" });
+  const render = () => {
+    const list = dismissedList();
+    if (!list.length) {
+      host.replaceChildren(el("div", { class: "muted", style: NOTE }, "Nothing hidden. Use the eye button on a game (or “Not interested” in its details) to hide it and rank similar games lower."));
+      return;
+    }
+    const rows = list.map((x) =>
+      el("div", { class: "dismissed-row" },
+        el("img", { class: "basket-thumb small", src: Core.headerImage(x.appid), alt: "", loading: "lazy" }),
+        el("span", { class: "dismissed-name" }, x.name),
+        el("button", { class: "btn btn-sm", onclick: () => { restoreGame(x.appid); render(); } }, "Restore")));
+    host.replaceChildren(
+      el("div", { class: "muted", style: NOTE }, `${list.length} hidden. Their tags count against similar games in For you.`),
+      el("div", { class: "dismissed-list" }, rows),
+      el("div", { class: "btn-row" }, el("button", { class: "btn btn-sm btn-ghost", onclick: () => { restoreAll(); render(); } }, "Restore all")),
+    );
+  };
+  render();
+  return host;
 }
 
 /** "Start with Windows", and under it "Open closed to the tray", which only applies (and is only enabled) when it's on. */

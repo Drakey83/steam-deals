@@ -7,6 +7,7 @@ import { normWeights } from "../logic/ranking.js";
 import { state, tagName, tasteModel } from "../state.js";
 import { closeDrawer, showDrawer } from "../ui/overlays.js";
 import { basketToggle } from "./basket.js";
+import { dismissButton } from "./dismiss.js";
 import { compatBadges, ratingClass } from "./feed.js";
 
 export function openDetails(d) {
@@ -32,6 +33,7 @@ export function openDetails(d) {
           basketToggle(d, { label: true }),
           el("button", { class: "btn btn-sm", html: `${ICON.external}<span>Open on Steam</span>`, onclick: () => api.openExternal(d.url) }),
           el("button", { class: "btn btn-sm", title: "Open in the Steam app", html: `${ICON.play}<span>Steam app</span>`, onclick: () => api.openExternal(`steam://store/${d.appid}`) }),
+          dismissButton(d, { label: true }),
         ),
       ),
       scoreBox(d),

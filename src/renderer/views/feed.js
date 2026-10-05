@@ -5,17 +5,22 @@ import { fmtInt, timeAgo } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
 import { Core, PHONE } from "../lib/platform.js";
 import { normWeights, rankDeals } from "../logic/ranking.js";
-import { patchSettings, state, tagName, tasteModel, viewMode } from "../state.js";
+import { dismissedIds } from "../logic/dismiss.js";
+import { dismissedList, patchSettings, state, tagName, tasteModel, viewMode } from "../state.js";
 import { loadAll, rebuildTaste } from "../data.js";
 import { signInFromBrowse } from "./account.js";
 import { basketToggle } from "./basket.js";
+import { dismissButton } from "./dismiss.js";
 import { openDetails } from "./details.js";
 import { openSettings } from "./settings.js";
 import { renderSortSelect } from "./shell.js";
 import { resetFilters } from "./sidebar.js";
 
-/** Recompute the ranked list and redraw everything that depends on it. */
-export function updateResults() {
+/**
+ * Recompute the ranked list and redraw everything that depends on it. With keepPlace the grid keeps its scroll
+ * position and as many cards as were already shown (used after "Not interested", which re-ranks in place).
+ */
+export function updateResults({ keepPlace = false } = {}) {
   if (!$("#grid")) return;
   const personal = viewMode() === "foryou";
   const r = rankDeals({
@@ -25,6 +30,7 @@ export function updateResults() {
     query: state.query,
     personal,
     model: personal ? tasteModel() : null,
+    dismissed: dismissedIds(dismissedList()),
   });
   state.results = r.list;
   state.ownedHidden = r.ownedHidden;
@@ -32,7 +38,7 @@ export function updateResults() {
   state.activeWeights = r.weights;
   renderForYouHead();
   renderStats();
-  renderGrid(true);
+  renderGrid(true, { keepPlace });
 }
 
 // ----- banners -----
@@ -162,13 +168,16 @@ export function setupInfiniteScroll() {
   observer.observe($("#sentinel"));
 }
 
-export function renderGrid(reset) {
+export function renderGrid(reset, { keepPlace = false } = {}) {
   const grid = $("#grid");
   if (!grid) return;
+  const scroller = $("#scroller");
+  const place = { top: scroller.scrollTop, shown: state.shown };
   if (reset) {
     grid.replaceChildren();
     state.shown = 0;
-    if (!state.meta?.streaming) $("#scroller").scrollTop = 0; // keep the reader's place while pages stream in
+    // Keep the reader's place while pages stream in, or when asked to; otherwise start from the top.
+    if (!state.meta?.streaming && !keepPlace) scroller.scrollTop = 0;
   }
   if (state.loading && !state.deals.length) {
     for (let i = 0; i < 12; i++) grid.append(el("div", { class: "skeleton" }, el("div", { class: "sk sk-art" }), el("div", { class: "sk sk-line" }), el("div", { class: "sk sk-line short" })));
@@ -178,7 +187,8 @@ export function renderGrid(reset) {
     grid.append(emptyState());
     return;
   }
-  appendCards();
+  appendCards(keepPlace ? place.shown : 0);
+  if (keepPlace) scroller.scrollTop = place.top;
 }
 
 function emptyState() {
@@ -191,11 +201,12 @@ function emptyState() {
   );
 }
 
-function appendCards() {
+/** Add the next page of cards (or at least `atLeast` cards in total, to restore a scroll position). */
+function appendCards(atLeast = 0) {
   const grid = $("#grid");
   if (!grid || state.shown >= state.results.length) return;
   const frag = document.createDocumentFragment();
-  const end = Math.min(state.results.length, state.shown + PAGE);
+  const end = Math.min(state.results.length, Math.max(state.shown + PAGE, atLeast));
   for (let i = state.shown; i < end; i++) frag.append(card(state.results[i], i + 1));
   grid.append(frag);
   state.shown = end;
@@ -235,6 +246,7 @@ function card(d, rank) {
         el("span", { class: "price num" }, d.price ?? "—"),
         d.discount > 0 && d.originalPrice ? el("span", { class: "price-orig num" }, d.originalPrice) : null,
         el("span", { class: "spacer" }),
+        dismissButton(d),
         basketToggle(d)),
       el("div", { class: `rating-row ${ratingClass(d.rating)}` },
         el("span", { class: "pct num" }, d.rating != null ? `${d.rating}%` : "n/a"),

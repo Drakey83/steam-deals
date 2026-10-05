@@ -38,6 +38,9 @@ export function emptyLibrary() {
 
 export const tagName = (id) => state.tags[id] || `#${id}`;
 
+/** "Not interested" entries (logic/dismiss.js), newest first. */
+export const dismissedList = () => (Array.isArray(state.settings?.dismissed) ? state.settings.dismissed : []);
+
 export const basket = () => (Array.isArray(state.settings?.basket) ? state.settings.basket : []);
 export const inBasket = (appid) => basket().some((b) => b.appid === appid);
 
@@ -55,16 +58,18 @@ export function syncSortWithView() {
 }
 
 // The taste model depends on the profile and the scanned deals; rebuild it only when either changes.
+// (and on the "Not interested" list, whose tags count against).
 let model = null;
-let modelFor = { taste: null, deals: null };
+let modelFor = { taste: null, deals: null, dismissed: null };
 /** Call after changing state.deals in place (streamed pages append to the same array). */
 export function invalidateTasteModel() {
-  modelFor = { taste: null, deals: null };
+  modelFor = { taste: null, deals: null, dismissed: null };
 }
 export function tasteModel() {
-  if (modelFor.taste !== state.taste || modelFor.deals !== state.deals) {
-    model = buildTasteModel(state.taste, state.deals);
-    modelFor = { taste: state.taste, deals: state.deals };
+  const dismissed = dismissedList();
+  if (modelFor.taste !== state.taste || modelFor.deals !== state.deals || modelFor.dismissed !== dismissed) {
+    model = buildTasteModel(state.taste, state.deals, dismissed);
+    modelFor = { taste: state.taste, deals: state.deals, dismissed };
   }
   return model;
 }

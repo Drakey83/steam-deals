@@ -373,3 +373,23 @@
   color: var(--text);
   text-decoration-color: currentColor;
 }
+
+/* "Not interested" (eye) button on cards: quiet until the card is hovered or focused. */
+.card .dismiss-btn {
+  width: 32px;
+  height: 32px;
+  color: var(--text-3);
+}
+@media (hover: hover) {
+  .card .dismiss-btn {
+    opacity: 0;
+    transition: opacity var(--t-fast);
+  }
+  .card:hover .dismiss-btn,
+  .card:focus-within .dismiss-btn {
+    opacity: 1;
+  }
+}
+.card .dismiss-btn:hover {
+  color: var(--text);
+}

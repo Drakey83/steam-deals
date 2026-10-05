@@ -43,6 +43,7 @@ export const DEFAULT_FILTERS = Object.freeze({
 export const NON_RESULT_KEYS = new Set([
   "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "showTaste", "showTastePhone",
   "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows", "startMinimized",
+  "dismissed", // the list view redraws itself in place (keeping the scroll position) when this changes
 ]);
 
 export const STEAM_CART_URL = "https://store.steampowered.com/cart/";

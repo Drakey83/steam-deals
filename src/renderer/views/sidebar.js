@@ -53,7 +53,7 @@ export function renderSidebar() {
     el("div", {},
       el("div", { class: "section-title" }, "Plays on"),
       toggle("deckMachineOnly", "Steam Deck / Machine only"),
-      el("div", { class: "muted", style: MUTED_NOTE }, "On: only games Valve rates Verified (✓) or Playable (~) on Steam Deck or Steam Machine. Off: every game. The badges stay either way."),
+      el("div", { class: "muted", style: MUTED_NOTE }, "On: only games Valve rates Verified (✓) or Playable (~) on Steam Deck or Steam Machine. Off: every game. Cards also mark Unsupported (✕) and not rated yet (?)."),
     ),
     el("div", {},
       el("div", { class: "section-title" }, "Library"),

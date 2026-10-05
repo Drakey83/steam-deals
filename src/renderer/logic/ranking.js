@@ -3,6 +3,10 @@
 /** Valve's compatibility ratings for the Steam Deck and the Steam Machine: 3 = Verified, 2 = Playable. */
 export const playsOnDeckOrMachine = (d) => (d.deck || 0) >= 2 || (d.machine || 0) >= 2;
 
+/** Reviews on a log scale where 1 million reviews (or more) = 100. Fixed, so scores don't shift as deals load. */
+export const POPULARITY_FULL_AT = 1e6;
+export const popularityOf = (reviews) => (reviews > 0 ? Math.min(100, (100 * Math.log10(reviews)) / Math.log10(POPULARITY_FULL_AT)) : 0);
+
 /** Turn the three score weights into fractions that add up to 1. */
 export function normWeights(w) {
   const d = Math.max(0, Number(w?.discount ?? 40));
@@ -12,14 +16,16 @@ export function normWeights(w) {
   return { discount: d / sum, rating: r / sum, popularity: p / sum };
 }
 
+// Every sort ends with the appid, so equal scores always come out in the same order.
+const byId = (a, b) => a.appid - b.appid;
 const SORTERS = {
-  match: (a, b) => b.recScore - a.recScore,
-  score: (a, b) => b.score - a.score,
-  discount: (a, b) => b.discount - a.discount || b.recScore - a.recScore,
-  rating: (a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.reviews - a.reviews,
-  reviews: (a, b) => b.reviews - a.reviews,
-  price: (a, b) => (a.priceCents ?? 1e12) - (b.priceCents ?? 1e12) || b.recScore - a.recScore,
-  name: (a, b) => a.name.localeCompare(b.name),
+  match: (a, b) => b.recScore - a.recScore || byId(a, b),
+  score: (a, b) => b.score - a.score || byId(a, b),
+  discount: (a, b) => b.discount - a.discount || b.recScore - a.recScore || byId(a, b),
+  rating: (a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.reviews - a.reviews || byId(a, b),
+  reviews: (a, b) => b.reviews - a.reviews || byId(a, b),
+  price: (a, b) => (a.priceCents ?? 1e12) - (b.priceCents ?? 1e12) || b.recScore - a.recScore || byId(a, b),
+  name: (a, b) => a.name.localeCompare(b.name) || byId(a, b),
 };
 
 /**
@@ -54,11 +60,9 @@ export function rankDeals({ deals, settings: s, library: lib, query = "", person
 
   // Score: discount / rating / popularity. In All-games mode discount drops out so the
   // ranking is "best games", not "best bargains".
-  const maxReviews = pool.reduce((m, d) => Math.max(m, d.reviews), 1);
-  const logMax = Math.log10(maxReviews) || 1;
   const w = saleOnly ? normWeights(s.weights) : normWeights({ discount: 0, rating: s.weights?.rating ?? 35, popularity: s.weights?.popularity ?? 25 });
   for (const d of pool) {
-    d.popularity = d.reviews > 0 ? (100 * Math.log10(d.reviews)) / logMax : 0;
+    d.popularity = popularityOf(d.reviews);
     d.parts = { discount: w.discount * d.discount, rating: w.rating * (d.rating ?? 0), popularity: w.popularity * d.popularity };
     d.score = d.parts.discount + d.parts.rating + d.parts.popularity;
   }

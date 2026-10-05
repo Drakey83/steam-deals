@@ -11,6 +11,7 @@ import { signInFromBrowse } from "./account.js";
 import { basketToggle } from "./basket.js";
 import { openDetails } from "./details.js";
 import { openSettings } from "./settings.js";
+import { renderSortSelect } from "./shell.js";
 import { resetFilters } from "./sidebar.js";
 
 /** Recompute the ranked list and redraw everything that depends on it. */
@@ -130,7 +131,12 @@ export function renderStats() {
   const dot = () => el("span", { class: "dot" });
   const parts = [el("span", {}, el("strong", {}, fmtInt(list.length)), saleOnly ? " deals" : " games")];
   if (state.ownedHidden) parts.push(dot(), el("span", {}, el("strong", {}, fmtInt(state.ownedHidden)), " owned hidden"));
-  if (saleOnly && best) parts.push(dot(), el("span", {}, "best discount ", el("strong", {}, `${best}%`)));
+  if (saleOnly && best) {
+    const label = ["best discount ", el("strong", {}, `${best}%`)];
+    parts.push(dot(), state.settings.sort === "discount"
+      ? el("span", {}, label)
+      : el("button", { class: "stat-link", title: "Show the biggest discounts first", onclick: () => { patchSettings({ sort: "discount" }, { persistNow: true }); renderSortSelect(); } }, label));
+  }
   if (state.meta.total) {
     const what = saleOnly ? "discounted items" : "items on Steam";
     const { scanned, total, streaming } = state.meta;
@@ -250,17 +256,17 @@ function card(d, rank) {
   return node;
 }
 
+// Valve's rating → badge style and the short mark used on cards.
+const COMPAT_STYLE = { 3: ["ok", "✓"], 2: ["mid", "~"], 1: ["no", "✕"], 0: ["unknown", "?"] };
+
 /**
- * Steam Deck / Steam Machine ratings. Cards (compact) show Verified (✓) and Playable (~);
- * the details panel shows every rating Valve has published for the game.
+ * Steam Deck / Steam Machine ratings, always both devices, so a missing rating never looks like a bug:
+ * ✓ Verified, ~ Playable, ✕ Unsupported, ? not rated yet. Cards use the short form; the details panel spells it out.
  */
 export function compatBadges(d, compact) {
-  const out = [];
-  for (const [label, cat] of [["Deck", d.deck || 0], ["Machine", d.machine || 0]]) {
-    if (compact ? cat < 2 : !cat) continue;
-    const cls = cat === 3 ? "ok" : cat === 2 ? "mid" : "no";
-    out.push(el("span", { class: `compat-badge ${cls} ${compact ? "compact" : ""}`, title: `${label}: ${Core.COMPAT_LABELS[cat]}` },
-      compact ? `${label} ${cat === 3 ? "✓" : "~"}` : `${label} · ${Core.COMPAT_LABELS[cat]}`));
-  }
-  return out;
+  return [["Deck", "Steam Deck", d.deck || 0], ["Machine", "Steam Machine", d.machine || 0]].map(([label, device, cat]) => {
+    const [cls, mark] = COMPAT_STYLE[cat] || COMPAT_STYLE[0];
+    return el("span", { class: `compat-badge ${cls} ${compact ? "compact" : ""}`, title: `${device}: ${Core.COMPAT_LABELS[cat]}` },
+      compact ? `${label} ${mark}` : `${label} · ${Core.COMPAT_LABELS[cat]}`);
+  });
 }

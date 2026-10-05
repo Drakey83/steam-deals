@@ -6,6 +6,7 @@ import { fmtCents, fmtInt, plural } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
 import { Core, api, isWeb } from "../lib/platform.js";
 import { basketTotals, toggleInList } from "../logic/basket.js";
+import { learn } from "../learning.js";
 import { basket, inBasket, patchSettings, state } from "../state.js";
 import { closeDrawer, closeModal, isBasketOpen, showDrawer } from "../ui/overlays.js";
 import { toast } from "../ui/toast.js";
@@ -23,6 +24,7 @@ export function setBasket(list) {
 export function toggleBasket(d) {
   const { list, added } = toggleInList(basket(), d);
   if (added) {
+    learn("basket", d);
     if (!d.packageid) toast("Steam doesn't sell this one as a single package, so it can't go in the cart. Open it on Steam instead.", { type: "err", timeout: 6000 });
     toast(`Added to basket · ${plural(list.length, "game")}`, { type: "ok", timeout: 2500 });
   }

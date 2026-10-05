@@ -4,6 +4,7 @@ import { EV, emit } from "./lib/events.js";
 import { fmtInt } from "./lib/format.js";
 import { api } from "./lib/platform.js";
 import { invalidateTasteModel, state, syncSortWithView } from "./state.js";
+import { learnOwned } from "./learning.js";
 import { setProgress } from "./ui/progress.js";
 import { toast } from "./ui/toast.js";
 
@@ -35,7 +36,10 @@ export async function loadAll({ force = false } = {}) {
   });
   const [libRes, dealsRes] = await Promise.all([api.library.fetch({ force }), api.deals.fetch({ force }), tagsP]);
 
-  if (libRes.ok) state.library = toLibrary(libRes);
+  if (libRes.ok) {
+    state.library = toLibrary(libRes);
+    if (state.library.signedIn) learnOwned(state.library.owned);
+  }
   else {
     state.library.sessionExpired = false;
     toast(`Couldn't load your library: ${libRes.error.message}`, { type: "err", action: () => loadAll({ force: true }) });
@@ -129,6 +133,7 @@ export async function refreshLibrary() {
   const r = await api.library.fetch({ force: true });
   if (!r.ok) return toast(r.error.message, { type: "err" });
   state.library = toLibrary(r);
+  if (state.library.signedIn) learnOwned(state.library.owned);
   syncSortWithView();
   emit(EV.libraryChanged);
   if (r.signedIn) toast(`Library refreshed · ${fmtInt(r.owned.length)} games`, { type: "ok" });

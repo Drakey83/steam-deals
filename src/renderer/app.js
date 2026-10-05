@@ -17,6 +17,8 @@ import { registerScreen } from "./router.js";
 import { closeDrawer, closeMenu, closeModal, isDrawerOpen, isModalOpen } from "./ui/overlays.js";
 import { setProgress } from "./ui/progress.js";
 import { toast } from "./ui/toast.js";
+import { RECHECK_MS, runAlertCheck } from "./alerts.js";
+import { initAlerts, scheduleAlertChecks } from "./views/alerts.js";
 import { ensureTaxRegion, initBasket } from "./views/basket.js";
 import { onBasketReplaced, onCartStatus, receiveBasket } from "./views/cart.js";
 import { paintHistory, renderBanners, renderForYouHead, renderGrid, renderStats, updateResults } from "./views/feed.js";
@@ -40,6 +42,7 @@ function wireEvents() {
     renderBanners();
     updateResults();
     renderUpdated();
+    runAlertCheck(); // every catalog scan checks the price alerts
   });
   on(EV.tagsLoaded, () => {
     renderTags();
@@ -61,6 +64,8 @@ function wireEvents() {
   on(EV.tasteProgress, renderForYouHead);
   on(EV.modalClosed, renderSidebar); // reflect store/depth changes made in Settings
   initBasket();
+  initAlerts();
+  scheduleAlertChecks(RECHECK_MS);
   NARROW.addEventListener("change", placeViewbar);
   PHONE.addEventListener("change", renderForYouHead);
 }

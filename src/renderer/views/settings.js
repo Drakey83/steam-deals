@@ -5,13 +5,14 @@ import { $, el } from "../lib/dom.js";
 import { ICON } from "../lib/icons.js";
 import { api, isWeb } from "../lib/platform.js";
 import { normWeights } from "../logic/ranking.js";
-import { behaviorEvents, dismissedList, patchSettings, state } from "../state.js";
+import { alertList, behaviorEvents, dismissedList, patchSettings, state } from "../state.js";
 import { resetLearning } from "../learning.js";
 import { toast } from "../ui/toast.js";
 import { Core } from "../lib/platform.js";
 import { avatarEl } from "../ui/common.js";
 import { closeDrawer, modalHead, showModal } from "../ui/overlays.js";
 import { signInFromBrowse, signOut } from "./account.js";
+import { openAlerts } from "./alerts.js";
 import { restoreAll, restoreGame } from "./dismiss.js";
 import { renderStats } from "./feed.js";
 import { renderSidebar } from "./sidebar.js";
@@ -39,6 +40,11 @@ export function openSettings() {
     group("Score weights", weightSliders(s), el("div", { class: "muted", style: NOTE }, "Popularity is the review count on a log scale: 1,000 reviews scores 50, a million or more scores 100. The scale is fixed, so a game's score doesn't change with what else is loaded.")),
     group("For you", tasteSlider(s), el("div", { class: "muted", style: NOTE }, "How much the For-you ranking favours games that match your library over games that are simply the best bargains. 100% is pure taste match; 0% is the plain deal score."), learningRow()),
     group("Account", accountRow()),
+    group("Price alerts", el("div", { class: "row" },
+      el("span", { class: "muted", style: NOTE }, alertList().length
+        ? `${alertList().length} alert${alertList().length === 1 ? "" : "s"}. Edit targets or delete them in the alerts panel.`
+        : "No alerts yet. Open a game and use “Alert me”, or pick from your wishlist in the alerts panel."),
+      el("button", { class: "btn btn-sm", html: `${ICON.bell}<span>Manage alerts</span>`, onclick: openAlerts }))),
     group("Not interested", dismissedSection()),
     isWeb
       ? group("Windows app", el("div", { class: "muted", style: { fontSize: "13px" } },

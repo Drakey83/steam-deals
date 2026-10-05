@@ -60,6 +60,11 @@ contextBridge.exposeInMainWorld("steamDeals", {
   items: {
     lookup: (appids) => invoke("items:lookup", { appids }),
   },
+  // Price alerts: the UI decides what fired; the app shows the Windows notification.
+  alerts: {
+    notify: (alerts) => invoke("alerts:notify", { alerts }),
+    onOpen: (cb) => subscribe("alerts:open", cb), // a notification was clicked
+  },
   // Price history (IsThereAnyDeal data, through the website so the key stays on the server).
   history: {
     get: (appids, { points = false } = {}) => invoke("history:get", { appids, points }),

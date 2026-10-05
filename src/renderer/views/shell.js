@@ -7,6 +7,7 @@ import { NARROW, api, isWeb } from "../lib/platform.js";
 import { isPersonal, patchSettings, state, syncSortWithView, viewMode } from "../state.js";
 import { loadAll } from "../data.js";
 import { accountChip } from "./account.js";
+import { alertsButton, renderAlertsButton } from "./alerts.js";
 import { basketButton, renderBasketButton } from "./basket.js";
 import { renderBanners, setupInfiniteScroll, updateResults } from "./feed.js";
 import { renderSidebar } from "./sidebar.js";
@@ -28,6 +29,7 @@ export function renderBrowse() {
   renderSeg();
   renderSortSelect();
   renderBasketButton();
+  renderAlertsButton();
   placeViewbar();
   renderSidebar();
   setupInfiniteScroll();
@@ -58,6 +60,7 @@ function topbar() {
     el("span", { class: "updated", id: "updated" }),
     el("button", { class: "btn btn-icon refresh-btn", title: "Refresh deals", "aria-label": "Refresh", html: ICON.refresh, onclick: () => loadAll({ force: true }) }),
     searchToggle,
+    alertsButton(),
     basketButton(),
     accountChip(),
   );

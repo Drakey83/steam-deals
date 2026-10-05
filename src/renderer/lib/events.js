@@ -27,6 +27,7 @@ export const EV = Object.freeze({
   loadFinished: "deals:load-finished",
   dealsStreamed: "deals:streamed", // a page of a running scan arrived
   tagsLoaded: "tags:loaded", // tag names arrived
+  alertsChanged: "alerts:changed", // price alerts added, edited, removed, fired or seen
   historyLoaded: "history:loaded", // price history arrived for some games (payload: their appids)
   libraryChanged: "library:changed",
   tasteLoading: "taste:loading",

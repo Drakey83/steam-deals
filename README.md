@@ -7,7 +7,8 @@
 Find Steam games you'll actually like and aren't already playing. Sign in with your Steam account and
 it learns your taste from your library, weighted by how much you've played each game, then ranks the
 current sales (or the whole catalog) by how well each game matches you, with a "because you played …"
-explanation on every card. Everything you own is hidden.
+explanation on every card. Everything you own is hidden. Play on a **Steam Deck or Steam Machine**? One switch
+keeps only the games Valve rates Verified or Playable there, and every card shows its rating.
 
 ![sign-in](docs/screenshot-signin.png)
 ![browse](docs/screenshot-browse.png)

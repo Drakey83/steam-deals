@@ -6,8 +6,8 @@
 // options still work.
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { dirname, extname, join, normalize } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { basename, dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 
@@ -37,12 +37,21 @@ const server = createServer(async (req, res) => {
   try {
     if (url.pathname.startsWith("/api/")) {
       const rel = normalize(url.pathname.slice(5)).replace(/^([/\\])+/, "");
-      const file = join(apiDir, `${rel}.js`);
+      req.query = Object.fromEntries(url.searchParams);
+      let file = join(apiDir, `${rel}.js`);
+      // Like Vercel: a [param].js file answers any name in its folder, with the name in req.query.
+      if (!existsSync(file)) {
+        const dir = dirname(file);
+        const dynamic = existsSync(dir) ? readdirSync(dir).find((n) => /^\[\w+\]\.js$/.test(n)) : null;
+        if (dynamic) {
+          req.query[dynamic.slice(1, -4)] = basename(file, ".js");
+          file = join(dir, dynamic);
+        }
+      }
       if (!file.startsWith(apiDir) || rel.startsWith("_lib") || !existsSync(file)) {
         res.statusCode = 404;
         return res.end("Not found");
       }
-      req.query = Object.fromEntries(url.searchParams);
       // Local requests are plain http; tell the sign-in code so its return URL matches.
       req.headers["x-forwarded-proto"] = "http";
       return await require(file)(req, res);

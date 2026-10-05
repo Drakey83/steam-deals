@@ -6,6 +6,8 @@ import { ICON } from "../lib/icons.js";
 import { Core, PHONE } from "../lib/platform.js";
 import { normWeights, rankDeals } from "../logic/ranking.js";
 import { dismissedIds } from "../logic/dismiss.js";
+import { historyBadge } from "../logic/history.js";
+import { historyOf, loadHistory } from "../history.js";
 import { dismissedList, patchSettings, state, tagName, tasteModel, viewMode } from "../state.js";
 import { loadAll, rebuildTaste } from "../data.js";
 import { signInFromBrowse } from "./account.js";
@@ -207,9 +209,11 @@ function appendCards(atLeast = 0) {
   if (!grid || state.shown >= state.results.length) return;
   const frag = document.createDocumentFragment();
   const end = Math.min(state.results.length, Math.max(state.shown + PAGE, atLeast));
-  for (let i = state.shown; i < end; i++) frag.append(card(state.results[i], i + 1));
+  const added = state.results.slice(state.shown, end);
+  added.forEach((d, i) => frag.append(card(d, state.shown + i + 1)));
   grid.append(frag);
   state.shown = end;
+  loadHistory(added.map((d) => d.appid)); // badges appear when (and only if) real history backs them
 }
 
 export const ratingClass = (r) => (r == null ? "" : r >= 90 ? "rating-good" : r >= 80 ? "rating-ok" : "");
@@ -245,6 +249,7 @@ function card(d, rank) {
       el("div", { class: "price-row" },
         el("span", { class: "price num" }, d.price ?? "—"),
         d.discount > 0 && d.originalPrice ? el("span", { class: "price-orig num" }, d.originalPrice) : null,
+        historySlot(d),
         el("span", { class: "spacer" }),
         dismissButton(d),
         basketToggle(d)),
@@ -270,6 +275,31 @@ function card(d, rank) {
 
 // Valve's rating → badge style and the short mark used on cards.
 const COMPAT_STYLE = { 3: ["ok", "✓"], 2: ["mid", "~"], 1: ["no", "✕"], 0: ["unknown", "?"] };
+
+// ----- price history badges -----
+const LOWEST_EVER_TITLE = "The lowest price Steam has ever charged for this game (price history from IsThereAnyDeal)";
+
+/** Where a card's "Lowest ever" badge goes; filled in once history arrives (paintHistory). */
+function historySlot(d) {
+  const slot = el("span", { class: "history-slot", dataset: { historyFor: d.appid } });
+  fillHistorySlot(slot, d);
+  return slot;
+}
+
+function fillHistorySlot(slot, d) {
+  const badge = historyBadge(historyOf(d.appid), d.priceCents);
+  slot.replaceChildren(...(badge === "lowest-ever" ? [el("span", { class: "history-badge", title: LOWEST_EVER_TITLE }, "Lowest ever")] : []));
+}
+
+/** History arrived for these games: badge their cards in place (no re-render, no scroll jump). */
+export function paintHistory(appids) {
+  const byId = new Map(state.results.map((d) => [d.appid, d]));
+  for (const appid of appids) {
+    const d = byId.get(appid);
+    const slot = d && document.querySelector(`.history-slot[data-history-for="${appid}"]`);
+    if (slot) fillHistorySlot(slot, d);
+  }
+}
 
 /**
  * Steam Deck / Steam Machine ratings, always both devices, so a missing rating never looks like a bug:

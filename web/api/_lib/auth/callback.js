@@ -1,5 +1,5 @@
 // Steam redirects back here. We ask Steam to confirm the assertion is genuine before trusting the SteamID.
-const { handler, origin, makeSessionCookie, HttpError } = require("../_lib/server.js");
+const { handler, origin, makeSessionCookie, HttpError } = require("../server.js");
 
 module.exports = handler(async (req, res) => {
   const q = req.query || {};

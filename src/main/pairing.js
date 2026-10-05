@@ -7,8 +7,7 @@ const createSync = require("./sync");
 const { cartSession } = require("./steam-session");
 const { sendToUI, windowHidden } = require("./runtime");
 
-// Override only for testing against another deployment.
-const SITE = process.env.STEAM_DEALS_SITE || "https://steamdeal.vercel.app";
+const { SITE } = require("./site");
 
 async function pairApi(action, extra = {}) {
   const res = await fetch(`${SITE}/api/pair`, {
@@ -42,4 +41,4 @@ const sync = createSync({
   log: (m) => console.log(m),
 });
 
-module.exports = { SITE, pairApi, sync, onNotificationClick };
+module.exports = { pairApi, sync, onNotificationClick };

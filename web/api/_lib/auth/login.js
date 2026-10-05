@@ -1,5 +1,5 @@
 // Start "Sign in through Steam" (OpenID 2.0). Steam handles the password; we only get a SteamID back.
-const { handler, origin, signInConfigured, HttpError } = require("../_lib/server.js");
+const { handler, origin, signInConfigured, HttpError } = require("../server.js");
 
 module.exports = handler(async (req, res) => {
   if (!signInConfigured()) throw new HttpError(503, "Sign-in isn't configured on this site.", "not_configured");

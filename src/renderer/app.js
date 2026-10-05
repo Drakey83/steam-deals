@@ -19,7 +19,7 @@ import { setProgress } from "./ui/progress.js";
 import { toast } from "./ui/toast.js";
 import { ensureTaxRegion, initBasket } from "./views/basket.js";
 import { onBasketReplaced, onCartStatus, receiveBasket } from "./views/cart.js";
-import { renderBanners, renderForYouHead, renderGrid, renderStats, updateResults } from "./views/feed.js";
+import { paintHistory, renderBanners, renderForYouHead, renderGrid, renderStats, updateResults } from "./views/feed.js";
 import { renderLogin } from "./views/login.js";
 import { placeViewbar, renderBrowse, renderSeg, renderSortSelect, renderUpdated } from "./views/shell.js";
 import { renderSidebar, renderTags } from "./views/sidebar.js";
@@ -56,6 +56,7 @@ function wireEvents() {
     renderBanners();
     updateResults();
   });
+  on(EV.historyLoaded, paintHistory);
   on(EV.tasteLoading, renderForYouHead);
   on(EV.tasteProgress, renderForYouHead);
   on(EV.modalClosed, renderSidebar); // reflect store/depth changes made in Settings

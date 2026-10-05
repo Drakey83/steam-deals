@@ -60,6 +60,10 @@ contextBridge.exposeInMainWorld("steamDeals", {
   items: {
     lookup: (appids) => invoke("items:lookup", { appids }),
   },
+  // Price history (IsThereAnyDeal data, through the website so the key stays on the server).
+  history: {
+    get: (appids, { points = false } = {}) => invoke("history:get", { appids, points }),
+  },
   // Pairing with phones and browsers: one shared basket, mirrored into the Steam cart by this app.
   pair: {
     start: () => invoke("pair:start"),

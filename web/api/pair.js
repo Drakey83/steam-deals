@@ -17,34 +17,7 @@
 //   send/inbox/ack/status                                                    legacy one-shot hand-off (v1.4–1.5 apps)
 const crypto = require("node:crypto");
 const { send, handler, readJsonBody, HttpError } = require("./_lib/server.js");
-
-function redisConfig() {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  return url && token ? { url: url.replace(/\/$/, ""), token } : null;
-}
-async function redis(cfg, ...command) {
-  const res = await fetch(cfg.url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfg.token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(command),
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!res.ok) throw new HttpError(502, "Pairing is unavailable right now.", "pair_down");
-  const out = await res.json();
-  if (out.error) throw new HttpError(502, "Pairing storage refused the request.", "pair_down");
-  return out.result;
-}
-async function pipeline(cfg, commands) {
-  const res = await fetch(`${cfg.url}/pipeline`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${cfg.token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(commands),
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!res.ok) throw new HttpError(502, "Pairing is unavailable right now.", "pair_down");
-  return (await res.json()).map((r) => r.result);
-}
+const { redisClient } = require("./_lib/redis.js");
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const makeCode = () => Array.from(crypto.randomBytes(6), (b) => ALPHABET[b % ALPHABET.length]).join("");
@@ -102,9 +75,9 @@ return 1`;
 
 module.exports = handler(async (req, res) => {
   if (req.method !== "POST") throw new HttpError(405, "Use POST.", "method");
-  const cfg = redisConfig();
+  const db = redisClient({ message: "Pairing is unavailable right now.", code: "pair_down" });
   res.setHeader("Access-Control-Allow-Origin", "*"); // the Windows app calls this too
-  if (!cfg) return send(res, 200, { enabled: false });
+  if (!db) return send(res, 200, { enabled: false });
   const body = await readJsonBody(req);
   const action = String(body.action || "");
   const pairId = String(body.pairId || "");
@@ -116,27 +89,27 @@ module.exports = handler(async (req, res) => {
 
   if (action === "start") {
     // A PC that is already paired asks for another code so a second phone or browser can join the same basket.
-    const existing = PAIR_RE.test(pairId) ? parse(await redis(cfg, "GET", K.pair(pairId)), null) : null;
+    const existing = PAIR_RE.test(pairId) ? parse(await db.command("GET", K.pair(pairId)), null) : null;
     let id = existing ? pairId : null;
     const fresh = !id;
     if (!id) id = crypto.randomBytes(16).toString("hex");
     let code = null;
     for (let i = 0; i < 5 && !code; i++) {
       const c = makeCode();
-      if ((await redis(cfg, "SET", K.code(c), id, "EX", 600, "NX")) === "OK") code = c;
+      if ((await db.command("SET", K.code(c), id, "EX", 600, "NX")) === "OK") code = c;
     }
     if (!code) throw new HttpError(503, "Couldn't make a pairing code. Try again.", "pair_busy");
-    if (fresh) await pipeline(cfg, [["SET", K.pair(id), JSON.stringify({ createdAt: now, claimedAt: null, devices: 0 }), "EX", 600], ["HSET", K.sig(id), "rev", "0"], ["EXPIRE", K.sig(id), 600]]);
+    if (fresh) await db.pipeline([["SET", K.pair(id), JSON.stringify({ createdAt: now, claimedAt: null, devices: 0 }), "EX", 600], ["HSET", K.sig(id), "rev", "0"], ["EXPIRE", K.sig(id), 600]]);
     return send(res, 200, { enabled: true, code, pairId: id, expiresIn: 600, devices: existing?.devices || 0 });
   }
 
   if (action === "claim") {
     const code = String(body.code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (code.length !== 6) throw new HttpError(400, "A pairing code is 6 letters and numbers.", "bad_input");
-    const id = await redis(cfg, "GETDEL", K.code(code));
+    const id = await db.command("GETDEL", K.code(code));
     if (!id) throw new HttpError(404, "That code isn't valid or has expired. Codes last 10 minutes; ask the PC for a new one.", "not_found");
-    const meta = parse(await redis(cfg, "GET", K.pair(id)), {}) || {};
-    const [, , rev] = await pipeline(cfg, [
+    const meta = parse(await db.command("GET", K.pair(id)), {}) || {};
+    const [, , rev] = await db.pipeline([
       ["SET", K.pair(id), JSON.stringify({ createdAt: meta.createdAt || now, claimedAt: now, devices: (meta.devices || 0) + 1 }), "EX", KEEP],
       ["HSETNX", K.sig(id), "rev", "0"],
       ["HGET", K.sig(id), "rev"],
@@ -146,9 +119,9 @@ module.exports = handler(async (req, res) => {
   }
 
   if (action === "check") {
-    const raw = await redis(cfg, "GET", K.pair(needPair()));
+    const raw = await db.command("GET", K.pair(needPair()));
     const p = parse(raw, null);
-    if (p?.claimedAt) await redis(cfg, "EXPIRE", K.pair(pairId), KEEP);
+    if (p?.claimedAt) await db.command("EXPIRE", K.pair(pairId), KEEP);
     return send(res, 200, { claimed: Boolean(p?.claimedAt), devices: p?.devices || 0, expired: !p });
   }
 
@@ -156,7 +129,7 @@ module.exports = handler(async (req, res) => {
     // The cheap poll both sides make. A phone adds touch=true to say "someone is looking", which makes the
     // PC check more often; the PC adds pc={ok} to say "I'm here and signed in (or not)".
     needPair();
-    const h = (await redis(cfg, "HGETALL", K.sig(pairId))) || [];
+    const h = (await db.command("HGETALL", K.sig(pairId))) || [];
     if (!h.length) throw new HttpError(404, "This pairing no longer exists. Pair again from the PC.", "bad_pair");
     const sig = {};
     for (let i = 0; i + 1 < h.length; i += 2) sig[h[i]] = h[i + 1];
@@ -166,7 +139,7 @@ module.exports = handler(async (req, res) => {
     if (body.pc && typeof body.pc === "object") sets.push("pc", String(now), "pcok", body.pc.ok ? "1" : "0", "pcv", str(body.pc.v, 20));
     if (sets.length) cmds.push(["HSET", K.sig(pairId), ...sets], ["EXPIRE", K.sig(pairId), KEEP]);
     if (body.withCart) cmds.push(["GET", K.cart(pairId)]);
-    const out = cmds.length ? await pipeline(cfg, cmds) : [];
+    const out = cmds.length ? await db.pipeline(cmds) : [];
     // Echo what this very call just wrote, so a caller sees the state after its own update.
     if (body.touch) sig.active = String(now + ACTIVE_MS);
     if (body.pc && typeof body.pc === "object") Object.assign(sig, { pc: String(now), pcok: body.pc.ok ? "1" : "0", pcv: str(body.pc.v, 20) });
@@ -183,12 +156,12 @@ module.exports = handler(async (req, res) => {
   }
 
   const alive = async () => {
-    if (!(await redis(cfg, "EXISTS", K.pair(needPair())))) throw new HttpError(404, "This pairing no longer exists. Pair again from the PC.", "bad_pair");
+    if (!(await db.command("EXISTS", K.pair(needPair())))) throw new HttpError(404, "This pairing no longer exists. Pair again from the PC.", "bad_pair");
   };
 
   if (action === "basket.get") {
     await alive();
-    const b = parse(await redis(cfg, "GET", K.basket(pairId)), emptyBasket());
+    const b = parse(await db.command("GET", K.basket(pairId)), emptyBasket());
     return send(res, 200, { rev: b.rev || 0, items: b.items || [], updatedAt: b.updatedAt || 0 });
   }
 
@@ -197,7 +170,7 @@ module.exports = handler(async (req, res) => {
     const ops = Array.isArray(body.ops) ? body.ops.slice(0, 200) : [];
     const by = ["pc", "phone", "web"].includes(body.by) ? body.by : "web";
     for (let attempt = 0; attempt < 4; attempt++) {
-      const cur = parse(await redis(cfg, "GET", K.basket(pairId)), emptyBasket());
+      const cur = parse(await db.command("GET", K.basket(pairId)), emptyBasket());
       const items = Array.isArray(cur.items) ? cur.items.map(cleanItem).filter(Boolean) : [];
       let changed = false;
       for (const op of ops) {
@@ -229,7 +202,7 @@ module.exports = handler(async (req, res) => {
       }
       if (!changed) return send(res, 200, { rev: cur.rev || 0, items, updatedAt: cur.updatedAt || 0, applied: false });
       const next = { rev: (cur.rev || 0) + 1, items, updatedAt: now, by };
-      const okFlag = await redis(cfg, "EVAL", CAS, 2, K.basket(pairId), K.sig(pairId), String(cur.rev || 0), JSON.stringify(next), String(next.rev), String(KEEP), by === "pc" ? "" : String(now + ACTIVE_MS));
+      const okFlag = await db.command("EVAL", CAS, 2, K.basket(pairId), K.sig(pairId), String(cur.rev || 0), JSON.stringify(next), String(next.rev), String(KEEP), by === "pc" ? "" : String(now + ACTIVE_MS));
       if (okFlag === 1) return send(res, 200, { rev: next.rev, items: next.items, updatedAt: now, applied: true });
     }
     throw new HttpError(409, "The basket is changing on another device. Try again.", "busy");
@@ -244,7 +217,7 @@ module.exports = handler(async (req, res) => {
       if (appid > 0 && v && typeof v === "object") status[appid] = { s: str(v.s, 20), msg: str(v.msg, 160) || undefined, at: int(v.at) || now };
     }
     const doc = { at: now, status, subtotal: str(c.subtotal, 40) || null, count: int(c.count) };
-    await pipeline(cfg, [
+    await db.pipeline([
       ["SET", K.cart(pairId), JSON.stringify(doc), "EX", KEEP],
       ["HSET", K.sig(pairId), "pc", String(now), "pcok", body.ok === false ? "0" : "1", "pcv", str(body.v, 20)],
       ["EXPIRE", K.sig(pairId), KEEP],
@@ -254,7 +227,7 @@ module.exports = handler(async (req, res) => {
 
   if (action === "unpair") {
     needPair();
-    await redis(cfg, "DEL", K.pair(pairId), K.box(pairId), K.basket(pairId), K.sig(pairId), K.cart(pairId));
+    await db.command("DEL", K.pair(pairId), K.box(pairId), K.basket(pairId), K.sig(pairId), K.cart(pairId));
     return send(res, 200, { ok: true });
   }
 
@@ -267,20 +240,20 @@ module.exports = handler(async (req, res) => {
       .slice(0, MAX_ITEMS);
     if (!items.length) throw new HttpError(400, "The basket is empty.", "bad_input");
     const box = { items, sentAt: now, status: "sent", result: null };
-    await redis(cfg, "SET", K.box(pairId), JSON.stringify(box), "EX", DAY);
+    await db.command("SET", K.box(pairId), JSON.stringify(box), "EX", DAY);
     return send(res, 200, { sentAt: box.sentAt });
   }
   if (action === "inbox" || action === "status") {
-    return send(res, 200, { box: parse(await redis(cfg, "GET", K.box(needPair())), null) });
+    return send(res, 200, { box: parse(await db.command("GET", K.box(needPair())), null) });
   }
   if (action === "ack") {
     needPair();
-    const box = parse(await redis(cfg, "GET", K.box(pairId)), null);
+    const box = parse(await db.command("GET", K.box(pairId)), null);
     if (!box) return send(res, 200, { ok: true });
     if (Number(body.sentAt) !== box.sentAt) return send(res, 200, { ok: true, stale: true });
     const status = ["received", "added", "failed"].includes(body.status) ? body.status : "received";
     const result = body.result && typeof body.result === "object" ? { added: int(body.result.added), subtotal: str(body.result.subtotal, 40), message: str(body.result.message, 200) } : null;
-    await redis(cfg, "SET", K.box(pairId), JSON.stringify({ ...box, status, result, ackedAt: now }), "EX", 3600);
+    await db.command("SET", K.box(pairId), JSON.stringify({ ...box, status, result, ackedAt: now }), "EX", 3600);
     return send(res, 200, { ok: true });
   }
 

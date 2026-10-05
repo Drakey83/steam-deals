@@ -4,6 +4,7 @@
 import { cancelDeals, fetchDeals } from "./browser-api/deals.js";
 import { device } from "./browser-api/device.js";
 import { on } from "./browser-api/events.js";
+import { getHistory } from "./browser-api/history.js";
 import { ApiError, fail, http, wrap } from "./browser-api/http.js";
 import { loadLibrary, setLibrary } from "./browser-api/library.js";
 import { claim, pairId, pushBasket, syncNow, syncStatus, unpair } from "./browser-api/pairing.js";
@@ -105,6 +106,10 @@ window.steamDeals = {
     build: wrap(buildTaste),
     onProgress: (cb) => on("taste-progress", cb),
   },
+  // Price history (IsThereAnyDeal data via /api/history).
+  history: {
+    get: (appids, { points = false } = {}) => wrap(getHistory)({ appids, points }),
+  },
   geo: {
     // Country + state/province from the connection, via the site's own endpoint. Nothing stored server-side.
     detect: wrap(async () => {
@@ -140,7 +145,7 @@ window.steamDeals = {
   },
   openExternal: async (url) => {
     if (/^steam:\/\//i.test(url)) location.href = url;
-    else if (/^https:\/\/(store\.steampowered\.com|steamcommunity\.com)\//i.test(url)) window.open(url, "_blank", "noopener");
+    else if (/^https:\/\/(store\.steampowered\.com|steamcommunity\.com|isthereanydeal\.com)\//i.test(url)) window.open(url, "_blank", "noopener");
     return { ok: true, value: true };
   },
   window: { isMaximized: async () => ({ ok: true, value: false }), onMaximizedChange: () => () => {} },

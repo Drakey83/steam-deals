@@ -3,7 +3,10 @@ import { el, imgEl } from "../lib/dom.js";
 import { fmtDate, fmtInt } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
 import { api } from "../lib/platform.js";
+import { lowestEver, summarizeWindow, WINDOW_DAYS } from "../logic/history.js";
 import { normWeights } from "../logic/ranking.js";
+import { fmtCents } from "../lib/format.js";
+import { loadPoints } from "../history.js";
 import { learn } from "../learning.js";
 import { state, tagName, tasteModel } from "../state.js";
 import { closeDrawer, showDrawer } from "../ui/overlays.js";
@@ -44,6 +47,7 @@ export function openDetails(d) {
         d.reviewLabel ? el("span", { class: "lbl" }, `· ${d.reviewLabel}`) : null,
         el("span", { class: "muted num" }, `· ${fmtInt(d.reviews)} reviews`),
       ),
+      priceHistoryBox(d),
       whyBox(d),
       el("div", { class: "tags-wrap" }, d.tagids.map((t) => el("span", { class: "chip" }, tagName(t)))),
       d.description ? el("p", { class: "desc" }, d.description) : null,
@@ -70,6 +74,45 @@ function scoreBox(d) {
       el("span", {}, el("i", { style: { background: "var(--pink)" } }), `Popularity ${Math.round(d.popularity ?? 0)} × ${share(w.popularity)}% = ${parts.popularity.toFixed(1)}`),
     ),
   );
+}
+
+const ITAD_URL = "https://isthereanydeal.com/";
+const monthYear = (ms) => (ms ? new Date(ms).toLocaleDateString(undefined, { month: "short", year: "numeric" }) : "");
+
+/**
+ * Lowest-ever and 90-day facts from IsThereAnyDeal. Starts empty and fills in when the data arrives; stays empty
+ * (takes no space) when there is no data, so nothing is ever shown without backing.
+ */
+function priceHistoryBox(d) {
+  const box = el("div", { class: "history-box", hidden: true });
+  loadPoints(d.appid).then((entry) => {
+    if (!entry || state.selected?.appid !== d.appid) return;
+    const lines = [];
+    const ever = lowestEver(entry, d.priceCents);
+    if (entry.low) {
+      const low = fmtCents(entry.low.cents, d.price);
+      lines.push(el("div", { class: "history-line" },
+        el("span", { class: "muted" }, "Lowest ever on Steam"),
+        el("span", {}, el("b", { class: "num" }, low), entry.low.at ? ` · ${monthYear(entry.low.at)}` : ""),
+        ever ? el("span", { class: "history-badge" }, ever.kind === "new" ? "New low right now" : "Matched right now") : null));
+    }
+    const win = summarizeWindow(entry.points);
+    if (win) {
+      lines.push(el("div", { class: "history-line" },
+        el("span", { class: "muted" }, `Last ${Math.min(WINDOW_DAYS, Math.max(win.coveredDays, 1))} days`),
+        el("span", {}, "low ", el("b", { class: "num" }, fmtCents(win.lowCents, d.price)),
+          win.typicalCut != null ? ` · typical sale −${win.typicalCut}%` : " · no sales",
+          win.saleShare > 0 ? ` · on sale ${Math.round(win.saleShare * 100)}% of the time` : "")));
+    }
+    if (!lines.length) return;
+    box.replaceChildren(
+      el("div", { class: "score-head" }, el("span", { class: "muted" }, "Price history")),
+      ...lines,
+      el("div", { class: "muted small" }, "Price history from ",
+        el("a", { class: "link", href: "#", onclick: (e) => { e.preventDefault(); api.openExternal(ITAD_URL); } }, "IsThereAnyDeal"), "."));
+    box.hidden = false;
+  });
+  return box;
 }
 
 /** "Why this is for you": top contributing tags and the owned games it resembles. */

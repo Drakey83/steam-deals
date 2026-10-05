@@ -6,6 +6,7 @@
 //   steam-session.js  keeping the Steam store session usable (renewal)
 //   library.js        library + taste profile
 //   pairing.js        relay client + the shared-basket sync engine (sync.js)
+//   site.js           the website the app talks to (pairing, price history, tax region)
 //   ipc/*.js          what the UI can ask for (see src/preload.js for the matching API)
 //   steam.js, auth.js, settings.js, cache.js   Steam API calls, sign-in, persistence
 const { app, BrowserWindow, Menu } = require("electron");
@@ -22,7 +23,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   registerDeepLinks(showWindow);
   onNotificationClick(showWindow);
-  for (const mod of ["app", "account", "catalog", "cart"]) require(`./ipc/${mod}`).register();
+  for (const mod of ["app", "account", "catalog", "cart", "history"]) require(`./ipc/${mod}`).register();
 
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null);

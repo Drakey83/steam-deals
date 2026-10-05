@@ -42,7 +42,7 @@ export const DEFAULT_FILTERS = Object.freeze({
 // redraw the grid (which would also scroll it back to the top).
 export const NON_RESULT_KEYS = new Set([
   "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "showTaste", "showTastePhone",
-  "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows",
+  "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows", "startMinimized",
 ]);
 
 export const STEAM_CART_URL = "https://store.steampowered.com/cart/";

@@ -33,6 +33,7 @@ const DEFAULTS = Object.freeze({
   syncPaused: false,
   closeToTray: true, // the X button hides the app to the tray so syncing keeps running
   startWithWindows: false,
+  startMinimized: false, // with Start with Windows: wait in the tray instead of opening maximized
   trayHintShown: false,
   account: null, // { steamid, name, avatar, method: 'steam' | 'apikey', signedInAt }
   apiKey: null,

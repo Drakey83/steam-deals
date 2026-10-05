@@ -87,3 +87,11 @@
     animation: none;
   }
 }
+
+/* A settings switch that doesn't apply right now (e.g. "Open closed to the tray" without Start with Windows). */
+.row-toggle.disabled {
+  opacity: 0.45;
+}
+.row-toggle.disabled .toggle {
+  cursor: not-allowed;
+}

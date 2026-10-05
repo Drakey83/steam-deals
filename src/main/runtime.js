@@ -6,8 +6,10 @@ const runtime = {
   /** @type {import("electron").Tray|null} */
   tray: null,
   quitting: false,
-  /** "Start with Windows" launches straight into the tray. */
+  /** "Start with Windows" + "Open closed to the tray" launches straight into the tray. */
   startHidden: process.argv.includes("--hidden"),
+  /** "Start with Windows" otherwise opens the window filling the screen. */
+  startMaximized: process.argv.includes("--maximized"),
 };
 
 /** Send an event to the UI, if the window exists. */

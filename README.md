@@ -54,7 +54,8 @@ The app has two jobs.
    Windows SmartScreen will warn that the publisher is unknown (the installer is not code-signed yet):
    choose **More info → Run anyway**. It installs for your user account; no admin rights needed.
 2. **Sign in through Steam** once, on Steam's own login page inside the app.
-3. Optional: open the basket and **pair your phone**, and turn on **Start with Windows** in Settings.
+3. Optional: open the basket and **pair your phone**, and turn on **Start with Windows** in Settings (it opens
+   full screen at sign-in; turn on **Open closed to the tray** if you'd rather it start quietly in the tray).
 
 The X button hides the app to the tray so syncing keeps running; quit from the tray menu, or turn that off in
 Settings. The [steamdeal.vercel.app/app](https://steamdeal.vercel.app/app) page explains all of this for

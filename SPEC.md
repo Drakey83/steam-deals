@@ -290,7 +290,7 @@ Supersedes the one-shot phone→PC hand-off in §13 (the relay still answers `se
 - **Tray.** `createTray` (icon from `build/icon.ico`, now packaged); X hides to tray when `closeToTray`
   (default on; balloon once); tray menu: open, pause syncing, close-to-tray, start with Windows, quit.
   `startWithWindows` → `app.setLoginItemSettings({openAtLogin, args:["--hidden"]})`, packaged only; the app
-  starts hidden with `--hidden`. `backgroundThrottling:false` keeps the hidden renderer responsive.
+  opens maximized with `--maximized`, or hidden with `--hidden` when "Open closed to the tray" (`startMinimized`, default off, enabled only while Start with Windows is on) is set (v1.8.3). `backgroundThrottling:false` keeps the hidden renderer responsive.
   Notifications (main process) when the window is hidden/unfocused: games from the phone added/removed,
   sign-in needed, cart failures (rate-limited per kind).
 - **Renderer.** Basket rows carry a `.cart-badge` per game; the send panel is "Synced with your Steam cart"

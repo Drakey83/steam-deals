@@ -13,7 +13,10 @@ const ROOT = path.join(__dirname, "..", "..");
 function applyLoginItem() {
   if (!app.isPackaged) return; // a dev run must never register itself to start with Windows
   try {
-    app.setLoginItemSettings({ openAtLogin: Boolean(settings.get().startWithWindows), path: process.execPath, args: ["--hidden"] });
+    const s = settings.get();
+    // Start with Windows opens the window maximized; "Open closed to the tray" starts it hidden instead.
+    const args = s.startMinimized ? ["--hidden"] : ["--maximized"];
+    app.setLoginItemSettings({ openAtLogin: Boolean(s.startWithWindows), path: process.execPath, args });
   } catch {
     /* not fatal */
   }

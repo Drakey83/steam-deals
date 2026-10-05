@@ -36,7 +36,7 @@ function createWindow() {
   });
   runtime.mainWindow = win;
 
-  if (b.maximized) win.maximize();
+  if (b.maximized || runtime.startMaximized) win.maximize();
   win.loadFile(path.join(__dirname, "..", "renderer", "index.html"));
   win.once("ready-to-show", () => {
     if (!runtime.startHidden) win.show();

@@ -42,7 +42,7 @@ export function openSettings() {
       : group("Windows app",
           toggleRow("Keep my Steam cart in sync with the basket", "pairAutoCart", true, "Adds what you put in the basket, here or on a paired phone, to your Steam cart and removes what you take out. It never buys anything."),
           toggleRow("Close to the tray instead of quitting", "closeToTray", true, "The X button hides Steam Deals next to the clock so syncing keeps running. Quit from the tray menu."),
-          toggleRow("Start with Windows", "startWithWindows", false, "Starts hidden in the tray when you sign in to Windows, so your PC is always ready for your phone.")),
+          ...startupRows()),
     group("About", el("div", { class: "about", id: "about" }, isWeb
       ? "Steam Deals pulls discounts from Steam's public store API, hides what you own, and ranks what's left. Settings and any API key you add stay in this browser. No ads, no tracking. The user count is anonymous: one random id per browser, nothing tied to you or your Steam account. Not affiliated with Valve Corporation."
       : "Steam Deals pulls discounts straight from Steam's public store API, hides what you own, and ranks what's left. No accounts, no telemetry, no third parties. Not affiliated with Valve Corporation.")),
@@ -91,6 +91,20 @@ function accountRow() {
     el("div", { style: { display: "flex", gap: "10px", alignItems: "center" } }, avatarEl(a),
       el("div", {}, el("div", { style: { fontWeight: 600 } }, a.name), el("div", { class: "muted", style: { fontSize: "12px" } }, a.method === "steam" ? "Signed in through Steam" : "Steam Web API key"))),
     el("button", { class: "btn btn-sm btn-danger", onclick: signOut }, "Sign out"));
+}
+
+/** "Start with Windows", and under it "Open closed to the tray", which only applies (and is only enabled) when it's on. */
+function startupRows() {
+  const start = toggleRow("Start with Windows", "startWithWindows", false, "Opens Steam Deals full screen (maximized) when you sign in to Windows, so your PC is always ready for your phone.");
+  const minimized = toggleRow("Open closed to the tray", "startMinimized", false, "Instead of opening full screen, Steam Deals starts quietly in the tray next to the clock. Click the icon to open it.");
+  const sync = () => {
+    const on = start.querySelector("input").checked;
+    minimized.classList.toggle("disabled", !on);
+    minimized.querySelector("input").disabled = !on;
+  };
+  start.querySelector("input").addEventListener("change", sync);
+  sync();
+  return [start, minimized];
 }
 
 /** A setting with an explanation and a switch on the right. */

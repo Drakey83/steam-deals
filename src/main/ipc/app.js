@@ -13,7 +13,7 @@ const { handle } = require("./handle");
 const ALLOWED_SETTING_KEYS = new Set([
   "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights",
   "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste", "showTastePhone", "deckMachineOnly",
-  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows",
+  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows", "startMinimized",
 ]);
 
 function register() {
@@ -27,7 +27,7 @@ function register() {
     settings.update(clean);
     if ("basket" in clean) sync.onLocalBasketChange(before.basket, clean.basket);
     if ("pairAutoCart" in clean || "syncPaused" in clean) sync.kick();
-    if ("startWithWindows" in clean) applyLoginItem();
+    if ("startWithWindows" in clean || "startMinimized" in clean) applyLoginItem();
     if ("closeToTray" in clean || "syncPaused" in clean || "startWithWindows" in clean) refreshTray();
     return { settings: settings.publicView() };
   });

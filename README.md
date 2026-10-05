@@ -119,9 +119,9 @@ checkout, in the Steam app, the website, or on your phone, since the cart belong
   - Without the app, each game in the basket has an **Open in Steam** button that opens its own Add to Cart
     button in the Steam client or the Steam mobile app.
 
-Filters live in the left sidebar: minimum discount and rating, minimum review count, **Plays on → Verified only** (keeps
-only games Valve has marked Verified for Steam Deck or Steam Machine, using Valve's own ratings; Verified games
-carry a small badge on their cards and the details panel lists every published rating), tags, hide-owned and wishlist-only.
+Filters live in the left sidebar: minimum discount and rating, minimum review count, **Steam Deck / Machine only** (on:
+only games Valve rates Verified or Playable on Steam Deck or Steam Machine; off: every game. Cards carry a
+Deck ✓ / Machine ✓ badge for Verified and ~ for Playable, and the details panel lists every published rating), tags, hide-owned and wishlist-only.
 Click any card for details, a score breakdown, and why it matched you, plus buttons to open the store page in your
 browser or in the Steam client.
 

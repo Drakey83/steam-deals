@@ -54,7 +54,7 @@
     wishlistOnly: false,
     sort: "score",
     selectedTags: [],
-    verifiedOnly: false,
+    deckMachineOnly: false,
     view: "foryou",
     personalWeight: 60,
     showTaste: true,
@@ -299,7 +299,7 @@
   const ALLOWED_SETTINGS = new Set([
     "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights", "hideOwned",
     "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste", "showTastePhone",
-    "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "verifiedOnly",
+    "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "deckMachineOnly",
   ]);
 
   // ---------- the shared basket (pairing with the Steam Deals Windows app) ----------

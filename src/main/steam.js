@@ -121,6 +121,7 @@ async function fetchDeals({
         include_reviews: true,
         include_release: true,
         include_tag_count: 8,
+        include_platforms: true, // Steam Deck / Steam Machine ratings
       },
     };
     const url = `${API}/IStoreQueryService/Query/v1/?input_json=${encodeURIComponent(JSON.stringify(input))}`;

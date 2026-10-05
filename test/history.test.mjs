@@ -81,3 +81,7 @@ test("history log keeps Steam points only, oldest first", () => {
   ];
   assert.deepEqual(itad.steamPoints(log).map((p) => [p.cents, p.cut]), [[1999, 0], [499, 75]]);
 });
+
+test("dates sent to IsThereAnyDeal have no fractional seconds (it rejects them)", () => {
+  assert.equal(itad.isoSeconds(Date.UTC(2026, 6, 7, 1, 2, 3, 456)), "2026-07-07T01:02:03Z");
+});

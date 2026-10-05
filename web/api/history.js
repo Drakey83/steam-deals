@@ -1,7 +1,7 @@
 // Price history from IsThereAnyDeal, for the website and the desktop app (which calls this rather than ITAD, so
 // the key never leaves the server).
 //   GET /api/history?ids=10,20,30&cc=US          Steam all-time low per game (up to 200 games)
-//   GET /api/history?id=10&cc=US&points=1        that, plus the game's Steam price log for the last 90 days
+//   GET /api/history?id=10&cc=US&points=1        that, plus the game's Steam price log for the last year
 // → { enabled, source, items: { [appid]: { low: {cents, regularCents, cut, at, currency} | null, points?: [...] } } }
 //
 // Prices barely change, and one free key serves everyone, so everything is cached for days: whole responses at
@@ -15,7 +15,8 @@ const DAY = 86400;
 const LOW_TTL = 3 * DAY;
 const POINTS_TTL = 2 * DAY;
 const ID_TTL = 30 * DAY;
-const POINTS_DAYS = 90;
+// A year of log, so the 90-day window knows the price that was already in force when it opened.
+const POINTS_DAYS = 365;
 const MAX_IDS = 200;
 const NONE = "-"; // cached "IsThereAnyDeal doesn't know this game"
 

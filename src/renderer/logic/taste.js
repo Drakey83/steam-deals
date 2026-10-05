@@ -4,26 +4,44 @@
 // Ubiquitous tags (Singleplayer, Indie…) end up near zero; distinctive tastes (Roguelike, Souls-like,
 // Farming Sim…) end up strongly positive or negative.
 
+import { negativeProfile } from "./dismiss.js";
+
 const EPS = 1e-4;
 const SIMILAR_MIN = 0.28;
+const LIFT_MIN = -2.5;
+const LIFT_MAX = 3;
+// Dismissals subtract after the library's own clamp, so they still count for tags the library already dislikes.
+const LIFT_FLOOR = LIFT_MIN - 4;
+// "Not interested": how hard a dismissed game's distinctive tags are pushed down. An explicit dismissal is a
+// stronger signal than what the library implies, so two dismissals sharing a tag can outweigh a liked tag: full
+// strength after DISMISS_FULL_AFTER dismissals, at most DISMISS_STRENGTH * 4 lift units. Tags as common in the
+// dismissed games as in the catalog (Singleplayer…) are untouched.
+const DISMISS_STRENGTH = 1;
+const DISMISS_FULL_AFTER = 2;
 
 /**
  * @param {{affinity:Object<string,number>, anchors?:Array}} taste  profile built from the library
  * @param {object[]} deals  the scanned items (their tag weights form the baseline)
+ * @param {object[]} [dismissed]  "Not interested" entries (logic/dismiss.js); their distinctive tags count against
  * @returns model with raw(), contributions(), similar() and topTags, or null without a profile
  */
-export function buildTasteModel(taste, deals) {
+export function buildTasteModel(taste, deals, dismissed = []) {
   if (!taste || !taste.affinity) return null;
   const base = new Map();
   for (const d of deals) for (const tg of d.tags || []) base.set(tg.id, (base.get(tg.id) || 0) + tg.w);
   const n = deals.length || 1;
 
+  const neg = negativeProfile(dismissed);
+  const confidence = Math.min(1, dismissed.length / DISMISS_FULL_AFTER);
   const lift = new Map();
-  const ids = new Set([...Object.keys(taste.affinity).map(Number), ...base.keys()]);
+  const ids = new Set([...Object.keys(taste.affinity).map(Number), ...base.keys(), ...neg.keys()]);
   for (const id of ids) {
-    const a = (taste.affinity[id] || 0) + EPS;
     const b = (base.get(id) || 0) / n + EPS;
-    lift.set(id, Math.max(-2.5, Math.min(3, Math.log2(a / b))));
+    const liked = Math.log2(((taste.affinity[id] || 0) + EPS) / b);
+    const d = neg.get(id);
+    const disliked = d ? d.share * Math.max(0, Math.min(4, Math.log2((d.weight + EPS) / b))) : 0;
+    const fromLibrary = Math.max(LIFT_MIN, Math.min(LIFT_MAX, liked));
+    lift.set(id, Math.max(LIFT_FLOOR, fromLibrary - DISMISS_STRENGTH * confidence * disliked));
   }
 
   const topTags = Object.entries(taste.affinity)

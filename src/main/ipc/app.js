@@ -13,7 +13,7 @@ const { handle } = require("./handle");
 const ALLOWED_SETTING_KEYS = new Set([
   "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights",
   "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste", "showTastePhone", "deckMachineOnly",
-  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows", "startMinimized",
+  "basket", "dismissed", "taxRegion", "taxCustomRate", "taxRegionAuto", "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows", "startMinimized",
 ]);
 
 function register() {

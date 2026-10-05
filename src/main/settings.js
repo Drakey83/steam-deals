@@ -17,6 +17,7 @@ const DEFAULTS = Object.freeze({
   wishlistOnly: false,
   sort: "score",
   selectedTags: [],
+  dismissed: [], // "Not interested": [{ appid, name, tags:[{id,w}], at }], newest first, capped (renderer/logic/dismiss.js)
   deckMachineOnly: false, // only games Valve rates Verified or Playable on Steam Deck or Steam Machine
   view: "foryou", // 'foryou' | 'all'
   personalWeight: 60, // 0–100: how much the For-you ranking favours taste match over raw deal score

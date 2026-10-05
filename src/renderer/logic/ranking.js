@@ -38,12 +38,13 @@ const SORTERS = {
  * @param {string}   p.query     search text
  * @param {boolean}  p.personal  For-you mode (taste ranking + a quality floor)
  * @param {object|null} p.model  taste model from logic/taste.js, or null
+ * @param {Set<number>} [p.dismissed]  appids the person marked "Not interested" (never shown)
  * @returns {{list:object[], ownedHidden:number, poolSize:number, personalized:boolean, weights:object}}
  *
  * Each kept item gets score, parts, popularity, match and recScore written onto it, which the cards
  * and the details panel read.
  */
-export function rankDeals({ deals, settings: s, library: lib, query = "", personal = false, model = null }) {
+export function rankDeals({ deals, settings: s, library: lib, query = "", personal = false, model = null, dismissed = new Set() }) {
   const saleOnly = s.catalog !== "all";
   const hideOwned = (s.hideOwned || personal) && lib.signedIn;
   const tags = s.selectedTags || [];
@@ -54,6 +55,7 @@ export function rankDeals({ deals, settings: s, library: lib, query = "", person
   const base = deals.filter((d) => (!saleOnly || d.discount >= s.minDiscount) && (d.rating ?? -1) >= minRating && d.reviews >= minReviews);
   const ownedInBase = lib.signedIn ? base.filter((d) => lib.owned.has(d.appid)).length : 0;
   let pool = hideOwned ? base.filter((d) => !lib.owned.has(d.appid)) : base;
+  if (dismissed.size) pool = pool.filter((d) => !dismissed.has(d.appid));
   if (s.wishlistOnly && lib.signedIn) pool = pool.filter((d) => lib.wishlist.has(d.appid));
   if (tags.length) pool = pool.filter((d) => tags.every((t) => d.tagids.includes(t)));
   if (s.deckMachineOnly) pool = pool.filter(playsOnDeckOrMachine);

@@ -10,8 +10,16 @@ current sales (or the whole catalog) by how well each game matches you, with a "
 explanation on every card. Everything you own is hidden. Play on a **Steam Deck or Steam Machine**? One switch
 keeps only the games Valve rates Verified or Playable there, and every card shows its rating.
 
-![sign-in](docs/screenshot-signin.png)
-![browse](docs/screenshot-browse.png)
+![Browse: the best current sales, each with its Steam Deck and Steam Machine rating](docs/screenshots/02-browse.png)
+
+| | |
+|---|---|
+| ![Steam Deck / Machine only switch](docs/screenshots/03-steam-deck-machine-only.png) | ![Every card shows both ratings: Verified, Playable, Unsupported](docs/screenshots/04-deck-machine-ratings.png) |
+| ![Game details with the deal-score breakdown](docs/screenshots/05-game-details.png) | ![Basket with savings and an estimated tax](docs/screenshots/06-basket.png) |
+
+| Phone | Filters | Basket | Tablet |
+|---|---|---|---|
+| ![Phone](docs/screenshots/07-phone-browse.png) | ![Phone filters](docs/screenshots/08-phone-filters.png) | ![Phone basket](docs/screenshots/09-phone-basket.png) | ![Tablet](docs/screenshots/10-tablet-browse.png) |
 
 ## Three ways to use it
 

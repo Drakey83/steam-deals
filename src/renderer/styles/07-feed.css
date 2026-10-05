@@ -253,6 +253,10 @@
   overflow: hidden;
 }
 .tag-row .chip {
+  /* same size at every width (the touch-size chips from 13-responsive.css would overflow the row) */
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11.5px;
   display: block;
   min-width: 0;
   max-width: 100%;

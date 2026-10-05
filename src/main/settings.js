@@ -17,6 +17,8 @@ const DEFAULTS = Object.freeze({
   wishlistOnly: false,
   sort: "score",
   selectedTags: [],
+  deckCompat: "any", // "any" | 3 (Verified) | 2 (Verified or Playable)
+  machineCompat: "any",
   view: "foryou", // 'foryou' | 'all'
   personalWeight: 60, // 0–100: how much the For-you ranking favours taste match over raw deal score
   showTaste: true, // the "Your taste" panel above For-you results

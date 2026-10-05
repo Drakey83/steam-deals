@@ -85,6 +85,15 @@ finds the SteamID missing (launch), every 6 hours, and once more before `cartSes
 `session_expired`. The app never touches the page or any token. Verified: after a restart the app came back
 signed in with the cart working, with no prompt.
 
+### 4.2 Compatibility ratings (v1.7.0)
+
+`include_platforms: true` in the store query brings `platforms.steam_deck_compat_category` and
+`steam_machine_compat_category` (0 unknown, 1 unsupported, 2 playable, 3 verified; Steam OS and Steam Frame
+categories also exist and are ignored). `normalizeItem` keeps them as `deck` and `machine`. Filters
+`deckCompat` / `machineCompat` ("any" | 3 | 2) live with the other filters (sidebar group "Plays on", part of
+Reset). Cards show a compact "Deck ✓ / Machine ✓" badge for Verified; the details panel shows every published
+rating. Deal caches were bumped (`catalog:v3`, `/api/deals…&v=2`) so old scans without the ratings refresh.
+
 ## 5. Data
 
 Deals: `IStoreQueryService/Query/v1` (keyless)

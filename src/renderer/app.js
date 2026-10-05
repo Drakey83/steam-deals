@@ -63,12 +63,15 @@ const SORTS = [
   ["reviews", "Most reviewed"], ["price", "Lowest price"], ["name", "Name A–Z"],
 ];
 const REVIEW_MINS = [[0, "Any"], [100, "100+"], [1000, "1,000+"], [10000, "10,000+"], [50000, "50,000+"]];
+// Valve's compatibility ratings for the Steam Deck and the Steam Machine (3 = Verified, 2 = Playable).
+const COMPAT_LEVELS = [["any", "Any"], [3, "Verified only"], [2, "Verified or Playable"]];
+const compatMin = (v) => (v === "any" || v == null || v === "" ? 0 : Number(v) || 0);
 // 0 = everything on sale (~70k items, 2–3 min, streams in). Only offered in sale mode; the full catalog is ~240k.
 const SCAN_DEPTHS = [[3000, "Quick · 3,000"], [10000, "Standard · 10,000"], [25000, "Deep · 25,000"], [0, "Everything on sale · ~70,000 · slow"]];
 ICON.grid = svg('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>');
 ICON.tag = svg('<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>');
 const PAGE = 60;
-const DEFAULT_FILTERS = { minDiscount: 50, minRating: 80, minReviews: 0, selectedTags: [], wishlistOnly: false, hideOwned: true, sort: "score" };
+const DEFAULT_FILTERS = { minDiscount: 50, minRating: 80, minReviews: 0, selectedTags: [], wishlistOnly: false, hideOwned: true, sort: "score", deckCompat: "any", machineCompat: "any" };
 
 // ---------- state ----------
 const state = {
@@ -384,6 +387,10 @@ function computeResults() {
   let pool = hideOwned ? base.filter((d) => !lib.owned.has(d.appid)) : base;
   if (s.wishlistOnly && lib.signedIn) pool = pool.filter((d) => lib.wishlist.has(d.appid));
   if (tags.length) pool = pool.filter((d) => tags.every((t) => d.tagids.includes(t)));
+  const deckMin = compatMin(s.deckCompat);
+  const machineMin = compatMin(s.machineCompat);
+  if (deckMin) pool = pool.filter((d) => (d.deck || 0) >= deckMin);
+  if (machineMin) pool = pool.filter((d) => (d.machine || 0) >= machineMin);
 
   // Score: discount / rating / popularity. In All-games mode discount drops out so the
   // ranking is "best games", not "best bargains".
@@ -792,6 +799,13 @@ function renderSidebar() {
         select("minReviews", "Min reviews", REVIEW_MINS),
       ),
     ),
+    el("div", {}, el("div", { class: "section-title" }, "Plays on"),
+      el("div", { style: { display: "grid", gap: "10px" } },
+        select("deckCompat", "Steam Deck", COMPAT_LEVELS),
+        select("machineCompat", "Steam Machine", COMPAT_LEVELS),
+        el("div", { class: "muted", style: { fontSize: "12px" } }, "Valve's own ratings. Verified means it just works on that device; Playable may need a tweak or two."),
+      ),
+    ),
     el("div", {}, el("div", { class: "section-title" }, "Library"),
       toggle("hideOwned", "Hide games I own", !signedIn),
       toggle("wishlistOnly", "Wishlist only", !signedIn),
@@ -1069,6 +1083,7 @@ function cardEl(d, rank) {
         el("span", { class: "pct num" }, d.rating != null ? `${d.rating}%` : "n/a"),
         d.reviewLabel ? el("span", { class: "lbl" }, d.reviewLabel) : null,
         el("span", { class: "muted num" }, `· ${fmtInt(d.reviews)}`),
+        compatBadges(d, true),
       ),
       el("div", { class: "tag-row" }, d.tagids.slice(0, 3).map((t) => el("span", { class: "chip chip-sm" }, tagName(t)))),
     ),
@@ -1082,6 +1097,24 @@ function cardEl(d, rank) {
     }
   });
   return card;
+}
+
+/**
+ * Steam Deck / Steam Machine ratings. On cards only "Verified" is shown (compact); the details panel
+ * shows every rating Valve has published for the game.
+ */
+function compatBadges(d, compact) {
+  const out = [];
+  const add = (label, cat) => {
+    if (compact && cat !== 3) return;
+    if (!compact && !cat) return;
+    const cls = cat === 3 ? "ok" : cat === 2 ? "mid" : "no";
+    out.push(el("span", { class: `compat-badge ${cls} ${compact ? "compact" : ""}`, title: `${label}: ${Core.COMPAT_LABELS[cat]}` },
+      compact ? `${label} ✓` : `${label} · ${Core.COMPAT_LABELS[cat]}`));
+  };
+  add("Deck", d.deck || 0);
+  add("Machine", d.machine || 0);
+  return out;
 }
 
 // "Why this is for you": top contributing tags and the owned games it resembles.
@@ -1750,6 +1783,7 @@ function openDrawer(d) {
       el("div", { class: "meta" },
         el("span", {}, `Released ${fmtDate(d.released)}`),
         d.earlyAccess ? el("span", { class: "chip chip-sm" }, "Early Access") : null,
+        compatBadges(d, false),
         owned ? el("span", { class: "chip chip-sm on" }, "In your library") : null,
         wished ? el("span", { class: "chip chip-sm", style: { color: "var(--pink)", borderColor: "rgba(255,126,182,.5)" } }, "On your wishlist") : null,
       ),

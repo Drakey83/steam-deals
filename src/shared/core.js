@@ -38,6 +38,9 @@ function normalizeItem(it, { requireDiscount = true } = {}) {
     reviewLabel: rev?.review_score_label ?? null,
     released: it.release?.steam_release_date ? it.release.steam_release_date * 1000 : null,
     earlyAccess: Boolean(it.release?.is_early_access),
+    // Valve's compatibility ratings: 0 unknown/untested, 1 unsupported, 2 playable, 3 verified.
+    deck: compatCategory(it.platforms?.steam_deck_compat_category),
+    machine: compatCategory(it.platforms?.steam_machine_compat_category),
     tagids: Array.isArray(it.tags) ? it.tags.map((t) => t.tagid).filter(Number.isFinite) : [],
     tags: normTags(it.tags),
     description: it.basic_info?.short_description ?? "",
@@ -45,6 +48,9 @@ function normalizeItem(it, { requireDiscount = true } = {}) {
     url: storeUrl(it.appid),
   };
 }
+
+const compatCategory = (v) => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 3 ? Number(v) : 0);
+const COMPAT_LABELS = ["Not rated yet", "Unsupported", "Playable", "Verified"];
 
 /** Steam's store tags carry a relevance weight. Normalize so each game's tag weights sum to 1. */
 function normTags(tags) {
@@ -142,7 +148,7 @@ function buildQueryInput({ start = 0, count = 500, discounted = true, minDiscoun
   return {
     query: { start, count, sort: 10, filters },
     context: { language, country_code: country, steam_realm: 1 },
-    data_request: { include_basic_info: true, include_reviews: true, include_release: true, include_tag_count: 8 },
+    data_request: { include_basic_info: true, include_reviews: true, include_release: true, include_tag_count: 8, include_platforms: true },
   };
 }
 
@@ -199,7 +205,7 @@ function estimateTax(subtotalCents, region, customRate) {
   return { rate, taxCents: Math.round((subtotalCents * rate) / 100) };
 }
 
-const api = { headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
+const api = { COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.SteamCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

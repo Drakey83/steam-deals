@@ -89,9 +89,9 @@ signed in with the cart working, with no prompt.
 
 `include_platforms: true` in the store query brings `platforms.steam_deck_compat_category` and
 `steam_machine_compat_category` (0 unknown, 1 unsupported, 2 playable, 3 verified; Steam OS and Steam Frame
-categories also exist and are ignored). `normalizeItem` keeps them as `deck` and `machine`. Filters
-`deckCompat` / `machineCompat` ("any" | 3 | 2) live with the other filters (sidebar group "Plays on", part of
-Reset). Cards show a compact "Deck ✓ / Machine ✓" badge for Verified; the details panel shows every published
+categories also exist and are ignored). `normalizeItem` keeps them as `deck` and `machine`. A single
+switch `verifiedOnly` (sidebar group "Plays on", part of Reset) keeps games with `deck === 3 || machine === 3`;
+the user asked for one toggle, not per-device levels (v1.7.1 replaced the two dropdowns of 1.7.0). Cards show a compact "Deck ✓ / Machine ✓" badge for Verified; the details panel shows every published
 rating. Deal caches were bumped (`catalog:v3`, `/api/deals…&v=2`) so old scans without the ratings refresh.
 
 ## 5. Data

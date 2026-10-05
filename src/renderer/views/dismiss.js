@@ -2,6 +2,7 @@
 import { el } from "../lib/dom.js";
 import { ICON } from "../lib/icons.js";
 import { addDismissed, removeDismissed } from "../logic/dismiss.js";
+import { learn } from "../learning.js";
 import { dismissedList, patchSettings, state } from "../state.js";
 import { closeDrawer } from "../ui/overlays.js";
 import { toast } from "../ui/toast.js";
@@ -14,6 +15,7 @@ function save(list) {
 }
 
 export function dismissGame(d) {
+  learn("dismissed", d);
   save(addDismissed(dismissedList(), d));
   if (state.selected?.appid === d.appid) closeDrawer();
   toast(`Not interested: ${d.name}. Similar games will rank lower.`, { type: "ok", action: () => restoreGame(d.appid), actionLabel: "Undo", timeout: 7000 });

@@ -4,6 +4,7 @@
 import { NON_RESULT_KEYS } from "./config.js";
 import { EV, emit } from "./lib/events.js";
 import { api } from "./lib/platform.js";
+import { withBehavior } from "./logic/behavior.js";
 import { buildTasteModel } from "./logic/taste.js";
 
 export const state = {
@@ -38,6 +39,9 @@ export function emptyLibrary() {
 
 export const tagName = (id) => state.tags[id] || `#${id}`;
 
+/** What the person did in the app (logic/behavior.js), newest first. */
+export const behaviorEvents = () => (Array.isArray(state.settings?.behavior) ? state.settings.behavior : []);
+
 /** "Not interested" entries (logic/dismiss.js), newest first. */
 export const dismissedList = () => (Array.isArray(state.settings?.dismissed) ? state.settings.dismissed : []);
 
@@ -58,18 +62,20 @@ export function syncSortWithView() {
 }
 
 // The taste model depends on the profile and the scanned deals; rebuild it only when either changes.
-// (and on the "Not interested" list, whose tags count against).
+// (and on the "Not interested" list, whose tags count against, and on what the person did in the app).
 let model = null;
-let modelFor = { taste: null, deals: null, dismissed: null };
+let modelFor = { taste: null, deals: null, dismissed: null, behavior: null };
 /** Call after changing state.deals in place (streamed pages append to the same array). */
 export function invalidateTasteModel() {
-  modelFor = { taste: null, deals: null, dismissed: null };
+  modelFor = { taste: null, deals: null, dismissed: null, behavior: null };
 }
 export function tasteModel() {
   const dismissed = dismissedList();
-  if (modelFor.taste !== state.taste || modelFor.deals !== state.deals || modelFor.dismissed !== dismissed) {
-    model = buildTasteModel(state.taste, state.deals, dismissed);
-    modelFor = { taste: state.taste, deals: state.deals, dismissed };
+  const behavior = behaviorEvents();
+  const f = modelFor;
+  if (f.taste !== state.taste || f.deals !== state.deals || f.dismissed !== dismissed || f.behavior !== behavior) {
+    model = buildTasteModel(withBehavior(state.taste, behavior), state.deals, dismissed);
+    modelFor = { taste: state.taste, deals: state.deals, dismissed, behavior };
   }
   return model;
 }

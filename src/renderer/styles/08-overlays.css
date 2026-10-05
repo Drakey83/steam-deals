@@ -268,3 +268,16 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* Settings → For you → learning */
+.learning-row {
+  align-items: center;
+}
+.learning-row .row-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.learning-row .btn {
+  flex: none;
+}

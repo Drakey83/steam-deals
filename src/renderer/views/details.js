@@ -4,6 +4,7 @@ import { fmtDate, fmtInt } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
 import { api } from "../lib/platform.js";
 import { normWeights } from "../logic/ranking.js";
+import { learn } from "../learning.js";
 import { state, tagName, tasteModel } from "../state.js";
 import { closeDrawer, showDrawer } from "../ui/overlays.js";
 import { basketToggle } from "./basket.js";
@@ -12,6 +13,7 @@ import { compatBadges, ratingClass } from "./feed.js";
 
 export function openDetails(d) {
   state.selected = d;
+  learn("opened", d);
   const owned = state.library.owned.has(d.appid);
   const wished = state.library.wishlist.has(d.appid);
   showDrawer([

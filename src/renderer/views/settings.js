@@ -5,7 +5,9 @@ import { $, el } from "../lib/dom.js";
 import { ICON } from "../lib/icons.js";
 import { api, isWeb } from "../lib/platform.js";
 import { normWeights } from "../logic/ranking.js";
-import { dismissedList, patchSettings, state } from "../state.js";
+import { behaviorEvents, dismissedList, patchSettings, state } from "../state.js";
+import { resetLearning } from "../learning.js";
+import { toast } from "../ui/toast.js";
 import { Core } from "../lib/platform.js";
 import { avatarEl } from "../ui/common.js";
 import { closeDrawer, modalHead, showModal } from "../ui/overlays.js";
@@ -35,7 +37,7 @@ export function openSettings() {
       row("Scan depth", select("scanDepth", SCAN_DEPTHS, (v) => { refetch({ scanDepth: Number(v) }); renderSidebar(); })),
     ),
     group("Score weights", weightSliders(s), el("div", { class: "muted", style: NOTE }, "Popularity is the review count on a log scale: 1,000 reviews scores 50, a million or more scores 100. The scale is fixed, so a game's score doesn't change with what else is loaded.")),
-    group("For you", tasteSlider(s), el("div", { class: "muted", style: NOTE }, "How much the For-you ranking favours games that match your library over games that are simply the best bargains. 100% is pure taste match; 0% is the plain deal score.")),
+    group("For you", tasteSlider(s), el("div", { class: "muted", style: NOTE }, "How much the For-you ranking favours games that match your library over games that are simply the best bargains. 100% is pure taste match; 0% is the plain deal score."), learningRow()),
     group("Account", accountRow()),
     group("Not interested", dismissedSection()),
     isWeb
@@ -94,6 +96,38 @@ function accountRow() {
     el("div", { style: { display: "flex", gap: "10px", alignItems: "center" } }, avatarEl(a),
       el("div", {}, el("div", { style: { fontWeight: 600 } }, a.name), el("div", { class: "muted", style: { fontSize: "12px" } }, a.method === "steam" ? "Signed in through Steam" : "Steam Web API key"))),
     el("button", { class: "btn btn-sm btn-danger", onclick: signOut }, "Sign out"));
+}
+
+/** What For you has learned from behaviour in the app, with "Reset my recommendations". */
+function learningRow() {
+  const host = el("div", { class: "row learning-row" });
+  const render = () => {
+    const n = behaviorEvents().length;
+    const reset = el("button", { class: "btn btn-sm", disabled: !n }, "Reset my recommendations");
+    reset.addEventListener("click", () => {
+      const saved = behaviorEvents();
+      resetLearning();
+      render();
+      toast("Recommendations reset to your library alone.", {
+        type: "ok",
+        timeout: 7000,
+        actionLabel: "Undo",
+        action: () => {
+          patchSettings({ behavior: saved }, { persistNow: true });
+          render();
+        },
+      });
+    });
+    host.replaceChildren(
+      el("div", { class: "row-text" },
+        el("div", {}, "Learning from what you do here"),
+        el("div", { class: "muted", style: NOTE }, n
+          ? `${n} signal${n === 1 ? "" : "s"} so far: games you opened, put in the basket, dismissed or bought. Recent ones count most, and your library always has the bigger say.`
+          : "Opening games, adding them to the basket, dismissing them and buying them fine-tunes For you over time. Nothing learned yet.")),
+      reset);
+  };
+  render();
+  return host;
 }
 
 /** The games marked "Not interested", newest first, each with Restore. Redraws itself in place. */

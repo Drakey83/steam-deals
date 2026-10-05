@@ -47,7 +47,7 @@ const server = createServer(async (req, res) => {
       req.headers["x-forwarded-proto"] = "http";
       return await require(file)(req, res);
     }
-    let path = normalize(decodeURIComponent(url.pathname)).replace(/^([/\\])+/, "");
+    const path = normalize(decodeURIComponent(url.pathname)).replace(/^([/\\])+/, "");
     let file = join(pub, path || "index.html");
     if (!file.startsWith(pub)) {
       res.statusCode = 403;

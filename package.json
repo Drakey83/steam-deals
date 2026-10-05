@@ -1,7 +1,7 @@
 {
   "name": "steam-deals",
   "productName": "Steam Deals",
-  "version": "1.7.3",
+  "version": "1.8.0",
   "description": "Find the best Steam discounts on games you don't already own.",
   "author": "Reid Carlisle",
   "license": "MIT",
@@ -9,17 +9,25 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test test/*.test.mjs",
+    "lint": "eslint .",
+    "check:imports": "node scripts/check-imports.mjs",
+    "check": "npm run lint && npm run check:imports && npm test",
+    "test:relay": "node scripts/test-relay.mjs https://steamdeal.vercel.app",
     "selftest": "node src/main/steam.js --selftest",
     "icon": "python scripts/make-icon.py",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder --win --x64",
+    "dist": "npm run check && electron-builder --win --x64",
     "web:build": "node scripts/build-web.mjs",
-    "web:deploy": "node scripts/build-web.mjs && cd web && vercel deploy --prod --yes",
+    "web:deploy": "npm run check && node scripts/build-web.mjs && cd web && vercel deploy --prod --yes",
     "web:local": "node scripts/serve-web.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "electron": "^44.5.1",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "eslint": "^9.39.5",
+    "globals": "^15.15.0"
   },
   "build": {
     "appId": "com.steamdeals.app",

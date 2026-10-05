@@ -1,0 +1,6 @@
+{
+  "name": "steam-deals-renderer",
+  "private": true,
+  "description": "The shared UI (desktop app and website). Plain ES modules, no bundler: browsers load them directly.",
+  "type": "module"
+}

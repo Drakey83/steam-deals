@@ -10,7 +10,8 @@
 // "signal" every 30 s while idle and every 3 s only while a phone is actively looking (the website
 // says so when its basket is open) or right after a change. Steam itself is only asked about the cart
 // when something changed or on a slow heartbeat, which also catches purchases made on Steam.
-const { Notification } = require("electron");
+
+const { sameBasket: sameItems, basketOps: diffOps } = require("../shared/core.js");
 
 const FAST_MS = 3000;
 const SLOW_MS = 30000;
@@ -20,20 +21,6 @@ const RECONCILE_FAST_MS = 60000; // re-check the Steam cart this often while fas
 const RECONCILE_SLOW_MS = 5 * 60000; // and this often while idle (catches purchases / manual removals)
 const HEARTBEAT_MS = 5 * 60000; // tell the relay "I'm here" at least this often even when nobody looks
 const ADD_GRACE_MS = 90000; // a game we just added may take a moment to show in GetCart
-
-const sameItems = (a, b) => JSON.stringify((a || []).map((i) => [i.appid, i.packageid])) === JSON.stringify((b || []).map((i) => [i.appid, i.packageid]));
-
-function diffOps(prev, next) {
-  const before = new Map((prev || []).map((i) => [i.appid, i]));
-  const after = new Map((next || []).map((i) => [i.appid, i]));
-  const ops = [];
-  for (const [appid] of before) if (!after.has(appid)) ops.push({ op: "remove", appid });
-  for (const [appid, item] of after) {
-    const old = before.get(appid);
-    if (!old || JSON.stringify(old) !== JSON.stringify(item)) ops.push({ op: "add", item });
-  }
-  return ops;
-}
 
 module.exports = function createSync({ settings, steam, cartSession, sessionFetch, pairApi, sendToUI, version, shouldNotify, onNotificationClick, log = () => {} }) {
   let timer = null;
@@ -62,6 +49,7 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
     notified.set(key, now);
     if (!shouldNotify()) return;
     try {
+      const { Notification } = require("electron"); // required here so the engine can be unit-tested in plain Node
       if (!Notification.isSupported()) return;
       const n = new Notification({ title: "Steam Deals", body });
       n.on("click", () => onNotificationClick?.());
@@ -299,9 +287,13 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       const next = basket.filter((i) => !owned.some((o) => o.appid === i.appid));
       settings.update({ basket: next, mirror });
       sendToUI("basket:replaced", { items: next, source: "owned" });
-      pairApi("basket.ops", { pairId: s.pairId, ops: owned.map((i) => ({ op: "remove", appid: i.appid })), by: "pc" })
-        .then((r) => settings.update({ basket: r.items, basketRev: r.rev }))
-        .catch(() => {});
+      if (s.pairId) {
+        pairApi("basket.ops", { pairId: s.pairId, ops: owned.map((i) => ({ op: "remove", appid: i.appid })), by: "pc" })
+          .then((r) => {
+            if (Array.isArray(r?.items)) settings.update({ basket: r.items, basketRev: r.rev || 0 });
+          })
+          .catch(() => {});
+      }
       for (const i of owned) delete status[i.appid];
     } else {
       settings.update({ mirror });
@@ -394,5 +386,7 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       lastReconcile = 0;
       schedule(0);
     },
+    /** Make the Steam cart match the basket now (resolves when done). Used by the tests. */
+    reconcile,
   };
 };

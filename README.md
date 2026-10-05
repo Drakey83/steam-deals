@@ -129,6 +129,16 @@ checkout, in the Steam app, the website, or on your phone, since the cart belong
   - Without the app, each game in the basket has an **Open in Steam** button that opens its own Add to Cart
     button in the Steam client or the Steam mobile app.
 
+**It remembers.**
+- **Not interested.** The eye button on a card (or in a game's details) hides it, and games that share what you
+  dismissed rank lower in For you. Settings lists them with Restore.
+- **Price alerts.** “Alert me” in a game's details, or from your wishlist in the alerts panel: you hear once each
+  time it drops to your price (a Windows notification from the app, a badge on the website).
+- **Price history.** A “Lowest ever” badge and a 90-day summary (low, typical sale) in a game's details, from
+  [IsThereAnyDeal](https://isthereanydeal.com), shown only when there's real data behind it.
+- **Learns from what you do.** Games you open, basket, dismiss or buy fine-tune For you over time; your library
+  always has the bigger say, and Settings has “Reset my recommendations”.
+
 Filters live in the left sidebar: minimum discount and rating, minimum review count, **Steam Deck / Machine only** (on:
 only games Valve rates Verified or Playable on Steam Deck or Steam Machine; off: every game. Cards carry a
 Deck ✓ / Machine ✓ badge for Verified and ~ for Playable, and the details panel lists every published rating), tags, hide-owned and wishlist-only.

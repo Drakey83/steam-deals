@@ -17,7 +17,7 @@ const DEFAULTS = Object.freeze({
   wishlistOnly: false,
   sort: "score",
   selectedTags: [],
-  verifiedOnly: false, // only games Valve marks Verified for Steam Deck or Steam Machine
+  deckMachineOnly: false, // only games Valve rates Verified or Playable on Steam Deck or Steam Machine
   view: "foryou", // 'foryou' | 'all'
   personalWeight: 60, // 0–100: how much the For-you ranking favours taste match over raw deal score
   showTaste: true, // the "Your taste" panel above For-you results

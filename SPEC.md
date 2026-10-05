@@ -85,7 +85,10 @@ finds the SteamID missing (launch), every 6 hours, and once more before `cartSes
 `session_expired`. The app never touches the page or any token. Verified: after a restart the app came back
 signed in with the cart working, with no prompt.
 
-### 4.2 Compatibility ratings (v1.7.0)
+### 4.2 Steam Deck / Steam Machine ratings (v1.7.0–1.7.2)
+
+Plain words: a single sidebar switch, "Steam Deck / Machine only", shows only games Valve rates Verified or
+Playable on the Steam Deck or the Steam Machine; cards badge the rating (✓ Verified, ~ Playable).
 
 `include_platforms: true` in the store query brings `platforms.steam_deck_compat_category` and
 `steam_machine_compat_category` (0 unknown, 1 unsupported, 2 playable, 3 verified; Steam OS and Steam Frame

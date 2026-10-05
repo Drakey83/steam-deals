@@ -10,6 +10,7 @@ const scrim = () => $("#scrim");
 
 export const isDrawerOpen = () => drawer().classList.contains("open");
 export const isBasketOpen = () => drawer().classList.contains("basket-open");
+export const isAlertsOpen = () => drawer().classList.contains("alerts-open");
 export const isModalOpen = () => modal().classList.contains("open");
 
 function showScrim(onClick) {
@@ -17,11 +18,12 @@ function showScrim(onClick) {
   scrim().onclick = onClick;
 }
 
-/** Replace the drawer's content and slide it in. `kind` = "details" | "basket". */
+/** Replace the drawer's content and slide it in. `kind` = "details" | "basket" | "alerts". */
 export function showDrawer(children, { kind = "details" } = {}) {
   const d = drawer();
   d.innerHTML = "";
   d.classList.toggle("basket-open", kind === "basket");
+  d.classList.toggle("alerts-open", kind === "alerts");
   d.append(...children.filter(Boolean));
   d.classList.add("open");
   d.setAttribute("aria-hidden", "false");
@@ -31,7 +33,7 @@ export function showDrawer(children, { kind = "details" } = {}) {
 
 export function closeDrawer() {
   const d = drawer();
-  d.classList.remove("open", "basket-open");
+  d.classList.remove("open", "basket-open", "alerts-open");
   d.setAttribute("aria-hidden", "true");
   if (!isModalOpen()) scrim().classList.remove("open");
   state.selected = null;

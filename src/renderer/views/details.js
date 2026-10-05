@@ -10,6 +10,7 @@ import { loadPoints } from "../history.js";
 import { learn } from "../learning.js";
 import { state, tagName, tasteModel } from "../state.js";
 import { closeDrawer, showDrawer } from "../ui/overlays.js";
+import { alertControl } from "./alerts.js";
 import { basketToggle } from "./basket.js";
 import { dismissButton } from "./dismiss.js";
 import { compatBadges, ratingClass } from "./feed.js";
@@ -47,6 +48,7 @@ export function openDetails(d) {
         d.reviewLabel ? el("span", { class: "lbl" }, `· ${d.reviewLabel}`) : null,
         el("span", { class: "muted num" }, `· ${fmtInt(d.reviews)} reviews`),
       ),
+      alertControl(d),
       priceHistoryBox(d),
       whyBox(d),
       el("div", { class: "tags-wrap" }, d.tagids.map((t) => el("span", { class: "chip" }, tagName(t)))),

@@ -43,6 +43,7 @@ export const DEFAULT_FILTERS = Object.freeze({
 export const NON_RESULT_KEYS = new Set([
   "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "showTaste", "showTastePhone",
   "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows", "startMinimized",
+  "alerts", // price alerts: the alerts panel and badges update themselves
   "behavior", // learning from what the person does: shapes the next ranking, never reshuffles the list under them
   "dismissed", // the list view redraws itself in place (keeping the scroll position) when this changes
 ]);

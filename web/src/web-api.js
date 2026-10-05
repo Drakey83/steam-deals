@@ -6,6 +6,7 @@ import { device } from "./browser-api/device.js";
 import { on } from "./browser-api/events.js";
 import { getHistory } from "./browser-api/history.js";
 import { ApiError, fail, http, wrap } from "./browser-api/http.js";
+import { lookupItems } from "./browser-api/items.js";
 import { loadLibrary, setLibrary } from "./browser-api/library.js";
 import { claim, pairId, pushBasket, syncNow, syncStatus, unpair } from "./browser-api/pairing.js";
 import { ALLOWED_SETTINGS, APIKEY_KEY, publicSettings, saveSettings, settings } from "./browser-api/settings.js";
@@ -105,6 +106,14 @@ window.steamDeals = {
   taste: {
     build: wrap(buildTaste),
     onProgress: (cb) => on("taste-progress", cb),
+  },
+  items: {
+    lookup: wrap(lookupItems),
+  },
+  // Price alerts: the website has no system notifications; the UI shows a badge and a panel instead.
+  alerts: {
+    notify: async () => ({ ok: true, shown: false }),
+    onOpen: () => () => {},
   },
   // Price history (IsThereAnyDeal data via /api/history).
   history: {

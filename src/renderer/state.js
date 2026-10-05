@@ -39,6 +39,9 @@ export function emptyLibrary() {
 
 export const tagName = (id) => state.tags[id] || `#${id}`;
 
+/** Price alerts (logic/alerts.js), newest first. */
+export const alertList = () => (Array.isArray(state.settings?.alerts) ? state.settings.alerts : []);
+
 /** What the person did in the app (logic/behavior.js), newest first. */
 export const behaviorEvents = () => (Array.isArray(state.settings?.behavior) ? state.settings.behavior : []);
 

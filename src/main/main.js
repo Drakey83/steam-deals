@@ -23,7 +23,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   registerDeepLinks(showWindow);
   onNotificationClick(showWindow);
-  for (const mod of ["app", "account", "catalog", "cart", "history"]) require(`./ipc/${mod}`).register();
+  for (const mod of ["app", "account", "catalog", "cart", "history", "alerts"]) require(`./ipc/${mod}`).register();
 
   app.whenReady().then(() => {
     Menu.setApplicationMenu(null);

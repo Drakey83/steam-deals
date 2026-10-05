@@ -4,6 +4,7 @@ const svg = (paths, extra = "") =>
 
 export const ICON = {
   basket: svg('<path d="M3 10h18l-1.6 8.2a2 2 0 0 1-2 1.8H6.6a2 2 0 0 1-2-1.8z"/><path d="m7 10 3-6"/><path d="m17 10-3-6"/><path d="M10 14v3"/><path d="M14 14v3"/>'),
+  bell: svg('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>'),
   check: svg('<path d="m5 12 5 5L20 7"/>'),
   close: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
   copy: svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),

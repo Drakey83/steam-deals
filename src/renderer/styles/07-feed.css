@@ -102,8 +102,15 @@
 .card-art {
   position: relative;
   aspect-ratio: 460 / 215;
-  background: #121923;
+  background: linear-gradient(90deg, #121923 25%, #1b2531 37%, #121923 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s infinite; /* placeholder while the capsule art decodes */
   overflow: hidden;
+}
+.card-art:has(> img.loaded),
+.card-art:has(> img.failed) {
+  animation: none;
+  background: #121923;
 }
 .card-art img {
   width: 100%;
@@ -205,9 +212,8 @@
   font-size: 15px;
   line-height: 1.3;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
+  text-overflow: ellipsis; /* one line on wide cards; phones allow two (13-responsive.css) */
 }
 .price-row {
   display: flex;
@@ -237,10 +243,23 @@
 .rating-row .lbl {
   color: var(--text-3);
 }
+/* One row of tags. Tags that don't fit wrap onto a hidden second row, so a tag is shown whole or not at all;
+   a single tag longer than the card gets an ellipsis. */
 .tag-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+  height: 22px;
   overflow: hidden;
+}
+.tag-row .chip {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .rating-good .pct {
   color: #a6e37a;
@@ -333,4 +352,20 @@
 }
 .banner .spacer {
   flex: 1;
+}
+
+/* "best discount 95%" in the stats line: sorts by discount when clicked. */
+.stat-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted rgba(255, 255, 255, 0.35);
+  text-underline-offset: 3px;
+}
+.stat-link:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
 }

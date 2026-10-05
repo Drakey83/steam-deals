@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { test } from "node:test";
 import { basketItem, basketTotals, mergeIncoming, toggleInList } from "../src/renderer/logic/basket.js";
-import { normWeights, playsOnDeckOrMachine, rankDeals } from "../src/renderer/logic/ranking.js";
+import { normWeights, playsOnDeckOrMachine, popularityOf, rankDeals } from "../src/renderer/logic/ranking.js";
 import { buildTasteModel } from "../src/renderer/logic/taste.js";
 import { durationText, fmtCents, plural, timeAgo } from "../src/renderer/lib/format.js";
 
@@ -153,4 +153,27 @@ test("timeAgo and durationText", () => {
   assert.equal(durationText(3 * 3600_000), "3 hours");
   assert.equal(plural(1, "game"), "1 game");
   assert.equal(plural(3, "game"), "3 games");
+});
+
+// ----- score stability (scores must not depend on what else is loaded) -----
+test("a game's score doesn't change when more deals load or filters change", () => {
+  const a = deal(1, { reviews: 5000 });
+  const first = rankDeals({ deals: [a, deal(2, { reviews: 100 })], settings: settings(), library: lib() }).list.find((d) => d.appid === 1).score;
+  const later = rankDeals({ deals: [a, deal(2, { reviews: 100 }), deal(3, { reviews: 9_000_000 })], settings: settings(), library: lib() }).list.find((d) => d.appid === 1).score;
+  assert.equal(first, later);
+});
+
+test("popularity is a fixed log scale: 1,000 reviews = 50, a million or more = 100", () => {
+  assert.equal(popularityOf(1000), 50);
+  assert.equal(popularityOf(1_000_000), 100);
+  assert.equal(popularityOf(50_000_000), 100);
+  assert.equal(popularityOf(0), 0);
+});
+
+test("equal scores always come out in the same order", () => {
+  const deals = [deal(30), deal(10), deal(20)];
+  const r1 = rankDeals({ deals, settings: settings(), library: lib() }).list.map((d) => d.appid);
+  const r2 = rankDeals({ deals: deals.slice().reverse(), settings: settings(), library: lib() }).list.map((d) => d.appid);
+  assert.deepEqual(r1, [10, 20, 30]);
+  assert.deepEqual(r2, r1);
 });

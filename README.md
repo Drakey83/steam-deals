@@ -134,7 +134,8 @@ when your library or hours change, it's rebuilt, so it keeps up with what you're
 already seen are cached, so a rebuild is a handful of requests. You can collapse the "Your taste" panel with Hide.
 
 **Deal score** = 40% discount + 35% positive-review percentage + 25% popularity, where popularity is the review
-count on a log scale relative to the most-reviewed game in your current results. In All-games mode the discount
+count on a fixed log scale (1,000 reviews = 50, a million or more = 100), so a game's score doesn't change with what
+else is loaded. In All-games mode the discount
 term drops out. The For-you ranking blends taste match and deal score; the "Taste over deal" slider in Settings
 sets the mix. All weights are adjustable.
 

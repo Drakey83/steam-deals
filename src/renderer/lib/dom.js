@@ -25,11 +25,12 @@ export function el(tag, attrs = {}, ...children) {
 /** Append children, skipping null/false (handy for conditional pieces). */
 export const appendKids = (parent, ...kids) => parent.append(...kids.flat(Infinity).filter((k) => k != null && k !== false));
 
-/** A lazy image that fades in when loaded and hides itself if it fails. */
+/** A lazy image that fades in when loaded and hides itself if it fails (CSS can tell by .loaded / .failed). */
 export function imgEl(src, cls) {
   const img = el("img", { class: cls, alt: "", loading: "lazy", decoding: "async", src });
   img.addEventListener("load", () => img.classList.add("loaded"));
   img.addEventListener("error", () => {
+    img.classList.add("failed");
     img.style.display = "none";
   });
   return img;

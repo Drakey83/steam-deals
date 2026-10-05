@@ -32,7 +32,7 @@ export function openSettings() {
       row("Language", select("language", LANGUAGES, (v) => refetch({ language: v }))),
       row("Scan depth", select("scanDepth", SCAN_DEPTHS, (v) => { refetch({ scanDepth: Number(v) }); renderSidebar(); })),
     ),
-    group("Score weights", weightSliders(s), el("div", { class: "muted", style: NOTE }, "Popularity is the review count on a log scale, relative to the most-reviewed game in your current results.")),
+    group("Score weights", weightSliders(s), el("div", { class: "muted", style: NOTE }, "Popularity is the review count on a log scale: 1,000 reviews scores 50, a million or more scores 100. The scale is fixed, so a game's score doesn't change with what else is loaded.")),
     group("For you", tasteSlider(s), el("div", { class: "muted", style: NOTE }, "How much the For-you ranking favours games that match your library over games that are simply the best bargains. 100% is pure taste match; 0% is the plain deal score.")),
     group("Account", accountRow()),
     isWeb

@@ -62,8 +62,9 @@ export function renderSidebar() {
       signedIn ? null : el("div", { class: "muted", style: MUTED_NOTE }, "Sign in to hide owned games."),
     ),
     el("div", { id: "tags-section" }),
+    select("scanDepth", "Scan depth", SCAN_DEPTHS, { refetch: true }),
+    // Pinned to the bottom of the sidebar (06-sidebar.css), so Settings is never scrolled out of reach.
     el("div", { class: "sidebar-foot" },
-      select("scanDepth", "Scan depth", SCAN_DEPTHS, { refetch: true }),
       el("button", { class: "btn", html: `${ICON.settings}<span>Settings</span>`, onclick: openSettings }),
       usersLine(),
     ),

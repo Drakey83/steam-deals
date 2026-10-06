@@ -40,6 +40,12 @@ body.web .brand-inline {
   align-items: center;
   gap: 8px;
 }
+/* In the top bar the toggles and the sort menu never shrink: squeezed, the sort menu used to spill over the
+   search box. When the bar is too narrow, its items wrap to a second row instead. */
+.topbar .viewbar,
+.topbar .viewbar > * {
+  flex: none;
+}
 #viewbar-top {
   display: contents;
 }

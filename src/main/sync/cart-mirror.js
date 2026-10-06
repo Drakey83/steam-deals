@@ -6,6 +6,8 @@
 //
 // Steam is only asked when something changed or on a slow heartbeat (see index.js).
 
+const { deviceWhere } = require("../../shared/core.js");
+
 const ADD_GRACE_MS = 90000; // a game we just added may take a moment to show in GetCart
 const REPORT_REPEAT_MS = 10 * 60000; // resend an unchanged cart report at most this often
 
@@ -17,6 +19,7 @@ module.exports = function createCartMirror({ settings, steam, cartSession, sessi
   let lastReportAt = 0;
   let cartStatus = { status: {}, subtotal: null, at: 0 };
   let pendingSource = null; // who caused the next reconcile's additions: "remote" | "local"
+  let pendingBy = null; // for "remote": which kind of device ("phone" | "web" | "pc")
 
   const mirroring = () => settings.get().pairAutoCart !== false;
   const signedIn = () => settings.get().account?.method === "steam";
@@ -43,7 +46,9 @@ module.exports = function createCartMirror({ settings, steam, cartSession, sessi
     const s = settings.get();
     const basket = Array.isArray(s.basket) ? s.basket : [];
     const source = pendingSource;
+    const by = pendingBy;
     pendingSource = null;
+    pendingBy = null;
     if (!mirroring()) return report({ status: {}, subtotal: null, count: basket.length }, false);
     if (!basket.length && !Object.keys(s.mirror || {}).length) return report({ status: {}, subtotal: null, count: 0 }, true);
     if (!signedIn()) {
@@ -175,8 +180,9 @@ module.exports = function createCartMirror({ settings, steam, cartSession, sessi
       settings.update({ mirror });
     }
 
-    if (added && source === "remote") notify("added", `${added} game${added === 1 ? "" : "s"} from your phone added to your Steam cart`, { every: 0 });
-    if (removed && source === "remote") notify("removed", `${removed} game${removed === 1 ? "" : "s"} removed from your Steam cart`, { every: 0 });
+    const games = (n) => `${n} game${n === 1 ? "" : "s"}`;
+    if (added && source === "remote") notify("added", `${games(added)} added ${deviceWhere(by)} ${added === 1 ? "is" : "are"} now in your Steam cart`, { every: 0 });
+    if (removed && source === "remote") notify("removed", `${games(removed)} removed ${deviceWhere(by)} ${removed === 1 ? "was" : "were"} taken out of your Steam cart`, { every: 0 });
 
     await report({ status, subtotal: cart?.subtotal ?? null, count: basket.length - owned.length }, true);
   }
@@ -208,9 +214,10 @@ module.exports = function createCartMirror({ settings, steam, cartSession, sessi
     due() {
       lastReconcile = 0;
     },
-    /** The next additions came from another device ("remote") or from here ("local"), for the notification text. */
-    setSource(source) {
+    /** The next changes came from another device ("remote", made on `by`) or from here ("local"), for the notification text. */
+    setSource(source, by = null) {
       pendingSource = source;
+      pendingBy = by;
     },
     /** A new or ended pairing: send the next cart report even if it looks unchanged. */
     resetReport() {

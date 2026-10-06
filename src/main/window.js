@@ -101,7 +101,7 @@ function hideToTrayOnClose(win) {
     try {
       runtime.tray.displayBalloon({
         title: "Steam Deals is still running",
-        content: "It keeps your Steam cart in sync with your phone from here. Right-click the icon to quit or change that.",
+        content: "It keeps your Steam cart in sync with your other devices from here. Right-click the icon to quit or change that.",
         iconType: "info",
       });
     } catch {

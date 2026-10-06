@@ -26,7 +26,7 @@ function refreshTray() {
   const tray = runtime.tray;
   if (!tray) return;
   const s = settings.get();
-  tray.setToolTip(!s.pairId ? "Steam Deals" : s.syncPaused ? "Steam Deals · syncing paused" : "Steam Deals · basket synced with your phone");
+  tray.setToolTip(!s.pairId ? "Steam Deals" : s.syncPaused ? "Steam Deals · syncing paused" : "Steam Deals · basket synced with your other devices");
   // A change made from the tray menu: redraw the menu and tell the UI.
   const changed = () => {
     refreshTray();
@@ -36,7 +36,7 @@ function refreshTray() {
     { label: "Open Steam Deals", click: showWindow },
     { type: "separator" },
     {
-      label: "Pause syncing with my phone",
+      label: "Pause syncing with my other devices",
       type: "checkbox",
       checked: Boolean(s.syncPaused),
       enabled: Boolean(s.pairId),

@@ -82,13 +82,13 @@ export function syncStatus() {
 // ----- the shared basket -----
 
 /** Make the relay's basket this browser's basket. */
-function adoptBasket(items, rev, source) {
+function adoptBasket(items, rev, source, by = null) {
   const changed = !Core.sameBasket(items, settings.basket);
   settings.basket = Array.isArray(items) ? items : [];
   saveSettings();
   lastRevSeen = rev || 0;
   store.set(REV_KEY, lastRevSeen);
-  if (changed) emit("basket:replaced", { items: settings.basket, source, rev: lastRevSeen });
+  if (changed) emit("basket:replaced", { items: settings.basket, source, rev: lastRevSeen, by });
 }
 
 /** This browser changed its basket: send the difference to the relay. */
@@ -130,7 +130,7 @@ export async function syncTick(force) {
     emit("cart:status", syncStatus());
     if ((sig.rev || 0) !== lastRevSeen) {
       const b = await relay({ action: "basket.get", pairId: id });
-      adoptBasket(b.items, b.rev, "remote");
+      adoptBasket(b.items, b.rev, "remote", b.by);
     }
     if (alertsStale(sig)) await pullAlerts(id);
     if (prefsStale(sig)) await pullPrefs(id);

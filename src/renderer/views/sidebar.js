@@ -4,11 +4,12 @@ import { $, el } from "../lib/dom.js";
 import { fmtInt } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
 import { api } from "../lib/platform.js";
-import { patchSettings, state, syncSortWithView, tagName } from "../state.js";
+import { isPersonal, patchSettings, state, syncSortWithView, tagName } from "../state.js";
 import { switchEl, usersLine } from "../ui/common.js";
 import { updateResults } from "./feed.js";
 import { openSettings } from "./settings.js";
 import { renderSortSelect } from "./shell.js";
+import { SIDEBAR_TAG_HINT, dragTag, removeFromTaste, tagDropZone } from "./taste-tags.js";
 
 const MUTED_NOTE = { fontSize: "12px", marginTop: "4px" };
 
@@ -110,7 +111,10 @@ export function renderTags() {
       renderTags();
     });
     host.replaceChildren(el("div", { class: "section-title" }), el("div", { class: "tags-search" }, search), el("div", { class: "tags-body" }));
+    host.dataset.dropHint = "Drop here to remove it from your taste";
+    tagDropZone(host, "taste", removeFromTaste); // a tag dragged out of Your taste
   }
+  const personal = isPersonal();
 
   const counts = new Map();
   for (const d of state.deals) for (const t of d.tagids) counts.set(t, (counts.get(t) || 0) + 1);
@@ -126,11 +130,12 @@ export function renderTags() {
   };
   const chips = shown.map(([id, n]) => {
     const on = selected.has(id);
-    return el("button", {
+    const chip = el("button", {
       class: `chip ${on ? "on" : ""}`,
-      title: `${fmtInt(n)} games`,
+      title: `${fmtInt(n)} games. Click to show only games with this tag.${personal ? ` ${SIDEBAR_TAG_HINT}` : ""}`,
       onclick: () => setTags(on ? [...selected].filter((x) => x !== id) : [...selected, id]),
     }, tagName(id));
+    return personal ? dragTag(chip, id, "sidebar") : chip;
   });
   host.querySelector(".section-title").replaceChildren("Tags", selected.size ? el("button", { class: "btn btn-ghost btn-sm", onclick: () => setTags([]) }, "Clear") : "");
   const note = (text) => el("div", { class: "muted", style: { fontSize: "12px" } }, text);

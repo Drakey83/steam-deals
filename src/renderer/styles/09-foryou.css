@@ -133,3 +133,124 @@
 .why-similar b {
   font-weight: 600;
 }
+
+/* ---------- editing Your taste: drag tags in and out (views/taste-tags.js) ---------- */
+.help-tip {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-2);
+  cursor: help;
+}
+.help-tip:hover,
+.help-tip:focus-visible {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.taste-chip {
+  gap: 6px;
+  cursor: grab;
+  user-select: none;
+}
+.taste-chip:active {
+  cursor: grabbing;
+}
+.taste-chip.added {
+  border-style: dashed;
+}
+.taste-plus {
+  font-weight: 700;
+}
+.taste-x {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.taste-x:hover,
+.taste-x:focus-visible {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+}
+.taste-removed-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.taste-removed {
+  opacity: 0.7;
+  text-decoration: line-through;
+}
+.taste-removed:hover {
+  opacity: 1;
+  text-decoration: none;
+}
+.fy-add-wrap {
+  display: inline-flex;
+}
+.fy-add {
+  width: 150px;
+  height: 30px;
+  font-size: 13px;
+}
+#sidebar .chip[draggable="true"] {
+  cursor: grab;
+}
+/* While a tag is being dragged, show where it can go. */
+.taste-drop,
+#tags-section {
+  position: relative;
+  border-radius: 12px;
+  transition: outline-color var(--t-fast), background var(--t-fast);
+  outline: 2px dashed transparent;
+  outline-offset: 4px;
+}
+body.dragging-sidebar-tag .taste-drop,
+body.dragging-taste-tag #tags-section {
+  outline-color: rgba(102, 192, 244, 0.45);
+}
+.taste-drop.drop-over,
+#tags-section.drop-over {
+  outline-color: var(--accent);
+  background: rgba(102, 192, 244, 0.08);
+}
+body.dragging-sidebar-tag .taste-drop::after,
+body.dragging-taste-tag #tags-section::after {
+  content: attr(data-drop-hint);
+  position: absolute;
+  right: 6px;
+  bottom: -26px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: #0b1a26;
+  background: var(--accent);
+  pointer-events: none;
+  white-space: nowrap;
+}
+body.dragging-taste-tag #tags-section::after {
+  top: -4px;
+  bottom: auto;
+}
+@media (max-width: 860px) {
+  .fy-add {
+    width: 120px;
+  }
+}

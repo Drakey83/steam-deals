@@ -19,6 +19,7 @@ const DEFAULTS = Object.freeze({
   selectedTags: [],
   alerts: [], // price alerts (renderer/logic/alerts.js), newest first, capped
   behavior: [], // what the person did in the app: [{ type, appid, tags, at }], newest first, capped (renderer/logic/behavior.js)
+  tasteTags: { added: [], removed: [] }, // tags put in / taken out of "Your taste" by hand (renderer/logic/taste.js)
   dismissed: [], // "Not interested": [{ appid, name, tags:[{id,w}], at }], newest first, capped (renderer/logic/dismiss.js)
   deckMachineOnly: false, // only games Valve rates Verified or Playable on Steam Deck or Steam Machine
   view: "foryou", // 'foryou' | 'all'

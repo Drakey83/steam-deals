@@ -45,6 +45,9 @@ export const alertList = () => (Array.isArray(state.settings?.alerts) ? state.se
 /** What the person did in the app (logic/behavior.js), newest first. */
 export const behaviorEvents = () => (Array.isArray(state.settings?.behavior) ? state.settings.behavior : []);
 
+/** Tags put in or taken out of "Your taste" by hand (logic/taste.js). */
+export const tasteEdits = () => state.settings?.tasteTags || null;
+
 /** "Not interested" entries (logic/dismiss.js), newest first. */
 export const dismissedList = () => (Array.isArray(state.settings?.dismissed) ? state.settings.dismissed : []);
 
@@ -67,18 +70,19 @@ export function syncSortWithView() {
 // The taste model depends on the profile and the scanned deals; rebuild it only when either changes.
 // (and on the "Not interested" list, whose tags count against, and on what the person did in the app).
 let model = null;
-let modelFor = { taste: null, deals: null, dismissed: null, behavior: null };
+let modelFor = { taste: null, deals: null, dismissed: null, behavior: null, edits: null };
 /** Call after changing state.deals in place (streamed pages append to the same array). */
 export function invalidateTasteModel() {
-  modelFor = { taste: null, deals: null, dismissed: null, behavior: null };
+  modelFor = { taste: null, deals: null, dismissed: null, behavior: null, edits: null };
 }
 export function tasteModel() {
   const dismissed = dismissedList();
   const behavior = behaviorEvents();
+  const edits = tasteEdits();
   const f = modelFor;
-  if (f.taste !== state.taste || f.deals !== state.deals || f.dismissed !== dismissed || f.behavior !== behavior) {
-    model = buildTasteModel(withBehavior(state.taste, behavior), state.deals, dismissed);
-    modelFor = { taste: state.taste, deals: state.deals, dismissed, behavior };
+  if (f.taste !== state.taste || f.deals !== state.deals || f.dismissed !== dismissed || f.behavior !== behavior || f.edits !== edits) {
+    model = buildTasteModel(withBehavior(state.taste, behavior), state.deals, dismissed, edits || {});
+    modelFor = { taste: state.taste, deals: state.deals, dismissed, behavior, edits };
   }
   return model;
 }

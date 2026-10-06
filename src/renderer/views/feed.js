@@ -17,6 +17,7 @@ import { openDetails } from "./details.js";
 import { openSettings } from "./settings.js";
 import { renderSortSelect } from "./shell.js";
 import { resetFilters } from "./sidebar.js";
+import { TASTE_HELP, addTagInput, addToTaste, dragTag, removeFromTaste, resetTasteEdits, restoreToTaste, tagDropZone } from "./taste-tags.js";
 
 /**
  * Recompute the ranked list and redraw everything that depends on it. With keepPlace the grid keeps its scroll
@@ -102,8 +103,9 @@ export function renderForYouHead() {
       renderForYouHead();
     },
   }, shown ? "Hide" : "Show");
-  const chips = (model?.topTags || []).map((id) => el("span", { class: "chip on" }, tagName(id)));
-  const title = el("div", { class: "fy-title", html: ICON.sparkle }, el("span", {}, "Your taste"));
+  const chips = (model?.topTags || []).map((id) => tasteChip(id, model));
+  const help = el("span", { class: "help-tip", tabindex: "0", role: "note", title: TASTE_HELP, "aria-label": TASTE_HELP }, "?");
+  const title = el("div", { class: "fy-title", html: ICON.sparkle }, el("span", {}, "Your taste"), help);
 
   if (!shown) {
     host.append(el("div", { class: "fy-head fy-collapsed" },
@@ -116,13 +118,37 @@ export function renderForYouHead() {
   const anchors = t.anchors || [];
   const top = anchors.slice(0, 3).map((a) => (a.hours ? `${a.name} (${fmtInt(Math.round(a.hours))} h)` : a.name)).join(" · ");
   const lately = anchors.filter((a) => a.recent > 0).sort((a, b) => b.recent - a.recent).slice(0, 3).map((a) => a.name).join(" · ");
+  const edited = model && (model.added.size || model.removed.size);
+  const removed = [...(model?.removed || [])].map((id) => el("button", {
+    class: "chip chip-sm taste-removed",
+    title: `You removed ${tagName(id)} from your taste. Click to put it back.`,
+    onclick: () => restoreToTaste(id),
+  }, el("span", { "aria-hidden": "true" }, "↺ "), tagName(id)));
+  const zone = tagDropZone(el("div", { class: "tags-wrap taste-drop", "data-drop-hint": "Drop here to add it to your taste" },
+    chips.length ? chips : el("span", { class: "muted" }, "Not enough tagged games to find a pattern yet. Drag tags here from Tags, or add one.")), "sidebar", addToTaste);
   host.append(el("div", { class: "fy-head" },
     el("div", { class: "fy-row" }, title, el("div", { class: "spacer" }),
+      addTagInput(),
+      edited ? el("button", { class: "btn btn-ghost btn-sm", title: "Undo every tag you added or removed by hand", onclick: resetTasteEdits }, "Reset") : null,
       el("button", { class: "btn btn-ghost btn-sm", title: "Re-read your library and playtime now", html: `${ICON.refresh}<span>Rebuild</span>`, onclick: rebuildTaste }),
       toggle),
-    el("div", { class: "tags-wrap" }, chips.length ? chips : el("span", { class: "muted" }, "Not enough tagged games to find a pattern yet.")),
+    zone,
+    removed.length ? el("div", { class: "taste-removed-row" }, el("span", { class: "muted small" }, "Removed:"), removed) : null,
     el("div", { class: "muted fy-basis" }, basis, top ? ` Most played: ${top}.` : "", lately ? ` Lately: ${lately}.` : ""),
   ));
+}
+
+/** One tag of "Your taste": drag it to Tags, or click ×, to remove it. Tags you added are marked. */
+function tasteChip(id, model) {
+  const mine = model.added.has(id);
+  const chip = el("span", {
+    class: `chip on taste-chip ${mine ? "added" : ""}`,
+    title: `${mine ? "You added this tag." : "Learned from your library."} Drag it onto Tags (left) or click × to remove it from your taste.`,
+  },
+  mine ? el("span", { class: "taste-plus", "aria-hidden": "true" }, "+") : null,
+  el("span", {}, tagName(id)),
+  el("button", { class: "taste-x", title: `Remove ${tagName(id)} from your taste`, "aria-label": `Remove ${tagName(id)} from your taste`, onclick: () => removeFromTaste(id) }, "×"));
+  return dragTag(chip, id, "taste");
 }
 
 // ----- the stats line -----

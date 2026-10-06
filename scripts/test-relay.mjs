@@ -95,7 +95,17 @@ check("PC writes back a fired alert", a2.data.applied === true && a2.data.alerts
 const a3 = await call({ action: "alerts.get", pairId });
 check("alerts.get returns it", a3.data.rev === 2 && a3.data.alerts.find((x) => x.appid === 10).armed === false);
 
-// 13. clear, then unpair; dead pairing is refused everywhere
+// 13. "Your taste" edits: shared preferences with the same compare-and-set
+const p0 = await call({ action: "prefs.get", pairId });
+check("prefs.get on a new pairing → empty, rev 0", p0.data.rev === 0 && p0.data.prefs.tasteTags.added.length === 0);
+const p1 = await call({ action: "prefs.set", pairId, rev: 0, prefs: { tasteTags: { added: [4004, "1628", -2, 4004], removed: [19], at: 1790000000000 } } });
+check("prefs.set → applied and cleaned", p1.data.applied === true && p1.data.rev === 1 && JSON.stringify(p1.data.prefs.tasteTags.added) === "[4004,1628]");
+const pSig = await call({ action: "sig", pairId });
+check("sig carries the preferences revision", pSig.data.prev === 1);
+const pStale = await call({ action: "prefs.set", pairId, rev: 0, prefs: { tasteTags: { added: [], removed: [], at: 1 } } });
+check("a stale prefs.set is refused and returns the current edits", pStale.data.applied === false && pStale.data.prefs.tasteTags.added.length === 2);
+
+// 14. clear, then unpair; dead pairing is refused everywhere
 const o5 = await call({ action: "basket.ops", pairId, by: "pc", ops: [{ op: "clear" }] });
 check("clear → empty", o5.data.items.length === 0);
 const un = await call({ action: "unpair", pairId });

@@ -300,11 +300,28 @@ function rebaseWebAlerts(mine, remote) {
 /** Windows app, when the pairing ends: website alerts go back to the website (it checks them itself again). */
 const withoutWebAlerts = (list) => (list || []).filter((a) => !isWebAlert(a));
 
+// ----- "Your taste" edits shared through the relay -----
+// settings.tasteTags = { added:[tagid], removed:[tagid], at } (logic/taste.js reads added/removed). The most
+// recent change wins. When two devices first pair, nothing is thrown away: both sides' edits are combined
+// (a tag added on either side counts as added).
+const tasteIds = (list) => [...new Set((Array.isArray(list) ? list : []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 60);
+const cleanTasteTags = (t) => ({ added: tasteIds(t?.added), removed: tasteIds(t?.removed), at: Math.max(0, Number(t?.at) || 0) });
+
+function mergeTasteTags(local, remote, { combine = false } = {}) {
+  const a = cleanTasteTags(local);
+  const b = cleanTasteTags(remote);
+  if (!combine && a.at !== b.at) return a.at > b.at ? a : b;
+  const added = [...new Set([...a.added, ...b.added])].slice(0, 60);
+  const removed = [...new Set([...a.removed, ...b.removed])].filter((id) => !added.includes(id)).slice(0, 60);
+  return { added, removed, at: Math.max(a.at, b.at) };
+}
+const sameTasteTags = (a, b) => JSON.stringify(cleanTasteTags(a)) === JSON.stringify(cleanTasteTags(b));
+
 /** Same alerts, same targets, same state? (Skips writes that would change nothing.) */
 const canonicalAlerts = (list) => JSON.stringify(dedupeAlerts(list).map((a) => Object.keys(a).sort().map((k) => [k, a[k] ?? null])));
 const sameAlerts = (a, b) => canonicalAlerts(a) === canonicalAlerts(b);
 
-const api = { alertKey, withoutWebAlerts, mergeWebAlerts, webAlertsForRelay, tagWebAlerts, rebaseWebAlerts, sameAlerts, MAX_SHARED_ALERTS, sameBasket, basketOps, COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
+const api = { cleanTasteTags, mergeTasteTags, sameTasteTags, alertKey, withoutWebAlerts, mergeWebAlerts, webAlertsForRelay, tagWebAlerts, rebaseWebAlerts, sameAlerts, MAX_SHARED_ALERTS, sameBasket, basketOps, COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.SteamCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

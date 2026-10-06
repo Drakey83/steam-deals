@@ -34,6 +34,7 @@ const DEFAULTS = Object.freeze({
   pairAutoCart: true, // keep the Steam cart in step with the shared basket (adds and removals; never a purchase)
   basketRev: 0, // revision of the shared basket last seen on the relay
   alertsRev: 0, // revision of the website's price alerts last merged from the relay
+  prefsRev: 0, // revision of the shared "Your taste" edits last merged from the relay
   mirror: {}, // appid -> { packageid, lineItemId, addedAt }: cart lines this app put there, so only those are ever removed
   syncPaused: false,
   closeToTray: true, // the X button hides the app to the tray so syncing keeps running
@@ -53,7 +54,7 @@ function filePath() {
 }
 
 // Objects that are replaced as a whole rather than merged key by key.
-const REPLACE_KEYS = new Set(["mirror", "account", "windowBounds"]);
+const REPLACE_KEYS = new Set(["mirror", "account", "windowBounds", "tasteTags"]);
 
 function deepMerge(base, patch) {
   const out = { ...base };

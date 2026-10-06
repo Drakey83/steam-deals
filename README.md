@@ -148,6 +148,7 @@ checkout, in the Steam app, the website, or on your phone, since the cart belong
 - **Edit your taste.** In For you, drag a tag from Tags onto “Your taste” to add it, or drag one of your taste's
   tags back onto Tags (or click its ×) to remove it. You can also type a tag into “Add a tag”. Removed tags can be
   restored with a click, Reset undoes every change, and the ? next to “Your taste” explains it all on hover.
+  Paired with the Windows app, your edits are shared: change them on either side and the other follows.
 
 Filters live in the left sidebar: minimum discount and rating, minimum review count, **Steam Deck / Machine only** (on:
 only games Valve rates Verified or Playable on Steam Deck or Steam Machine; off: every game. Cards carry a

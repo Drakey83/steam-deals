@@ -6,7 +6,8 @@
 //   2. this app's basket   -->  the person's real Steam cart (add what's new, remove what they took out);
 //   3. the Steam cart's state --> the relay, so the phone can show "in your Steam cart" per game.
 // It also brings in the price alerts made on the website (relay "alerts", revision "arev" in the signal) and
-// writes back what happened to them. This app checks them with its own alerts and shows the notification
+// writes back what happened to them. And it keeps the hand edits to "Your taste" the same on every paired device
+// (relay "prefs", revision "prev"); the most recent edit wins. This app checks them with its own alerts and shows the notification
 // (the interface does the checking, renderer/alerts.js); the website only shows the result.
 //
 // Cost model: the relay is a free Redis with a monthly command budget, so the app polls a one-record
@@ -14,7 +15,7 @@
 // says so when its basket is open) or right after a change. Steam itself is only asked about the cart
 // when something changed or on a slow heartbeat, which also catches purchases made on Steam.
 
-const { sameBasket: sameItems, basketOps: diffOps, mergeWebAlerts, webAlertsForRelay, sameAlerts, withoutWebAlerts, alertKey } = require("../shared/core.js");
+const { sameBasket: sameItems, basketOps: diffOps, mergeWebAlerts, webAlertsForRelay, sameAlerts, withoutWebAlerts, alertKey, mergeTasteTags, sameTasteTags } = require("../shared/core.js");
 
 const FAST_MS = 3000;
 const SLOW_MS = 30000;
@@ -45,6 +46,8 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
   let alertsBusy = false;
   let alertsAgain = false;
   let adopted = { keys: new Set(), at: 0 }; // website alerts that just arrived, and when
+  let remoteTaste = null; // the relay's "Your taste" edits as last read or written (null = not read yet)
+  let prefsBusy = false;
 
   const paired = () => Boolean(settings.get().pairId);
   const mirroring = () => settings.get().pairAutoCart !== false;
@@ -98,6 +101,7 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       if (heartbeat) lastHeartbeat = lastPoll;
       if (sig.active) fastUntil = Math.max(fastUntil, lastPoll + ACTIVE_HOLD_MS);
       if ((sig.arev || 0) !== (s.alertsRev || 0)) await pullAlerts().catch((err) => log(`[sync] alerts: ${err.message}`));
+      if ((sig.prev || 0) !== (s.prefsRev || 0)) await pullPrefs().catch((err) => log(`[sync] taste: ${err.message}`));
       if ((sig.rev || 0) !== (s.basketRev || 0)) {
         await pull();
       } else if (lastPoll - lastReconcile > (fast ? RECONCILE_FAST_MS : RECONCILE_SLOW_MS)) {
@@ -107,8 +111,9 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       lastError = err?.message || String(err);
       if (err?.code === "bad_pair") {
         // The relay forgot us (a year idle, or wiped). Drop the pairing quietly; the UI shows "not paired".
-        settings.update({ pairId: null, basketRev: 0, alertsRev: 0, mirror: {} });
+        settings.update({ pairId: null, basketRev: 0, alertsRev: 0, prefsRev: 0, mirror: {} });
         dropWebAlerts();
+        remoteTaste = null;
         sendToUI("sync:status", status());
       }
     } finally {
@@ -153,6 +158,49 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
     fastUntil = Math.max(fastUntil, Date.now() + CHANGE_HOLD_MS);
     await reconcile();
     schedule(FAST_MS);
+  }
+
+  // ----- "Your taste" edits, shared with paired devices -----
+
+  /** Take the relay's taste edits (newer wins; combined when first paired) and tell the interface if they changed. */
+  function adoptPrefs(prefs, rev, { combine = false } = {}) {
+    const s = settings.get();
+    remoteTaste = prefs?.tasteTags || null;
+    const merged = mergeTasteTags(s.tasteTags, remoteTaste, { combine });
+    const changed = !sameTasteTags(merged, s.tasteTags);
+    settings.update({ tasteTags: merged, prefsRev: rev || 0 });
+    if (changed) {
+      log("[sync] taste edits from a paired device");
+      sendToUI("settings:changed", { tasteTags: merged });
+    }
+  }
+
+  async function pullPrefs({ combine = false } = {}) {
+    const r = await pairApi("prefs.get", { pairId: settings.get().pairId });
+    adoptPrefs(r.prefs, r.rev, { combine });
+    await pushPrefs();
+  }
+
+  /** Write this app's taste edits to the relay if they differ (merging first if another device wrote meanwhile). */
+  async function pushPrefs() {
+    if (prefsBusy) return;
+    prefsBusy = true;
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const s = settings.get();
+        if (!s.pairId || paused()) return;
+        if (remoteTaste && sameTasteTags(s.tasteTags, remoteTaste)) return;
+        const r = await pairApi("prefs.set", { pairId: s.pairId, prefs: { tasteTags: s.tasteTags || {} }, rev: s.prefsRev || 0 });
+        if (r.applied) {
+          remoteTaste = r.prefs?.tasteTags || s.tasteTags;
+          settings.update({ prefsRev: r.rev || 0 });
+          return;
+        }
+        adoptPrefs(r.prefs, r.rev);
+      }
+    } finally {
+      prefsBusy = false;
+    }
   }
 
   // ----- price alerts from the website -----
@@ -443,6 +491,11 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       const lost = (settings.get().alerts || []).filter((a) => adopted.keys.has(alertKey(a)) && !have.has(alertKey(a)));
       return lost.length ? [...lost, ...next] : next;
     },
+    /** settings.tasteTags changed here (the person edited Your taste). */
+    onLocalPrefsChange() {
+      if (!paired() || paused()) return;
+      pushPrefs().catch((err) => log(`[sync] taste: ${err.message}`));
+    },
     /** settings.alerts changed here (the interface checked prices, or the person edited an alert). */
     onLocalAlertsChange() {
       if (!paired() || paused()) return;
@@ -461,12 +514,15 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       }
       remoteAlerts = null;
       pullAlerts().catch((err) => log(`[sync] alerts: ${err.message}`));
+      remoteTaste = null;
+      pullPrefs({ combine: true }).catch((err) => log(`[sync] taste: ${err.message}`));
       fastUntil = Date.now() + CHANGE_HOLD_MS;
       lastReconcile = 0;
       schedule(300);
     },
     afterUnpaired() {
       dropWebAlerts();
+      remoteTaste = null; // the taste edits stay on this device
       lastReport = "";
       lastReconcile = 0;
       schedule(300); // keep mirroring this app's own basket

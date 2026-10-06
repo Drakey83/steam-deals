@@ -38,6 +38,12 @@ export function renderSidebar() {
 
   const signedIn = state.library.signedIn;
   const saleOnly = s.catalog !== "all";
+  // Keep the tag section (and its search box) across a redraw, so someone typing in it when a scan finishes
+  // keeps their text, cursor and focus.
+  const tagsHost = $("#tags-section") || el("div", { id: "tags-section" });
+  const typing = document.activeElement && tagsHost.contains(document.activeElement) ? document.activeElement : null;
+  const caret = typing ? [typing.selectionStart, typing.selectionEnd] : null;
+  const scroll = side.scrollTop;
   side.replaceChildren(
     el("button", { class: "btn btn-sm sidebar-done", onclick: () => document.body.classList.remove("filters-open") }, "Done"),
     el("div", {},
@@ -61,7 +67,7 @@ export function renderSidebar() {
       toggle("wishlistOnly", "Wishlist only", !signedIn),
       signedIn ? null : el("div", { class: "muted", style: MUTED_NOTE }, "Sign in to hide owned games."),
     ),
-    el("div", { id: "tags-section" }),
+    tagsHost,
     select("scanDepth", "Scan depth", SCAN_DEPTHS, { refetch: true }),
     // Pinned to the bottom of the sidebar (06-sidebar.css), so Settings is never scrolled out of reach.
     el("div", { class: "sidebar-foot" },
@@ -69,7 +75,12 @@ export function renderSidebar() {
       usersLine(),
     ),
   );
+  side.scrollTop = scroll;
   renderTags();
+  if (typing) {
+    typing.focus();
+    typing.setSelectionRange(...caret);
+  }
 }
 
 export function resetFilters() {
@@ -84,10 +95,23 @@ export function resetFilters() {
   updateResults();
 }
 
-/** The tag chips, most common first, with a search box. */
+/**
+ * The tag chips, most common first, with a search box. The box is made once and kept: rebuilding it on every
+ * keystroke put the cursor back at the start (typing "rpg" gave "gpr") and dropped focus. Redraws (typing, a
+ * chip click, deals arriving) replace only the title and the chips around it.
+ */
 export function renderTags() {
   const host = $("#tags-section");
   if (!host) return;
+  if (!host.querySelector(".tags-search")) {
+    const search = el("input", { class: "input", type: "search", placeholder: "Find a tag", value: state.tagSearch, "aria-label": "Find a tag", autocomplete: "off", spellcheck: "false" });
+    search.addEventListener("input", () => {
+      state.tagSearch = search.value;
+      renderTags();
+    });
+    host.replaceChildren(el("div", { class: "section-title" }), el("div", { class: "tags-search" }, search), el("div", { class: "tags-body" }));
+  }
+
   const counts = new Map();
   for (const d of state.deals) for (const t of d.tagids) counts.set(t, (counts.get(t) || 0) + 1);
   const all = [...counts.entries()].sort((a, b) => b[1] - a[1]);
@@ -96,12 +120,6 @@ export function renderTags() {
   const shown = q ? all.filter(([id]) => tagName(id).toLowerCase().includes(q)).slice(0, 40) : all.slice(0, 28);
   for (const id of selected) if (!shown.some(([x]) => x === id)) shown.unshift([id, counts.get(id) || 0]);
 
-  const search = el("input", { class: "input", type: "search", placeholder: "Find a tag", value: state.tagSearch, "aria-label": "Find a tag" });
-  search.addEventListener("input", () => {
-    state.tagSearch = search.value;
-    renderTags();
-    $("#tags-section input").focus();
-  });
   const setTags = (ids) => {
     patchSettings({ selectedTags: ids }, { persistNow: true });
     renderTags();
@@ -114,9 +132,11 @@ export function renderTags() {
       onclick: () => setTags(on ? [...selected].filter((x) => x !== id) : [...selected, id]),
     }, tagName(id));
   });
-  host.replaceChildren(
-    el("div", { class: "section-title" }, "Tags", selected.size ? el("button", { class: "btn btn-ghost btn-sm", onclick: () => setTags([]) }, "Clear") : null),
-    el("div", { class: "tags-search" }, search),
-    all.length ? el("div", { class: "tags-wrap" }, chips) : el("div", { class: "muted", style: { fontSize: "12px" } }, "Tags appear once deals load."),
+  host.querySelector(".section-title").replaceChildren("Tags", selected.size ? el("button", { class: "btn btn-ghost btn-sm", onclick: () => setTags([]) }, "Clear") : "");
+  const note = (text) => el("div", { class: "muted", style: { fontSize: "12px" } }, text);
+  host.querySelector(".tags-body").replaceChildren(
+    !all.length ? note("Tags appear once deals load.")
+      : chips.length ? el("div", { class: "tags-wrap" }, chips)
+        : note(`No tag matches “${state.tagSearch.trim()}”.`),
   );
 }

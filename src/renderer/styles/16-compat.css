@@ -71,3 +71,17 @@
   gap: 4px 10px;
   font-size: 13.5px;
 }
+
+/* Phones: price, old price, the badge and both buttons don't fit one row, and the basket button was pushed off
+   the card. The badge takes its own line under the price instead. */
+@media (max-width: 640px), (max-height: 500px) {
+  .card .price-row {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .card .price-row .history-slot {
+    order: 10;
+    flex-basis: 100%;
+    line-height: 1;
+  }
+}

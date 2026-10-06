@@ -114,6 +114,9 @@ function startupNotices() {
   if (f.siteKeyInvalid) toast("You're signed in, but this site can't read Steam libraries right now (its Steam connection needs fixing). Deals still work; try again later or use your own API key.", { type: "err", timeout: 14000 });
   if (f.signInError) toast(`Sign-in didn't finish: ${f.signInError}`, { type: "err", timeout: 10000 });
   touchTipsHint();
+  // Website: a newer version was deployed while this tab was open. Offer the reload (it keeps everything).
+  api.updates?.onAvailable?.(({ version }) =>
+    toast(`Steam Deals ${version} is out. Reload to get it; your basket and settings stay.`, { action: () => location.reload(), actionLabel: "Reload", timeout: 30 * 60000 }));
 }
 
 /** Touch screens have no hover: say once, per device, how to see what something does. */

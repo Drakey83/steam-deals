@@ -30,5 +30,7 @@ const src = readFileSync(apiEntry, "utf8");
 const stamped = src.replace(`const VERSION = "web";`, `const VERSION = "${version} · web";`);
 if (stamped === src) throw new Error("build-web: version marker not found in web-api.js");
 writeFileSync(apiEntry, stamped);
+// Open tabs compare this with the version they're running and offer a reload (browser-api/updates.js).
+writeFileSync(join(pub, "version.json"), JSON.stringify({ version }) + "\n");
 
 console.log(`web build ${version}: web/public assembled`);

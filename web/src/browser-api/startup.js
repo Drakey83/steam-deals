@@ -47,7 +47,7 @@ export async function ready() {
   if (hash === "signedin" || hash === "signin-cancelled") history.replaceState(null, "", location.pathname + location.search);
   if (hash === "signedin") await finishSignIn();
   // Signed in through Steam: this browser shares one basket, alerts and taste with the account's other devices.
-  if (features.steamSignIn && settings.account?.method === "steam") linkAccount().catch(() => {});
+  if (features.steamSignIn && settings.account?.method === "steam") linkAccount().catch((err) => console.warn(`[sync] joining the Steam account's channel failed: ${err.message}`));
 }
 
 async function finishSignIn() {

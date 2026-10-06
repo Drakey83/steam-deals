@@ -12,6 +12,7 @@ import { claim, pairId, pushAlerts, pushBasket, pushPrefs, syncNow, syncStatus, 
 import { ALLOWED_SETTINGS, APIKEY_KEY, publicSettings, saveSettings, settings } from "./browser-api/settings.js";
 import { features, ready } from "./browser-api/startup.js";
 import { store } from "./browser-api/store.js";
+import { watchForUpdates } from "./browser-api/updates.js";
 import { buildTaste } from "./browser-api/taste.js";
 
 const VERSION = "web"; // replaced with "<version> · web" by scripts/build-web.mjs
@@ -164,4 +165,8 @@ window.steamDeals = {
     return { ok: true, value: true };
   },
   window: { isMaximized: async () => ({ ok: true, value: false }), onMaximizedChange: () => () => {} },
+  // A newer website was deployed while this tab was open (the desktop app updates through its installer).
+  updates: { onAvailable: (cb) => on("update:available", cb) },
 };
+
+watchForUpdates(VERSION.replace(" · web", ""));

@@ -16,6 +16,7 @@ keeps only the games Valve rates Verified or Playable there, and every card show
 |---|---|
 | ![Steam Deck / Machine only switch](docs/screenshots/03-steam-deck-machine-only.png) | ![Every card shows both ratings: Verified, Playable, Unsupported](docs/screenshots/04-deck-machine-ratings.png) |
 | ![Game details with the deal-score breakdown](docs/screenshots/05-game-details.png) | ![Basket with savings and an estimated tax](docs/screenshots/06-basket.png) |
+| ![Price history from IsThereAnyDeal: lowest ever, 90-day low, typical sale, and a price alert](docs/screenshots/11-price-history.png) | ![Price alerts: tell me when a game is at or below my price](docs/screenshots/12-price-alerts.png) |
 
 | Phone | Filters | Basket | Tablet |
 |---|---|---|---|

@@ -4,6 +4,7 @@ const cache = require("../cache");
 const steam = require("../steam");
 const auth = require("../auth");
 const { sync } = require("../pairing");
+const { linkAccount, unlinkAccount } = require("../account-sync");
 const { runtime } = require("../runtime");
 const { handle } = require("./handle");
 
@@ -36,11 +37,13 @@ function register() {
     const account = makeAccount("steam", r.steamid, await profileFor(r.steamid));
     settings.update({ account, apiKey: null, manualSteamId: null });
     sync.kick(); // a fresh Steam session can now mirror the basket into the cart
+    linkAccount(); // and share the account's basket, alerts and taste with its other devices
     return { account };
   });
 
   handle("auth:signOut", async () => {
     await auth.signOut();
+    unlinkAccount();
     settings.update({ account: null, apiKey: null, manualSteamId: null });
     sync.kick();
     return { settings: settings.publicView() };

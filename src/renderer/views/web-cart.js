@@ -21,7 +21,8 @@ export function appPromo(t) {
       el("li", {}, "No send button and no codes to copy each time: it just stays in sync."),
       el("li", {}, "Works from anywhere, mobile data included. The PC only needs to be on, with the app in its tray."),
       el("li", {}, "Never buys anything. Checkout always happens in Steam."),
-      el("li", {}, "Shares only a random pairing key and game ids, never account details."),
+      el("li", {}, "Signed in through Steam here and in the app? They connect by themselves: no code needed."),
+      el("li", {}, "Not signed in? Pair with a code instead. It shares only a random key and game ids."),
     ),
     el("div", { class: "btn-row" },
       phone

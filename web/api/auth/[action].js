@@ -3,12 +3,14 @@
 //   /api/auth/login     start sign-in (redirects to Steam)
 //   /api/auth/callback  Steam redirects back here; the assertion is verified with Steam before it's trusted
 //   /api/auth/logout    POST: clear the session cookie
+//   /api/auth/link      Steam account sync: this device's sync channel (see _lib/auth/link.js)
 const { HttpError } = require("../_lib/server.js");
 
 const ACTIONS = {
   login: require("../_lib/auth/login.js"),
   callback: require("../_lib/auth/callback.js"),
   logout: require("../_lib/auth/logout.js"),
+  link: require("../_lib/auth/link.js"),
 };
 
 module.exports = (req, res) => {

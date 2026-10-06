@@ -1,4 +1,5 @@
 // Page startup: site configuration, the anonymous user counter, and finishing a Steam sign-in redirect.
+import { linkAccount } from "./pairing.js";
 import { isTestLoad } from "./device.js";
 import { http } from "./http.js";
 import { setLibrary } from "./library.js";
@@ -44,7 +45,12 @@ export async function ready() {
   // Back from Steam's sign-in page: /api/auth/return sends people to #signedin.
   const hash = location.hash.replace(/^#/, "");
   if (hash === "signedin" || hash === "signin-cancelled") history.replaceState(null, "", location.pathname + location.search);
-  if (hash !== "signedin") return;
+  if (hash === "signedin") await finishSignIn();
+  // Signed in through Steam: this browser shares one basket, alerts and taste with the account's other devices.
+  if (features.steamSignIn && settings.account?.method === "steam") linkAccount().catch(() => {});
+}
+
+async function finishSignIn() {
   try {
     const me = await http("/api/me");
     settings.account = { method: "steam", steamid: me.steamid, name: me.name || "Steam user", avatar: me.avatar || null, signedInAt: Date.now() };

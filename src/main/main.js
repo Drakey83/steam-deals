@@ -14,6 +14,7 @@ const { registerDeepLinks } = require("./deeplink");
 const { onNotificationClick, sync } = require("./pairing");
 const { runtime } = require("./runtime");
 const { startKeepAlive } = require("./steam-session");
+const { linkAccount } = require("./account-sync");
 const { applyLoginItem, createTray } = require("./tray");
 const { createWindow, showWindow } = require("./window");
 
@@ -31,6 +32,7 @@ if (!app.requestSingleInstanceLock()) {
     createTray();
     applyLoginItem();
     setTimeout(() => sync.start(), 3000);
+    setTimeout(() => linkAccount(), 4000); // signed in to Steam: join the account's sync channel
     setTimeout(startKeepAlive, 15000);
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -134,7 +134,9 @@ checkout, in the Steam app, the website, or on your phone, since the cart belong
 - **Not interested.** The eye button on a card (or in a game's details) hides it, and games that share what you
   dismissed rank lower in For you. Settings lists them with Restore.
 - **Price alerts.** “Alert me” in a game's details, or from your wishlist in the alerts panel: you hear once each
-  time it drops to your price (a Windows notification from the app, a badge on the website).
+  time it drops to your price (a Windows notification from the app, a badge on the website). Paired with the
+  Windows app, alerts you set on the website are checked by the app in the tray, so you get a Windows
+  notification even with the website closed.
 - **Price history.** A “Lowest ever” badge and a 90-day summary (low, typical sale) in a game's details, from
   [IsThereAnyDeal](https://isthereanydeal.com), shown only when there's real data behind it.
 - **Learns from what you do.** Games you open, basket, dismiss or buy fine-tune For you over time; your library

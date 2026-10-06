@@ -1,10 +1,13 @@
 // Checking price alerts (the rules are in logic/alerts.js). Runs after every catalog scan and every few hours
 // while the app is open (the desktop app keeps running in the tray). Prices come from the scan; alert games
 // that aren't in it (not on sale, or wishlist games) are looked up through window.steamDeals.items.
+//
+// Paired with the Windows app, the website's alerts are synced to it (below window.steamDeals, like the basket)
+// and the app checks them and notifies, so the website doesn't check them itself: one notification, not two.
 import { EV, emit } from "./lib/events.js";
 import { fmtCents } from "./lib/format.js";
 import { api } from "./lib/platform.js";
-import { checkAlerts, markSeen } from "./logic/alerts.js";
+import { alertsCheckedByPc, checkAlerts, markSeen } from "./logic/alerts.js";
 import { alertList, patchSettings, state } from "./state.js";
 import { toast } from "./ui/toast.js";
 
@@ -29,9 +32,18 @@ async function currentPrices(appids) {
   return prices;
 }
 
+/** The alert list changed outside the interface (synced from the paired website or app). */
+export function receiveAlerts(list) {
+  if (!state.settings || JSON.stringify(list) === JSON.stringify(alertList())) return;
+  state.settings = { ...state.settings, alerts: list };
+  emit(EV.alertsChanged);
+  runAlertCheck(); // new alerts from the website get checked now rather than at the next scan
+}
+
 /** Compare every alert with current prices; fire (once per crossing) and save. */
 export async function runAlertCheck() {
   if (running || !state.settings) return;
+  if (api.platform === "web" && alertsCheckedByPc(state.sync)) return;
   const country = state.settings.country;
   const mine = alertList().filter((a) => a.country === country);
   if (!mine.length) return;

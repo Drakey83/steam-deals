@@ -8,7 +8,7 @@ import { getHistory } from "./browser-api/history.js";
 import { ApiError, fail, http, wrap } from "./browser-api/http.js";
 import { lookupItems } from "./browser-api/items.js";
 import { loadLibrary, setLibrary } from "./browser-api/library.js";
-import { claim, pairId, pushBasket, syncNow, syncStatus, unpair } from "./browser-api/pairing.js";
+import { claim, pairId, pushAlerts, pushBasket, syncNow, syncStatus, unpair } from "./browser-api/pairing.js";
 import { ALLOWED_SETTINGS, APIKEY_KEY, publicSettings, saveSettings, settings } from "./browser-api/settings.js";
 import { features, ready } from "./browser-api/startup.js";
 import { store } from "./browser-api/store.js";
@@ -85,11 +85,15 @@ window.steamDeals = {
     get: async () => ({ ok: true, settings: publicSettings() }),
     update: async (patch) => {
       const prevBasket = settings.basket || [];
+      const prevAlerts = settings.alerts || [];
       for (const [k, v] of Object.entries(patch || {})) if (ALLOWED_SETTINGS.has(k)) settings[k] = v;
       saveSettings();
       if (patch && "basket" in patch && pairId()) pushBasket(prevBasket, settings.basket || []);
+      if (patch && "alerts" in patch && pairId()) pushAlerts(prevAlerts);
       return { ok: true, settings: publicSettings() };
     },
+    // Price alerts arriving from the paired Windows app (what fired), as on the desktop.
+    onChanged: (cb) => on("settings:changed", cb),
   },
   auth,
   library,
@@ -139,7 +143,7 @@ window.steamDeals = {
     claim: wrap(claim),
     // Only this browser forgets the pairing; the PC and any other devices keep theirs.
     unpair: wrap(async () => {
-      unpair();
+      await unpair();
       return {};
     }),
   },

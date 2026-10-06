@@ -15,6 +15,7 @@ function notify(title, body) {
     sendToUI("alerts:open");
   });
   n.show();
+  console.log(`[alerts] notification: ${title}`);
   return true;
 }
 

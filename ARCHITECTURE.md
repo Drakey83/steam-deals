@@ -30,12 +30,14 @@ src/
                             history (via the website, cached), alerts (Windows notifications)
     steam-session.js        keeping the Steam store session usable (renew, then retry)
     library.js              the library and the taste profile
-    pairing.js, sync.js     the pairing relay client and the shared-basket / Steam-cart sync engine
+    pairing.js, sync.js     the pairing relay client and the sync engine: shared basket / Steam cart, and the
+                            website's price alerts (pulled in, checked here, fired state written back)
     steam.js, auth.js       Steam HTTP calls; Steam's own login page in an isolated window
     settings.js, cache.js   settings.json and a small TTL cache in the user's AppData
   preload.js                the only bridge from the interface to the main process
   shared/core.js            pure logic used everywhere (normalising store items, taste profile, tax,
-                            basket diffs). CommonJS in Node, window.SteamCore in browsers.
+                            basket diffs, merging alerts shared through the relay). CommonJS in Node,
+                            window.SteamCore in browsers.
 web/
   src/                      the website's page, /app page, and its implementation of window.steamDeals
     web-api.js              assembles window.steamDeals from browser-api/*
@@ -56,6 +58,10 @@ scripts/                    website build/serve, import checker, live relay test
   traffic happens in the main process (the page's CSP has `connect-src 'none'`).
 - **Pure logic gets a test.** Anything in `logic/`, `shared/core.js` or `main/sync.js` that changes behaviour
   should come with a test in `test/`.
+- **Paired alerts have one owner.** Alerts made on the website go to the relay; the paired Windows app (1.10+)
+  merges them into its list, checks them with its own and notifies. The website then doesn't check them
+  (`alertsCheckedByPc`), so a crossing is announced once. The app owns check state, the website owns which
+  alerts exist.
 - **Keep the CSS order.** Files in `src/renderer/styles/` are numbered; later files may override earlier ones.
 
 ## Checks

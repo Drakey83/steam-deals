@@ -2,17 +2,21 @@
 // basket. Everything here is keyed by a random pairing id that both sides learned from a one-time
 // 6-character code. Stored per pairing: the basket (Steam app/package ids plus the name and price shown
 // in the UI), a small signal record (basket revision, "a phone is active", "the PC checked in"), and the
-// PC's report of what is in the Steam cart. No account data, no names of people, nothing personal.
+// PC's report of what is in the Steam cart, and the price alerts made on the website (the PC checks them and
+// notifies). No account data, no names of people, nothing personal.
 //
 //   start       { pairId? }                   → { code, pairId, expiresIn }   PC asks for a code (10 min); with
 //                                                                               pairId, a new code for the same pairing
 //   claim       { code }                      → { pairId, rev }               phone/browser redeems the code
 //   check       { pairId }                    → { claimed, expired }          PC waits for the code to be redeemed
-//   sig         { pairId, touch?, pc?, withCart? } → { rev, active, pc, pcok, pcv, cart? }
+//   sig         { pairId, touch?, pc?, withCart? } → { rev, arev, active, pc, pcok, pcv, cart? }
 //                                                                            cheap poll: has anything changed?
 //   basket.get  { pairId }                    → { rev, items, updatedAt }
 //   basket.ops  { pairId, ops, by }           → { rev, items, updatedAt }     add/remove/clear, applied atomically
 //   cart.set    { pairId, cart, ok }          → { ok }                        PC reports Steam-cart status per game
+//   alerts.get  { pairId }                    → { rev, alerts }               the website's price alerts
+//   alerts.set  { pairId, alerts, rev }       → { rev, alerts, applied }      replace them if nobody changed them
+//                                                                            since `rev` (else applied:false + current)
 //   unpair      { pairId }                    → { ok }                        the PC forgets the pairing (all devices)
 //   send/inbox/ack/status                                                    legacy one-shot hand-off (v1.4–1.5 apps)
 const crypto = require("node:crypto");
@@ -33,6 +37,7 @@ const K = {
   basket: (id) => `sd:basket:${id}`,
   sig: (id) => `sd:sig:${id}`,
   cart: (id) => `sd:cart:${id}`,
+  alerts: (id) => `sd:alerts:${id}`,
   box: (id) => `sd:pairbox:${id}`,
 };
 
@@ -52,6 +57,41 @@ function cleanItem(i) {
     discount: Math.min(100, Math.max(0, int(i?.discount))),
   };
 }
+// One price alert, in the shape of src/renderer/logic/alerts.js (plus origin "web").
+const MAX_ALERTS = 200;
+const intOrNull = (v) => (Number.isInteger(Number(v)) && v !== null && v !== "" ? Number(v) : null);
+function cleanAlert(a) {
+  const appid = int(a?.appid);
+  const targetCents = int(a?.targetCents);
+  const country = str(a?.country, 2).toUpperCase();
+  if (appid <= 0 || targetCents <= 0 || !/^[A-Z]{2}$/.test(country)) return null;
+  return {
+    appid,
+    name: str(a?.name, 120),
+    country,
+    targetCents,
+    priceSample: str(a?.priceSample, 30) || null,
+    armed: Boolean(a?.armed),
+    createdAt: int(a?.createdAt) || 0,
+    lastCents: intOrNull(a?.lastCents),
+    triggeredAt: intOrNull(a?.triggeredAt),
+    triggeredCents: intOrNull(a?.triggeredCents),
+    seen: a?.seen !== false,
+    origin: "web",
+  };
+}
+function cleanAlerts(list) {
+  const seen = new Set();
+  const out = [];
+  for (const a of (Array.isArray(list) ? list : []).slice(0, MAX_ALERTS * 2).map(cleanAlert)) {
+    const key = a && `${a.appid}:${a.country}:${a.targetCents}`;
+    if (!a || seen.has(key)) continue;
+    seen.add(key);
+    out.push(a);
+  }
+  return out.slice(0, MAX_ALERTS);
+}
+
 const emptyBasket = () => ({ rev: 0, items: [], updatedAt: 0, by: null });
 const parse = (raw, fallback) => {
   try {
@@ -70,6 +110,16 @@ if cur ~= ARGV[1] then return 0 end
 redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[4])
 redis.call('HSET', KEYS[2], 'rev', ARGV[3])
 if ARGV[5] ~= '' then redis.call('HSET', KEYS[2], 'active', ARGV[5]) end
+redis.call('EXPIRE', KEYS[2], ARGV[4])
+return 1`;
+
+// The same for the alert list. KEYS[1]=alerts KEYS[2]=sig ARGV: expectedRev, alertsJson, newRev, ttl
+const ALERTS_CAS = `
+local cur = redis.call('HGET', KEYS[2], 'arev')
+if cur == false then cur = '0' end
+if cur ~= ARGV[1] then return 0 end
+redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[4])
+redis.call('HSET', KEYS[2], 'arev', ARGV[3])
 redis.call('EXPIRE', KEYS[2], ARGV[4])
 return 1`;
 
@@ -145,6 +195,7 @@ module.exports = handler(async (req, res) => {
     if (body.pc && typeof body.pc === "object") Object.assign(sig, { pc: String(now), pcok: body.pc.ok ? "1" : "0", pcv: str(body.pc.v, 20) });
     const result = {
       rev: Number(sig.rev) || 0,
+      arev: Number(sig.arev) || 0,
       active: Number(sig.active) > now,
       pc: Number(sig.pc) || 0,
       pcok: sig.pcok === "1",
@@ -225,9 +276,26 @@ module.exports = handler(async (req, res) => {
     return send(res, 200, { ok: true });
   }
 
+  if (action === "alerts.get") {
+    await alive();
+    const [list, rev] = await db.pipeline([["GET", K.alerts(pairId)], ["HGET", K.sig(pairId), "arev"]]);
+    return send(res, 200, { rev: Number(rev) || 0, alerts: cleanAlerts(parse(list, [])) });
+  }
+
+  if (action === "alerts.set") {
+    await alive();
+    const alerts = cleanAlerts(body.alerts);
+    const expected = int(body.rev);
+    const ok = await db.command("EVAL", ALERTS_CAS, 2, K.alerts(pairId), K.sig(pairId), String(expected), JSON.stringify(alerts), String(expected + 1), String(KEEP));
+    if (ok === 1) return send(res, 200, { rev: expected + 1, alerts, applied: true });
+    // Someone else wrote first: hand back what is there now, so the caller can merge and try again.
+    const [list, rev] = await db.pipeline([["GET", K.alerts(pairId)], ["HGET", K.sig(pairId), "arev"]]);
+    return send(res, 200, { rev: Number(rev) || 0, alerts: cleanAlerts(parse(list, [])), applied: false });
+  }
+
   if (action === "unpair") {
     needPair();
-    await db.command("DEL", K.pair(pairId), K.box(pairId), K.basket(pairId), K.sig(pairId), K.cart(pairId));
+    await db.command("DEL", K.pair(pairId), K.box(pairId), K.basket(pairId), K.sig(pairId), K.cart(pairId), K.alerts(pairId));
     return send(res, 200, { ok: true });
   }
 

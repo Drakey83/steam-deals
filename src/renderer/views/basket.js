@@ -52,6 +52,7 @@ export async function ensureTaxRegion() {
   const r = await api.geo.detect().catch(() => null);
   if (!r?.ok || !r.taxRegion || r.taxRegion === s.taxRegion) return;
   patchSettings({ taxRegion: r.taxRegion, taxRegionAuto: true }, { persistNow: true });
+  renderBasketButton(); // its price includes the estimated tax
   if (isBasketOpen()) openBasket();
 }
 
@@ -91,13 +92,26 @@ export function renderBasketButton() {
   const t = totals();
   b.innerHTML = ICON.basket;
   b.classList.toggle("has-items", t.items.length > 0);
-  if (t.items.length) b.append(el("span", { class: "basket-count num" }, fmtInt(t.items.length)), el("span", { class: "basket-total num" }, fmtCents(t.subtotal, t.sample)));
-  else b.append(el("span", { class: "basket-label" }, "Basket"));
+  if (!t.items.length) {
+    b.append(el("span", { class: "basket-label" }, "Basket"));
+    b.title = "Your basket";
+    return;
+  }
+  // The price shown is what checkout should come to: the games plus the estimated tax for the person's region.
+  const money = (c) => fmtCents(c, t.sample);
+  b.append(el("span", { class: "basket-count num" }, fmtInt(t.items.length)), el("span", { class: "basket-total num" }, money(t.total)));
+  b.title = t.region == null
+    ? `${plural(t.items.length, "game")}: ${money(t.subtotal)} before tax. Open the basket and pick your region to include an estimate.`
+    : t.region === "included"
+      ? `${plural(t.items.length, "game")}: ${money(t.total)}. Steam prices in your region already include tax.`
+      : `${plural(t.items.length, "game")}: ${money(t.subtotal)} + estimated tax ${money(t.taxCents)} (${t.rate}%) = ${money(t.total)}. An estimate; Steam's checkout shows the exact tax.`;
+  b.setAttribute("aria-label", `Basket, ${b.title}`);
 }
 
 // ----- the basket panel (lives in the drawer) -----
 export function openBasket() {
   closeModal();
+  renderBasketButton(); // the tax region or rate may just have changed
   const t = totals();
   const empty = !t.items.length;
   const actions = empty

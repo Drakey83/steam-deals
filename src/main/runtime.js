@@ -14,6 +14,7 @@ const runtime = {
 
 /** Send an event to the UI, if the window exists. */
 function sendToUI(channel, payload) {
+  if (channel === "basket:replaced" && Array.isArray(payload?.items)) runtime.shownBasket = payload.items; // see ipc/app.js
   const w = runtime.mainWindow;
   if (w && !w.isDestroyed()) w.webContents.send(channel, payload);
 }

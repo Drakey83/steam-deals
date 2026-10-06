@@ -3,7 +3,7 @@
 // site's /api functions, with settings kept in this browser's localStorage. The pieces live in ./browser-api/.
 import { cancelDeals, fetchDeals } from "./browser-api/deals.js";
 import { device } from "./browser-api/device.js";
-import { on } from "./browser-api/events.js";
+import { emit, on } from "./browser-api/events.js";
 import { getHistory } from "./browser-api/history.js";
 import { ApiError, fail, http, wrap } from "./browser-api/http.js";
 import { lookupItems } from "./browser-api/items.js";
@@ -15,7 +15,15 @@ import { store } from "./browser-api/store.js";
 import { watchForUpdates } from "./browser-api/updates.js";
 import { buildTaste } from "./browser-api/taste.js";
 
-const VERSION = "web"; // replaced with "<version> · web" by scripts/build-web.mjs
+const VERSION = "web";
+const Core = window.SteamCore;
+
+// The basket the screen has been shown (settings.get, and every basket:replaced it hears). A save can only take out
+// games the screen showed; games that arrived unseen stay (Core.keepUnseen).
+let shownBasket = null;
+on("basket:replaced", (p) => {
+  shownBasket = Array.isArray(p?.items) ? p.items : shownBasket;
+}); // replaced with "<version> · web" by scripts/build-web.mjs
 const TAGS_TTL = 7 * 86400000;
 
 const auth = {
@@ -84,12 +92,23 @@ window.steamDeals = {
   version: async () => ({ ok: true, value: VERSION }),
 
   settings: {
-    get: async () => ({ ok: true, settings: publicSettings() }),
+    get: async () => {
+      shownBasket = settings.basket || [];
+      return { ok: true, settings: publicSettings() };
+    },
     update: async (patch) => {
       const prevBasket = settings.basket || [];
+      let keptUnseen = false;
+      if (patch && "basket" in patch) {
+        const guarded = Core.keepUnseen(prevBasket, patch.basket, shownBasket);
+        keptUnseen = guarded !== patch.basket;
+        patch = { ...patch, basket: guarded };
+        shownBasket = guarded;
+      }
       const prevAlerts = settings.alerts || [];
       for (const [k, v] of Object.entries(patch || {})) if (ALLOWED_SETTINGS.has(k)) settings[k] = v;
       saveSettings();
+      if (keptUnseen) emit("basket:replaced", { items: settings.basket, source: "merge" }); // show what was kept
       if (patch && "basket" in patch && pairId()) pushBasket(prevBasket, settings.basket || []);
       if (patch && "alerts" in patch && pairId()) pushAlerts(prevAlerts);
       if (patch && "tasteTags" in patch && pairId()) pushPrefs();

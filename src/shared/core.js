@@ -213,6 +213,21 @@ function deviceWhere(by) {
   return by === "phone" ? "on your phone" : by === "web" ? "in a browser" : by === "pc" ? "on your PC" : "on another device";
 }
 
+/**
+ * The basket the interface is saving (`next`), checked against what its screen has actually shown (`shown`).
+ * A game in the current basket that the screen never showed can't have been taken out on purpose: it arrived
+ * from another device while the screen was out of date. It stays. Without this, a screen showing an old empty
+ * basket would send "empty" back as the new basket and wipe it on every device (and out of the Steam cart).
+ * `shown` null = not known, nothing is changed.
+ */
+function keepUnseen(current, next, shown) {
+  if (!Array.isArray(shown)) return next;
+  const seen = new Set(shown.map((i) => i.appid));
+  const inNext = new Set((next || []).map((i) => i.appid));
+  const kept = (current || []).filter((i) => !seen.has(i.appid) && !inNext.has(i.appid));
+  return kept.length ? [...(next || []), ...kept] : next;
+}
+
 /** True when two baskets hold the same games (ignores names and prices). */
 function sameBasket(a, b) {
   const key = (list) => JSON.stringify((list || []).map((i) => [i.appid, i.packageid]));
@@ -232,7 +247,7 @@ function basketOps(prev, next) {
   return ops;
 }
 
-const api = { deviceWhere, sameBasket, basketOps, COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
+const api = { keepUnseen, deviceWhere, sameBasket, basketOps, COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.SteamCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

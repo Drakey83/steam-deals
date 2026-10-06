@@ -71,3 +71,16 @@ test("deep links from the website parse into basket items, junk is ignored", () 
   assert.equal(parseDeepLink("https://evil.example/cart?items=1:2"), null);
   assert.equal(parseDeepLink("not a url"), null);
 });
+
+test("a save can't remove basket games the screen never showed (they arrived while it was out of date)", () => {
+  const a = { appid: 1 }, b = { appid: 2 }, c = { appid: 3 }, d = { appid: 4 };
+  // The shared basket has a, b, c, d; this screen only ever showed an empty basket, then added d.
+  assert.deepEqual(core.keepUnseen([a, b, c, d], [d], []).map((i) => i.appid), [4, 1, 2, 3]);
+  // A screen that showed a and b, and removed b on purpose, removes b; c and d (unseen) stay.
+  assert.deepEqual(core.keepUnseen([a, b, c, d], [a], [a, b]).map((i) => i.appid).sort(), [1, 3, 4]);
+  // Removing everything it saw works; clearing a basket it saw fully empties it.
+  assert.deepEqual(core.keepUnseen([a, b], [], [a, b]), []);
+  // Unknown history: unchanged.
+  const next = [a];
+  assert.equal(core.keepUnseen([a, b], next, null), next);
+});

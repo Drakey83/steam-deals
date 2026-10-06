@@ -72,8 +72,25 @@
   font-size: 13.5px;
 }
 
-/* Phones: price, old price, the badge and both buttons don't fit one row, and the basket button was pushed off
-   the card. The badge takes its own line under the price instead. */
+/* Narrow cards (phones, and three columns in a ~1100 px window): price, old price, the badge and both buttons
+   don't fit one row, and the basket button was pushed off the card. The badge takes its own line under the
+   price instead. Measured on the card itself, so it holds at every window size and layout. */
+.card {
+  container-type: inline-size;
+  container-name: card;
+}
+@container card (max-width: 290px) {
+  .card .price-row {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .card .price-row .history-slot {
+    order: 10;
+    flex-basis: 100%;
+    line-height: 1;
+  }
+}
+/* Phone list rows put the art beside the text, leaving the text narrow even on a wider card. */
 @media (max-width: 640px), (max-height: 500px) {
   .card .price-row {
     flex-wrap: wrap;

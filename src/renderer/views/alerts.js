@@ -5,7 +5,7 @@ import { EV, on } from "../lib/events.js";
 import { fmtCents, timeAgo } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
 import { Core, api } from "../lib/platform.js";
-import { alertFor, makeAlert, parseMoney, removeAlert, unseenAlerts, upsertAlert } from "../logic/alerts.js";
+import { alertFor, alertsCheckedByPc, makeAlert, parseMoney, removeAlert, unseenAlerts, upsertAlert } from "../logic/alerts.js";
 import { markAlertsSeen, runAlertCheck, saveAlerts } from "../alerts.js";
 import { alertList, state } from "../state.js";
 import { closeDrawer, closeModal, isAlertsOpen, showDrawer } from "../ui/overlays.js";
@@ -111,7 +111,10 @@ function renderPanel() {
       el("button", { class: "btn btn-icon btn-ghost", "aria-label": "Close", html: ICON.close, onclick: closeDrawer }),
     ),
     el("div", { class: "drawer-body alerts-body" },
-      el("div", { class: "muted small" }, "You hear once each time a game drops to your price (it re-arms if the price goes back up). Checked after every scan and every few hours while Steam Deals is open."),
+      el("div", { class: "muted small" }, "You hear once each time a game drops to your price (it re-arms if the price goes back up). " +
+        (api.platform === "web" && alertsCheckedByPc(state.sync)
+          ? "Your paired Steam Deals app on Windows checks these and notifies you, even while this page is closed."
+          : "Checked after every scan and every few hours while Steam Deals is open.")),
       fired.length ? section("At your price now", fired.map((a) => alertRow(a, true))) : null,
       section("Watching", watching.length ? watching.map((a) => alertRow(a, false)) : [el("div", { class: "muted small" }, "No alerts yet. Open any game and use “Alert me”, or pick from your wishlist below.")]),
       otherRegions ? el("div", { class: "muted small" }, `${otherRegions} alert${otherRegions === 1 ? " is" : "s are"} for another store region and will be checked when you switch back.`) : null,
@@ -135,11 +138,15 @@ function alertRow(a, fired) {
   const status = fired
     ? `Hit ${money(a.triggeredCents)} ${timeAgo(a.triggeredAt)}`
     : a.lastCents != null ? `Now ${money(a.lastCents)}${a.armed ? "" : " · at or below already; waits for the next drop"}` : "Waiting for a price";
-  return el("div", { class: `alert-row ${fired ? "fired" : ""}` },
+  // In the Windows app, alerts made on the paired website say so (they're checked here and synced back).
+  const fromWeb = a.origin === "web" && api.platform !== "web"
+    ? el("span", { class: "alert-origin", title: "Made on the Steam Deals website. This app checks it and notifies you; changes sync back." }, "From the website")
+    : null;
+  return el("div", { class: `alert-row ${fired ? "fired" : ""}`, dataset: { origin: a.origin || "app" } },
     el("img", { class: "basket-thumb small", src: Core.headerImage(a.appid), alt: "", loading: "lazy" }),
     el("div", { class: "basket-info" },
       el("a", { class: "basket-name link", href: "#", onclick: (e) => { e.preventDefault(); api.openExternal(Core.storeUrl(a.appid)); } }, a.name),
-      el("div", { class: "muted small" }, status)),
+      el("div", { class: "muted small" }, status, fromWeb)),
     el("label", { class: "alert-target" }, el("span", { class: "muted small" }, "at or below"), input),
     el("button", { class: "btn btn-icon btn-ghost", title: "Delete alert", "aria-label": `Delete the alert for ${a.name}`, html: ICON.close, onclick: () => saveAlerts(removeAlert(alertList(), a.appid)) }),
   );

@@ -5,6 +5,9 @@
 // device, and the PC keeps the real Steam cart matching it. This browser polls a tiny signal record every
 // few seconds while the page is visible, pulls the basket when its revision changes, and pushes its own
 // edits as add/remove operations. Nothing here is a purchase; checkout always happens in Steam.
+//
+// Price alerts made here go to the relay too (the whole list, revision "arev"). The Windows app checks them and
+// shows the notification, and writes back what fired, which this browser picks up the same way.
 import { isPhone } from "./device.js";
 import { emit } from "./events.js";
 import { ApiError, http } from "./http.js";
@@ -14,6 +17,8 @@ import { store } from "./store.js";
 const Core = window.SteamCore;
 const PAIR_KEY = "sd:pair";
 const REV_KEY = "sd:pairrev";
+const AREV_KEY = "sd:pairarev";
+const MINE_KEY = "sd:pairmine"; // alerts made in this browser (keys), which it takes back if it alone unpairs
 const POLL_MS = 4000;
 const TOUCH_MS = 45000; // "someone is looking": the PC polls faster while this is fresh
 const PC_ONLINE_MS = 90000;
@@ -24,6 +29,9 @@ let syncTimer = null;
 let syncBusy = false;
 let lastTouch = 0;
 let lastRevSeen = Number(store.get(REV_KEY, 0)) || 0;
+let lastArevSeen = Number(store.get(AREV_KEY, 0)) || 0;
+let alertsBusy = false;
+let alertsAgain = false;
 const noPc = () => ({ pc: 0, pcok: false, pcv: null, cart: null, at: 0, now: 0 });
 let pcState = noPc();
 
@@ -43,10 +51,73 @@ function adopt(items, rev, source) {
   if (changed) emit("basket:replaced", { items: settings.basket, source, rev: lastRevSeen });
 }
 
+/** Make the relay's alert list this browser's alerts. */
+function adoptAlerts(list, rev) {
+  const next = Array.isArray(list) ? list : [];
+  const changed = !Core.sameAlerts(next, settings.alerts || []);
+  settings.alerts = next;
+  saveSettings();
+  lastArevSeen = rev || 0;
+  store.set(AREV_KEY, lastArevSeen);
+  if (changed) emit("settings:changed", { alerts: next });
+}
+
+async function pullAlerts(id) {
+  const r = await relay({ action: "alerts.get", pairId: id });
+  adoptAlerts(r.alerts, r.rev);
+}
+
+const mineKeys = () => new Set(store.get(MINE_KEY, []) || []);
+function addMine(alerts) {
+  const mine = mineKeys();
+  for (const a of alerts || []) mine.add(Core.alertKey(a));
+  store.set(MINE_KEY, [...mine].slice(-400));
+}
+
+/** This browser's alerts changed (from `prev`): write them to the relay, merging with the app's newer check state if needed. */
+export async function pushAlerts(prev) {
+  const id = pairId();
+  if (!id) return;
+  if (prev) {
+    const before = new Set(prev.map(Core.alertKey));
+    addMine((settings.alerts || []).filter((a) => !before.has(Core.alertKey(a))));
+  }
+  if (alertsBusy) {
+    alertsAgain = true;
+    return;
+  }
+  alertsBusy = true;
+  try {
+    do {
+      alertsAgain = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const mine = Core.tagWebAlerts(settings.alerts || []);
+        const r = await relay({ action: "alerts.set", pairId: id, alerts: mine, rev: lastArevSeen });
+        if (r.applied) {
+          adoptAlerts(r.alerts, r.rev);
+          break;
+        }
+        // The app wrote first (an alert fired): keep this browser's alerts, take the app's check state.
+        settings.alerts = Core.rebaseWebAlerts(settings.alerts || [], r.alerts);
+        saveSettings();
+        lastArevSeen = r.rev || 0;
+        store.set(AREV_KEY, lastArevSeen);
+      }
+    } while (alertsAgain);
+  } catch (err) {
+    if (err.code === "bad_pair") forgetPair();
+  } finally {
+    alertsBusy = false;
+  }
+}
+
 export function forgetPair() {
   store.del(PAIR_KEY);
   store.del(REV_KEY);
+  store.del(AREV_KEY);
+  store.del(MINE_KEY);
   lastRevSeen = 0;
+  lastArevSeen = 0;
   clearInterval(syncTimer);
   syncTimer = null;
   pcState = noPc();
@@ -84,6 +155,7 @@ export async function syncTick(force) {
       const b = await relay({ action: "basket.get", pairId: id });
       adopt(b.items, b.rev, "remote");
     }
+    if ((sig.arev || 0) !== lastArevSeen && !alertsBusy) await pullAlerts(id);
   } catch (err) {
     if (err.code === "bad_pair") {
       forgetPair();
@@ -97,6 +169,12 @@ export async function syncTick(force) {
 export function startSync() {
   clearInterval(syncTimer);
   if (!pairId()) return;
+  // Alerts this browser had before it could share them (paired before alerts synced): share them now.
+  const unshared = (settings.alerts || []).filter((a) => a.origin !== "web");
+  if (unshared.length) {
+    addMine(unshared);
+    pushAlerts();
+  }
   syncTimer = setInterval(() => syncTick(false), POLL_MS);
   syncTick(true);
 }
@@ -132,11 +210,18 @@ export async function pushBasket(prev, next) {
 export async function claim(code) {
   const r = await relay({ action: "claim", code });
   store.set(PAIR_KEY, r.pairId);
+  addMine(settings.alerts);
   const mine = settings.basket || [];
   const b = mine.length
     ? await relay({ action: "basket.ops", pairId: r.pairId, ops: mine.map((item) => ({ op: "add", item })), by: isPhone() ? "phone" : "web" })
     : await relay({ action: "basket.get", pairId: r.pairId });
   adopt(b.items, b.rev, "merge");
+  // This browser's alerts join any already shared by other browsers on the same pairing.
+  const shared = await relay({ action: "alerts.get", pairId: r.pairId });
+  lastArevSeen = shared.rev || 0;
+  settings.alerts = Core.tagWebAlerts([...(settings.alerts || []), ...(shared.alerts || [])]);
+  if (settings.alerts.length) await pushAlerts();
+  else adoptAlerts(shared.alerts, shared.rev);
   startSync();
   return { pairId: r.pairId };
 }
@@ -147,8 +232,32 @@ export async function syncNow() {
   await syncTick(true);
 }
 
-/** Forget the pairing in this browser only, and tell the UI. */
-export function unpair() {
+/**
+ * Forget the pairing in this browser only, and tell the UI. Alerts made here come back here: they leave the
+ * shared list (so the app stops checking them) and this browser checks them itself again. Alerts other paired
+ * browsers made stay with them.
+ */
+export async function unpair() {
+  const id = pairId();
+  const mine = mineKeys();
+  if (id && mine.size) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const cur = await relay({ action: "alerts.get", pairId: id });
+        const rest = (cur.alerts || []).filter((a) => !mine.has(Core.alertKey(a)));
+        if (rest.length === (cur.alerts || []).length) break;
+        const w = await relay({ action: "alerts.set", pairId: id, alerts: rest, rev: cur.rev || 0 });
+        if (w.applied) break;
+      } catch {
+        break; // the relay is gone or unreachable: nothing left to take back
+      }
+    }
+  }
+  const kept = (settings.alerts || []).filter((a) => mine.has(Core.alertKey(a)));
+  const changed = kept.length !== (settings.alerts || []).length;
+  settings.alerts = kept;
+  saveSettings();
   forgetPair();
+  if (changed) emit("settings:changed", { alerts: kept });
   emit("cart:status", syncStatus());
 }

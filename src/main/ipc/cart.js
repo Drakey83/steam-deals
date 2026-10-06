@@ -36,7 +36,7 @@ function registerPairing() {
     const r = await pairApi("check", { pairId });
     const joined = Boolean(r.claimed) && (r.devices || 0) > devicesAtStart;
     if (joined && settings.get().pairId !== pairId) {
-      settings.update({ pairId, basketRev: 0 });
+      settings.update({ pairId, basketRev: 0, alertsRev: 0 });
       await sync.afterPaired();
       refreshTray();
     }
@@ -46,7 +46,7 @@ function registerPairing() {
   handle("pair:unpair", async () => {
     const s = settings.get();
     if (s.pairId) await pairApi("unpair", { pairId: s.pairId }).catch(() => {});
-    settings.update({ pairId: null, basketRev: 0, mirror: {} });
+    settings.update({ pairId: null, basketRev: 0, alertsRev: 0, mirror: {} });
     sync.afterUnpaired();
     refreshTray();
     return { value: true };

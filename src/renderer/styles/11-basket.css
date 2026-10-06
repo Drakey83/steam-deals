@@ -390,3 +390,13 @@ details.shortcut summary:hover {
     justify-items: start;
   }
 }
+.alert-origin {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-2);
+  white-space: nowrap;
+}

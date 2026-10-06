@@ -79,7 +79,23 @@ check("second claim → same pairId, current rev", cl2.data.pairId === pairId &&
 const c2 = await call({ action: "check", pairId });
 check("devices now 2", c2.data.devices === 2);
 
-// 12. clear, then unpair; dead pairing is refused everywhere
+// 12. price alerts: the website writes its list, the PC writes back what fired; stale writes are refused
+const alert = (appid, target, extra = {}) => ({ appid, name: `Game ${appid}`, country: "us", targetCents: target, priceSample: "$9.99", armed: true, createdAt: Date.now(), lastCents: 999, triggeredAt: null, triggeredCents: null, seen: true, ...extra });
+const a0 = await call({ action: "alerts.get", pairId });
+check("alerts.get on a new pairing → empty, rev 0", a0.data.rev === 0 && a0.data.alerts.length === 0);
+const a1 = await call({ action: "alerts.set", pairId, rev: 0, alerts: [alert(10, 499), alert(10, 499), alert(20, 299), { appid: -1 }] });
+check("alerts.set → applied, cleaned (deduped, junk dropped, region upper-case, origin web)", a1.data.applied === true && a1.data.rev === 1 && a1.data.alerts.length === 2 && a1.data.alerts.every((x) => x.country === "US" && x.origin === "web"));
+const aSig = await call({ action: "sig", pairId });
+check("sig carries the alert revision", aSig.data.arev === 1);
+const aStale = await call({ action: "alerts.set", pairId, rev: 0, alerts: [] });
+check("a stale alerts.set is refused and returns the current list", aStale.data.applied === false && aStale.data.rev === 1 && aStale.data.alerts.length === 2);
+const fired = a1.data.alerts.map((x) => (x.appid === 10 ? { ...x, armed: false, triggeredAt: Date.now(), triggeredCents: 450, lastCents: 450, seen: true } : x));
+const a2 = await call({ action: "alerts.set", pairId, rev: 1, alerts: fired });
+check("PC writes back a fired alert", a2.data.applied === true && a2.data.alerts.find((x) => x.appid === 10).triggeredCents === 450);
+const a3 = await call({ action: "alerts.get", pairId });
+check("alerts.get returns it", a3.data.rev === 2 && a3.data.alerts.find((x) => x.appid === 10).armed === false);
+
+// 13. clear, then unpair; dead pairing is refused everywhere
 const o5 = await call({ action: "basket.ops", pairId, by: "pc", ops: [{ op: "clear" }] });
 check("clear → empty", o5.data.items.length === 0);
 const un = await call({ action: "unpair", pairId });
@@ -87,7 +103,8 @@ check("unpair → ok", un.data.ok === true);
 const dead1 = await call({ action: "sig", pairId }, 404);
 const dead2 = await call({ action: "basket.ops", pairId, ops: [{ op: "add", item: item(1, 1, "x", 1) }] }, 404);
 const dead3 = await call({ action: "basket.get", pairId }, 404);
-check("sig / ops / get on a dead pairing → 404 bad_pair", dead1.data.error?.code === "bad_pair" && dead2.data.error?.code === "bad_pair" && dead3.data.error?.code === "bad_pair");
+const dead4 = await call({ action: "alerts.get", pairId }, 404);
+check("sig / ops / get / alerts on a dead pairing → 404 bad_pair", [dead1, dead2, dead3, dead4].every((d) => d.data.error?.code === "bad_pair"));
 const bad = await call({ action: "sig", pairId: "nope" }, 400);
 check("malformed pairId → 400", bad.status === 400);
 

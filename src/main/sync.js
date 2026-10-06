@@ -5,13 +5,16 @@
 //   1. the relay's basket  <->  this app's basket (settings.basket), both directions;
 //   2. this app's basket   -->  the person's real Steam cart (add what's new, remove what they took out);
 //   3. the Steam cart's state --> the relay, so the phone can show "in your Steam cart" per game.
+// It also brings in the price alerts made on the website (relay "alerts", revision "arev" in the signal) and
+// writes back what happened to them. This app checks them with its own alerts and shows the notification
+// (the interface does the checking, renderer/alerts.js); the website only shows the result.
 //
 // Cost model: the relay is a free Redis with a monthly command budget, so the app polls a one-record
 // "signal" every 30 s while idle and every 3 s only while a phone is actively looking (the website
 // says so when its basket is open) or right after a change. Steam itself is only asked about the cart
 // when something changed or on a slow heartbeat, which also catches purchases made on Steam.
 
-const { sameBasket: sameItems, basketOps: diffOps } = require("../shared/core.js");
+const { sameBasket: sameItems, basketOps: diffOps, mergeWebAlerts, webAlertsForRelay, sameAlerts, withoutWebAlerts } = require("../shared/core.js");
 
 const FAST_MS = 3000;
 const SLOW_MS = 30000;
@@ -37,6 +40,9 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
   const notified = new Map(); // key -> last time we showed that notification
   let cartStatus = { status: {}, subtotal: null, at: 0 };
   let pendingSource = null; // who caused the next reconcile's additions: "remote" | "local"
+  let remoteAlerts = null; // the relay's alert list as last read or written (null = not read yet)
+  let alertsBusy = false;
+  let alertsAgain = false;
 
   const paired = () => Boolean(settings.get().pairId);
   const mirroring = () => settings.get().pairAutoCart !== false;
@@ -89,6 +95,7 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       lastError = null;
       if (heartbeat) lastHeartbeat = lastPoll;
       if (sig.active) fastUntil = Math.max(fastUntil, lastPoll + ACTIVE_HOLD_MS);
+      if ((sig.arev || 0) !== (s.alertsRev || 0)) await pullAlerts().catch((err) => log(`[sync] alerts: ${err.message}`));
       if ((sig.rev || 0) !== (s.basketRev || 0)) {
         await pull();
       } else if (lastPoll - lastReconcile > (fast ? RECONCILE_FAST_MS : RECONCILE_SLOW_MS)) {
@@ -98,7 +105,8 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       lastError = err?.message || String(err);
       if (err?.code === "bad_pair") {
         // The relay forgot us (a year idle, or wiped). Drop the pairing quietly; the UI shows "not paired".
-        settings.update({ pairId: null, basketRev: 0, mirror: {} });
+        settings.update({ pairId: null, basketRev: 0, alertsRev: 0, mirror: {} });
+        dropWebAlerts();
         sendToUI("sync:status", status());
       }
     } finally {
@@ -143,6 +151,72 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
     fastUntil = Math.max(fastUntil, Date.now() + CHANGE_HOLD_MS);
     await reconcile();
     schedule(FAST_MS);
+  }
+
+  // ----- price alerts from the website -----
+
+  /** The pairing ended: alerts made on the website stay there (it checks them itself again), not here. */
+  function dropWebAlerts() {
+    remoteAlerts = null;
+    const s = settings.get();
+    const own = withoutWebAlerts(s.alerts);
+    if (own.length === (s.alerts || []).length) return;
+    settings.update({ alerts: own, alertsRev: 0 });
+    sendToUI("settings:changed", { alerts: own });
+  }
+
+  /** Fold the relay's alert list (revision `rev`) into this app's alerts and tell the interface. */
+  function adoptAlerts(list, rev) {
+    const s = settings.get();
+    remoteAlerts = Array.isArray(list) ? list : [];
+    const merged = mergeWebAlerts(s.alerts, remoteAlerts);
+    const changed = !sameAlerts(merged, s.alerts || []);
+    settings.update({ alerts: merged, alertsRev: rev || 0 });
+    if (changed) {
+      log(`[sync] alerts from the website: ${remoteAlerts.length}`);
+      sendToUI("settings:changed", { alerts: merged });
+    }
+  }
+
+  /** The relay's alerts changed: take them, then send back anything this app knows that the relay doesn't. */
+  async function pullAlerts() {
+    const r = await pairApi("alerts.get", { pairId: settings.get().pairId });
+    adoptAlerts(r.alerts, r.rev);
+    await pushAlerts();
+  }
+
+  /** Write this app's copies of the web alerts (check state, fired) to the relay, merging if it moved meanwhile. */
+  async function pushAlerts() {
+    if (alertsBusy) {
+      alertsAgain = true;
+      return;
+    }
+    alertsBusy = true;
+    try {
+      do {
+        alertsAgain = false;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const s = settings.get();
+          if (!s.pairId || paused()) return;
+          if (!remoteAlerts) {
+            const r = await pairApi("alerts.get", { pairId: s.pairId });
+            adoptAlerts(r.alerts, r.rev);
+            continue;
+          }
+          const out = webAlertsForRelay(settings.get().alerts, remoteAlerts);
+          if (sameAlerts(out, remoteAlerts)) break;
+          const r = await pairApi("alerts.set", { pairId: s.pairId, alerts: out, rev: settings.get().alertsRev || 0 });
+          if (r.applied) {
+            remoteAlerts = r.alerts || out;
+            settings.update({ alertsRev: r.rev || 0 });
+            break;
+          }
+          adoptAlerts(r.alerts, r.rev); // the website changed them first: merge, then try again
+        }
+      } while (alertsAgain);
+    } finally {
+      alertsBusy = false;
+    }
   }
 
   /** Make the Steam cart match the basket, then tell the relay (and the UI) what is in the cart. */
@@ -355,6 +429,11 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       }
       push(prev, next).catch((err) => log(`[sync] ${err.message}`));
     },
+    /** settings.alerts changed here (the interface checked prices, or the person edited an alert). */
+    onLocalAlertsChange() {
+      if (!paired() || paused()) return;
+      pushAlerts().catch((err) => log(`[sync] alerts: ${err.message}`));
+    },
     /** Just paired: our basket becomes the shared one (merged with whatever is already there). */
     async afterPaired() {
       const s = settings.get();
@@ -366,11 +445,14 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       } catch (err) {
         lastError = err.message;
       }
+      remoteAlerts = null;
+      pullAlerts().catch((err) => log(`[sync] alerts: ${err.message}`));
       fastUntil = Date.now() + CHANGE_HOLD_MS;
       lastReconcile = 0;
       schedule(300);
     },
     afterUnpaired() {
+      dropWebAlerts();
       lastReport = "";
       lastReconcile = 0;
       schedule(300); // keep mirroring this app's own basket

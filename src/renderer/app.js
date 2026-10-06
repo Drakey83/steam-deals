@@ -17,7 +17,7 @@ import { registerScreen } from "./router.js";
 import { closeDrawer, closeMenu, closeModal, isDrawerOpen, isModalOpen } from "./ui/overlays.js";
 import { setProgress } from "./ui/progress.js";
 import { toast } from "./ui/toast.js";
-import { RECHECK_MS, runAlertCheck } from "./alerts.js";
+import { RECHECK_MS, receiveAlerts, runAlertCheck } from "./alerts.js";
 import { initAlerts, scheduleAlertChecks } from "./views/alerts.js";
 import { ensureTaxRegion, initBasket } from "./views/basket.js";
 import { onBasketReplaced, onCartStatus, receiveBasket } from "./views/cart.js";
@@ -153,9 +153,12 @@ async function init() {
       state.sync = api.platform === "web" ? r : { ...r, status: r.cart?.status || {}, subtotal: r.cart?.subtotal ?? null };
     });
   }
-  // Desktop: the tray menu can flip a few settings while the window is hidden.
+  // Settings changed outside the interface: the tray menu (desktop), or price alerts arriving from the paired
+  // website or Windows app.
   api.settings.onChanged?.((s) => {
-    state.settings = { ...state.settings, ...s };
+    const { alerts, ...rest } = s || {};
+    state.settings = { ...state.settings, ...rest };
+    if (Array.isArray(alerts)) receiveAlerts(alerts);
   });
   startupNotices();
 }

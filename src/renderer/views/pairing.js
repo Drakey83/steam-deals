@@ -21,6 +21,15 @@ export function pairRow() {
       );
       return;
     }
+    if (st.viaAccount) {
+      host.replaceChildren(
+        el("div", {}, el("b", {}, "Synced through your Steam account."), ` Every phone, browser and PC signed in through Steam as ${state.account?.name || "you"} shares this basket, your price alerts and Your taste, and this app keeps your Steam cart matching it${state.settings.closeToTray !== false ? ", even from the tray" : ""}.`),
+        el("div", { class: "btn-row" },
+          el("button", { class: "btn btn-sm", title: "For a phone or browser that isn't signed in through Steam", html: `${ICON.phone}<span>Add a device without signing in</span>`, onclick: openPairDialog })),
+        el("div", { class: "muted small" }, "Nothing to set up on your other devices: sign in through Steam on steamdeal.vercel.app and they join automatically."),
+      );
+      return;
+    }
     host.replaceChildren(
       el("div", {}, el("b", {}, "Paired."), ` This basket is shared with your phone and any browser you paired, and this app keeps your Steam cart matching it${state.settings.closeToTray !== false ? ", even from the tray" : ""}.`),
       el("div", { class: "btn-row" },
@@ -33,7 +42,7 @@ export function pairRow() {
   render(state.sync || {});
   api.pair.status().then((r) => {
     if (!r.ok) return;
-    state.sync = { ...(state.sync || {}), ...(r.sync || {}), paired: r.paired, status: r.sync?.cart?.status || state.sync?.status || {}, subtotal: r.sync?.cart?.subtotal ?? state.sync?.subtotal ?? null };
+    state.sync = { ...(state.sync || {}), ...(r.sync || {}), paired: r.paired, viaAccount: Boolean(r.viaAccount), status: r.sync?.cart?.status || state.sync?.status || {}, subtotal: r.sync?.cart?.subtotal ?? state.sync?.subtotal ?? null };
     render(state.sync);
   });
   return host;

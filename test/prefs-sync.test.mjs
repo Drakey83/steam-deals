@@ -5,8 +5,8 @@ import { createRequire } from "node:module";
 import { test } from "node:test";
 
 const require = createRequire(import.meta.url);
-const Core = require("../src/shared/core.js");
-const createSync = require("../src/main/sync.js");
+const Sharing = require("../src/shared/sharing.js");
+const createSync = require("../src/main/sync/index.js");
 
 const RETRO = 4004;
 const BOOMER = 1628;
@@ -15,23 +15,23 @@ const T = 1_790_000_000_000;
 test("the most recent taste edit wins", () => {
   const older = { added: [RETRO], removed: [], at: T };
   const newer = { added: [BOOMER], removed: [RETRO], at: T + 1000 };
-  assert.deepEqual(Core.mergeTasteTags(older, newer), newer);
-  assert.deepEqual(Core.mergeTasteTags(newer, older), newer);
+  assert.deepEqual(Sharing.mergeTasteTags(older, newer), newer);
+  assert.deepEqual(Sharing.mergeTasteTags(newer, older), newer);
 });
 
 test("when devices first pair, both sides' edits are kept (added beats removed)", () => {
   const pc = { added: [RETRO], removed: [7], at: T };
   const web = { added: [BOOMER], removed: [RETRO], at: T + 5000 };
-  const both = Core.mergeTasteTags(pc, web, { combine: true });
+  const both = Sharing.mergeTasteTags(pc, web, { combine: true });
   assert.deepEqual(both.added.sort(), [BOOMER, RETRO].sort());
   assert.deepEqual(both.removed, [7]);
   assert.equal(both.at, T + 5000);
 });
 
 test("odd input is cleaned, and missing edits count as none", () => {
-  assert.deepEqual(Core.cleanTasteTags(null), { added: [], removed: [], at: 0 });
-  assert.deepEqual(Core.cleanTasteTags({ added: [1, "2", -1, 1], removed: "x", at: "5" }), { added: [1, 2], removed: [], at: 5 });
-  assert.ok(Core.sameTasteTags({ added: [1], removed: [] }, { added: [1], removed: [], at: 0 }));
+  assert.deepEqual(Sharing.cleanTasteTags(null), { added: [], removed: [], at: 0 });
+  assert.deepEqual(Sharing.cleanTasteTags({ added: [1, "2", -1, 1], removed: "x", at: "5" }), { added: [1, 2], removed: [], at: 5 });
+  assert.ok(Sharing.sameTasteTags({ added: [1], removed: [] }, { added: [1], removed: [], at: 0 }));
 });
 
 function fakeRelay() {
@@ -44,7 +44,7 @@ function fakeRelay() {
     if (action === "prefs.get") return { rev: r.prev, prefs: structuredClone(r.prefs) };
     if (action === "prefs.set") {
       if (body.rev !== r.prev) return { rev: r.prev, prefs: structuredClone(r.prefs), applied: false };
-      r.prefs = { tasteTags: Core.cleanTasteTags(body.prefs.tasteTags) };
+      r.prefs = { tasteTags: Sharing.cleanTasteTags(body.prefs.tasteTags) };
       r.prev += 1;
       r.sets += 1;
       return { rev: r.prev, prefs: structuredClone(r.prefs), applied: true };

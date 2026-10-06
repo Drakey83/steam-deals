@@ -49,15 +49,17 @@ The app has two jobs.
   sync with that basket**: add a game and it is in your cart within seconds, remove it and it leaves the cart.
   Nothing is ever purchased; you pay in Steam's own checkout. Works with private Steam profiles.
 - **With the website it is the bridge.** A browser is never allowed to touch a Steam cart, so the website
-  (on your phone or anywhere) pairs with the app once, and from then on you share **one basket**: whatever
-  you add on your phone lands in your Steam cart through the app on your PC, live, from anywhere.
+  (on your phone or anywhere) shares **one basket** with the app: whatever you add on your phone lands in your
+  Steam cart through the app on your PC, live, from anywhere. Signed in through Steam on both, they connect by
+  themselves; no code needed.
 
 1. Download [`Steam-Deals-Setup.exe`](https://github.com/Drakey83/steam-deals/releases/latest/download/Steam-Deals-Setup.exe)
    from the [latest release](https://github.com/Drakey83/steam-deals/releases/latest) and run it.
    Windows SmartScreen will warn that the publisher is unknown (the installer is not code-signed yet):
    choose **More info → Run anyway**. It installs for your user account; no admin rights needed.
 2. **Sign in through Steam** once, on Steam's own login page inside the app.
-3. Optional: open the basket and **pair your phone**, and turn on **Start with Windows** in Settings (it opens
+3. On your phone or any browser, **sign in through Steam** on [steamdeal.vercel.app](https://steamdeal.vercel.app)
+   and it syncs with the app automatically. Optional: turn on **Start with Windows** in Settings (it opens
    full screen at sign-in; turn on **Open closed to the tray** if you'd rather it start quietly in the tray).
 
 The X button hides the app to the tray so syncing keeps running; quit from the tray menu, or turn that off in
@@ -122,13 +124,17 @@ checkout, in the Steam app, the website, or on your phone, since the cart belong
   out of the basket. If you'd rather press a button, Settings → "Keep my Steam cart in sync" switches it off and
   the old **Send to my Steam cart** button (with Undo) comes back.
 - On the **website**, a browser can't touch your cart, so the Windows app does it as the bridge:
-  - **Pair once.** In the app's basket press **Pair a phone or browser**; it shows a six-letter code. On the
-    website's basket (phone or any browser), type it under **Already have it?**. Pair as many devices as you like.
+  - **Sign in through Steam, and that's it.** Every phone, browser and Windows app signed in with the same Steam
+    account shares one basket, your price alerts and Your taste, automatically. Nothing to type.
+  - **Not signed in?** Pair with a code instead: in the app's basket press **Pair a phone or browser** (or **Add a
+    device without signing in**), then type the six-letter code on the website's basket under **Already have it?**.
   - From then on it's **one shared basket**. Add or remove a game on your phone and it appears in, or leaves,
     your Steam cart through the PC within seconds. No send button. The website shows your PC's status and,
     per game, whether it's in the cart yet. Works from anywhere, mobile data included; the PC just needs to be
     on with the app running (the tray is fine). If the PC is off, the basket waits and syncs when it's back.
-  - Pairing shares only a random key and the basket itself (game ids, names, prices). No account details.
+  - Syncing stores only the shared basket, alerts and taste edits (game ids, names, prices, tag ids) under a random
+    channel id. With account sync that id is derived from your Steam ID with the site's secret; no account
+    details are stored.
   - Without the app, each game in the basket has an **Open in Steam** button that opens its own Add to Cart
     button in the Steam client or the Steam mobile app.
 
@@ -179,9 +185,10 @@ pages arrive, so the first cards show up in about a second at any depth.
 - **Windows app:** the only cookie it reads is the one that identifies your SteamID64. Your Steam session,
   settings, and caches stay in `%APPDATA%\Steam Deals`. Sign out wipes the session. It talks only to Steam,
   plus steamdeal.vercel.app for two things: one request to guess your state or province for the basket's tax
-  estimate (nothing stored), and, only once you pair a device, the shared basket (a random pairing key, game
-  ids, names and prices, and which of them are in your cart; never account details). "Unpair all devices" in
-  the app deletes that shared basket from the site.
+  estimate (nothing stored), and syncing with your other devices: the shared basket, price alerts and taste edits
+  (game ids, names, prices and tag ids, and which games are in your cart; never account details). To join your
+  account's sync channel, the app shows the site its short-lived Steam store token once; the site checks it with
+  Steam and doesn't keep it. "Unpair all devices" deletes a code pairing's shared data from the site.
 - **Basket tax estimate:** the region is guessed from your connection's location and can be changed in the basket.
 - **Website:** settings and any API key you add stay in your browser. Your key is passed through to Steam
   and never stored on the server. The visitor count is anonymous: one random id per browser, nothing tied

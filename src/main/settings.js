@@ -31,6 +31,7 @@ const DEFAULTS = Object.freeze({
   taxCustomRate: 0,
   taxRegionAuto: false, // true while the region came from location detection and hasn't been changed by hand
   pairId: null, // shared secret with the person's phone (website); baskets sent from it land here
+  pairVia: null, // "account" when pairId is the Steam account's own channel (account-sync.js), else a code pairing
   pairAutoCart: true, // keep the Steam cart in step with the shared basket (adds and removals; never a purchase)
   basketRev: 0, // revision of the shared basket last seen on the relay
   alertsRev: 0, // revision of the website's price alerts last merged from the relay

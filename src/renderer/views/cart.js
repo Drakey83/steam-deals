@@ -135,7 +135,9 @@ function pairedWebPanel(t, missingNote) {
     openCartButtons(true),
     missingNote,
     el("details", { class: "shortcut" }, el("summary", {}, "Open each game in Steam instead"), perGameList(t)),
-    el("div", { class: "muted small" }, "Paired with your PC. ", el("a", { class: "link", href: "#", onclick: (e) => { e.preventDefault(); unpairHere(); } }, "Unpair this device")),
+    state.sync?.viaAccount
+      ? el("div", { class: "muted small", title: "Every phone, browser and Windows app signed in through Steam with this account shares one basket, price alerts and Your taste. Signing out stops this device syncing." }, `Synced through your Steam account${state.account?.name ? ` (${state.account.name})` : ""}.`)
+      : el("div", { class: "muted small" }, "Paired with your PC. ", el("a", { class: "link", href: "#", onclick: (e) => { e.preventDefault(); unpairHere(); } }, "Unpair this device")),
   ];
 }
 

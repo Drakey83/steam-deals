@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import { test } from "node:test";
 
 const require = createRequire(import.meta.url);
-const createSync = require("../src/main/sync.js");
+const createSync = require("../src/main/sync/index.js");
 
 const OLD = Date.now() - 10 * 60 * 1000; // older than the "just added" grace period
 const game = (appid, packageid) => ({ appid, packageid, name: `Game ${appid}`, price: "$1.00", priceCents: 100, originalCents: 1000, discount: 90 });

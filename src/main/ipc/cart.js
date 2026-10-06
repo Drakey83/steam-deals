@@ -42,11 +42,11 @@ function registerPairing() {
     }
     return { claimed: joined, expired: Boolean(r.expired), devices: r.devices || 0 };
   });
-  handle("pair:status", () => ({ paired: Boolean(settings.get().pairId), autoCart: settings.get().pairAutoCart !== false, sync: sync.status() }));
+  handle("pair:status", () => ({ paired: Boolean(settings.get().pairId), viaAccount: Boolean(settings.get().pairId) && settings.get().pairVia === "account", autoCart: settings.get().pairAutoCart !== false, sync: sync.status() }));
   handle("pair:unpair", async () => {
     const s = settings.get();
     if (s.pairId) await pairApi("unpair", { pairId: s.pairId }).catch(() => {});
-    settings.update({ pairId: null, basketRev: 0, alertsRev: 0, prefsRev: 0, mirror: {} });
+    settings.update({ pairId: null, pairVia: null, basketRev: 0, alertsRev: 0, prefsRev: 0, mirror: {} });
     sync.afterUnpaired();
     refreshTray();
     return { value: true };

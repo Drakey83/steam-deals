@@ -8,58 +8,88 @@ cares which one it is running in. There is no bundler: browsers load the ES modu
 src/
   renderer/                 the interface (desktop app and website)
     app.js                  entry point: startup, keyboard, which redraws follow which event
-    state.js                the one shared state object, settings changes, the taste-model cache
+    state.js                the one shared state object, saving settings changes, the taste-model cache
     data.js                 loading deals, library and taste profile; announces changes, never draws
     history.js, alerts.js,  price history loading, price-alert checks, recording behaviour for For you
     learning.js             (each: talk to window.steamDeals / settings, maths in logic/)
     router.js               switching between the sign-in and browse screens
     config.js               option lists and defaults
     lib/                    dom helpers, icons, formatting, the event hub, platform access
-    logic/                  pure maths, no DOM (unit-tested): ranking, taste model, basket totals,
-                            dismissals, behaviour blend, price history, price alerts
+    logic/                  pure maths, no DOM (unit-tested): ranking, taste model and hand edits, basket
+                            totals, dismissals, behaviour blend, price history, price alerts
     ui/                     shared widgets: toasts, progress bar, drawer/modal/menu, tooltips (every `title`
                             becomes a styled card; touch: press and hold), small bits
-    views/                  screens and panels: login, shell (top bar), sidebar, feed (cards),
-                            details, basket, cart (Steam-cart section), web-cart, pairing, settings, account,
-                            taste-tags (dragging tags in and out of Your taste)
+    views/                  screens and panels: login, shell (top bar), sidebar, feed (cards), foryou (the
+                            Your taste panel), taste-tags (editing it), details, basket, cart (Steam-cart
+                            section), web-cart, pairing, alerts, dismiss, settings, account
     styles.css              imports styles/01-…16-*.css in cascade order (responsive rules last-ish)
     index.html              the desktop page (the website has its own in web/src)
   main/                     the Windows app's main process
     main.js                 entry point: single instance, startup, wiring
-    window.js, tray.js      the window (hide to tray on close) and the tray menu / Start with Windows
+    window.js, tray.js      the window (hide to tray on close, tray click toggles) and the tray menu
     deeplink.js             steamdeals:// links from the website
     ipc/                    what the interface can ask for: app, account, catalog, cart (+ pairing),
                             history (via the website, cached), alerts (Windows notifications)
     steam-session.js        keeping the Steam store session usable (renew, then retry)
     library.js              the library and the taste profile
-    pairing.js, sync.js     the pairing relay client and the sync engine: shared basket / Steam cart, and the
-                            website's price alerts (pulled in, checked here, fired state written back)
+    pairing.js              the relay client, and the one sync engine instance
+    account-sync.js         signed in to Steam: join the account's own sync channel (no code)
+    sync/                   the sync engine: index.js polls the relay and keeps the shared basket;
+                            cart-mirror.js keeps the real Steam cart matching it; shared-alerts.js and
+                            shared-prefs.js bring in and write back price alerts and Your taste edits
     steam.js, auth.js       Steam HTTP calls; Steam's own login page in an isolated window
     settings.js, cache.js   settings.json and a small TTL cache in the user's AppData
   preload.js                the only bridge from the interface to the main process
-  shared/core.js            pure logic used everywhere (normalising store items, taste profile, tax,
-                            basket diffs, merging alerts shared through the relay). CommonJS in Node,
-                            window.SteamCore in browsers.
+  shared/core.js            pure logic used everywhere (normalising store items, taste profile, tax, basket
+                            diffs). CommonJS in Node, window.SteamCore in browsers.
+  shared/sharing.js         what paired devices share and how two copies merge (price alerts, Your taste
+                            edits). CommonJS in Node, window.SteamSharing in browsers.
 web/
   src/                      the website's page, /app page, and its implementation of window.steamDeals
     web-api.js              assembles window.steamDeals from browser-api/*
-    browser-api/            settings in localStorage, calls to /api, deals, taste, pairing, startup
+    browser-api/            settings in localStorage, calls to /api, deals, taste, startup, and syncing:
+                            pairing.js (joining by Steam account or code, polling, the shared basket),
+                            shared-alerts.js, shared-prefs.js, relay.js
   api/                      Vercel functions (11 of the Hobby plan's 12): deals, tags, items, me/owned (library),
-                            auth/[action] (Steam OpenID), pair (relay), stats (counter), geo, config, history
-                            (IsThereAnyDeal, key server-side only); _lib/ has redis.js and itad.js
+                            auth/[action] (Steam OpenID sign-in, and "link": a device's account sync channel),
+                            pair (the relay), stats (counter), geo, config, history (IsThereAnyDeal, key
+                            server-side only)
+    _lib/                   shared server code: server.js (responses, session cookie), redis.js, itad.js,
+                            auth/ (sign-in steps, account link), relay/ (the relay's actions by area:
+                            channel, basket, shared-docs, legacy; its records in keys.js; input cleaning)
   public/                   generated by `npm run web:build` (do not edit)
-test/                       unit tests (node:test): logic, shared core, the sync engine against a fake cart
+test/                       unit tests (node:test): logic, shared core and sharing rules, the sync engine
+                            against a fake Steam cart and a fake relay
 scripts/                    website build/serve, import checker, live relay test, DevTools driver, icon
 ```
+
+## How devices stay in sync
+
+Every device on a **channel** shares one basket, the Steam-cart status, price alerts and Your taste edits through
+the relay (`web/api/pair.js`). A device gets onto a channel in one of two ways:
+
+- **Steam account** (automatic). The website signed in through Steam proves its account with its session cookie;
+  the Windows app signed in to Steam shows the site its short-lived Steam store token once, which the site checks
+  with Steam and doesn't keep. Both get the same channel id, derived from the Steam ID with the site's secret.
+- **Code** (manual). For a guest browser or an API-key sign-in: a six-character code from the Windows app.
+
+Each shared document has a revision in the channel's signal record, so a poll fetches only what changed. Writes
+are compare-and-set; a refused write returns the current copy to merge. The merge rules are in
+`src/shared/sharing.js`.
 
 ## Rules of thumb
 
 - **Layers point one way.** `logic/` and `lib/` know nothing about views. `data.js` and `state.js` change data
   and announce it through `lib/events.js` (`EV.*`); `app.js` decides what redraws. Views may call each other.
 - **No network in the interface.** Everything goes through `window.steamDeals`. On the desktop, all network
-  traffic happens in the main process (the page's CSP has `connect-src 'none'`).
-- **Pure logic gets a test.** Anything in `logic/`, `shared/core.js` or `main/sync.js` that changes behaviour
-  should come with a test in `test/`.
+  traffic happens in the main process (the page's CSP has `connect-src 'none'`). Syncing happens below that API
+  on both hosts; the interface only hears about it through settings and basket events.
+- **One module, one job.** When a file starts doing two things (the sync engine did five), split it by job and
+  keep the outside interface the same, so callers and tests don't change.
+- **Pure logic gets a test.** Anything in `logic/`, `shared/` or `main/sync/` that changes behaviour should come
+  with a test in `test/`.
+- **Every change is saved.** `patchSettings` combines quick changes and always writes them; nothing waiting is
+  dropped, and anything waiting is written when the window is hidden or closed.
 - **Paired alerts have one owner.** Alerts made on the website go to the relay; the paired Windows app (1.10+)
   merges them into its list, checks them with its own and notifies. The website then doesn't check them
   (`alertsCheckedByPc`), so a crossing is announced once. The app owns check state, the website owns which

@@ -1,6 +1,7 @@
 // Assemble the website (web/public) from the shared sources. No bundler: browsers load the ES modules directly.
 //   src/renderer/**  (UI modules + styles)   -> web/public/          same UI as the desktop app
 //   src/shared/core.js                        -> web/public/ and web/api/_lib/   shared scoring + taste logic
+//   src/shared/sharing.js                     -> web/public/                     merging what paired devices share
 //   web/src/**       (page, browser API layer) -> web/public/
 //   build/*.png      (icons)                   -> web/public/
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -18,6 +19,7 @@ const DESKTOP_ONLY = new Set(["index.html", "package.json"]);
 cpSync(at("src", "renderer"), pub, { recursive: true, filter: (src) => !DESKTOP_ONLY.has(basename(src)) || dirname(src) !== at("src", "renderer") });
 cpSync(at("web", "src"), pub, { recursive: true });
 cpSync(at("src", "shared", "core.js"), join(pub, "core.js"));
+cpSync(at("src", "shared", "sharing.js"), join(pub, "sharing.js")); // what paired devices share (browser-api)
 cpSync(at("src", "shared", "core.js"), at("web", "api", "_lib", "core.js"));
 for (const icon of ["icon.png", "icon-192.png", "icon-512.png", "icon-512-maskable.png", "apple-touch-icon.png"]) cpSync(at("build", icon), join(pub, icon));
 

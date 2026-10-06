@@ -6,8 +6,8 @@ import { test } from "node:test";
 import { alertsCheckedByPc, checkAlerts, makeAlert, upsertAlert } from "../src/renderer/logic/alerts.js";
 
 const require = createRequire(import.meta.url);
-const Core = require("../src/shared/core.js");
-const createSync = require("../src/main/sync.js");
+const Sharing = require("../src/shared/sharing.js");
+const createSync = require("../src/main/sync/index.js");
 
 const T0 = Date.UTC(2026, 9, 1);
 const game = (appid, priceCents) => ({ appid, name: `Game ${appid}`, price: `$${(priceCents / 100).toFixed(2)}`, priceCents });
@@ -16,30 +16,30 @@ const webAlert = (appid, target, price, at = T0) => ({ ...makeAlert(game(appid, 
 // ----- merging -----
 test("the app adds the website's alerts to its own and marks them as from the website", () => {
   const local = [makeAlert(game(1, 999), 499, "US", T0)];
-  const merged = Core.mergeWebAlerts(local, [{ ...makeAlert(game(2, 1999), 999, "US", T0 + 1) }]);
+  const merged = Sharing.mergeWebAlerts(local, [{ ...makeAlert(game(2, 1999), 999, "US", T0 + 1) }]);
   assert.deepEqual(merged.map((a) => [a.appid, a.origin ?? "app"]), [[2, "web"], [1, "app"]]);
 });
 
 test("duplicates (same game, region and target) collapse to one, the website's", () => {
   const local = [makeAlert(game(1, 999), 499, "US", T0)];
-  const merged = Core.mergeWebAlerts(local, [webAlert(1, 499, 999, T0 + 5)]);
+  const merged = Sharing.mergeWebAlerts(local, [webAlert(1, 499, 999, T0 + 5)]);
   assert.equal(merged.length, 1);
   assert.equal(merged[0].origin, "web");
   // A different target for the same game is a different alert.
-  assert.equal(Core.mergeWebAlerts(local, [webAlert(1, 399, 999)]).length, 2);
+  assert.equal(Sharing.mergeWebAlerts(local, [webAlert(1, 399, 999)]).length, 2);
 });
 
 test("the merged list is capped at 200", () => {
   const local = Array.from({ length: 150 }, (_, i) => makeAlert(game(i + 1, 999), 499, "US", T0 + i));
   const remote = Array.from({ length: 150 }, (_, i) => webAlert(1000 + i, 499, 999, T0 + 500 + i));
-  assert.equal(Core.mergeWebAlerts(local, remote).length, Core.MAX_SHARED_ALERTS);
+  assert.equal(Sharing.mergeWebAlerts(local, remote).length, Sharing.MAX_SHARED_ALERTS);
 });
 
 test("the app keeps its own check state for website alerts it already has; deletions on the website win", () => {
   const remote = [webAlert(1, 499, 999), webAlert(2, 499, 999)];
-  let local = Core.mergeWebAlerts([], remote);
+  let local = Sharing.mergeWebAlerts([], remote);
   local = checkAlerts(local, new Map([[1, 450]]), "US", T0 + 100).alerts; // the app saw a crossing
-  const again = Core.mergeWebAlerts(local, [remote[0]]); // website deleted game 2 meanwhile
+  const again = Sharing.mergeWebAlerts(local, [remote[0]]); // website deleted game 2 meanwhile
   assert.deepEqual(again.map((a) => a.appid), [1]);
   assert.equal(again[0].triggeredAt, T0 + 100);
   assert.equal(again[0].armed, false);
@@ -47,22 +47,22 @@ test("the app keeps its own check state for website alerts it already has; delet
 
 test("what fired in the app goes back to the website already seen (one notification, no second badge)", () => {
   const remote = [webAlert(1, 499, 999)];
-  const local = checkAlerts(Core.mergeWebAlerts([], remote), new Map([[1, 450]]), "US", T0 + 100).alerts;
+  const local = checkAlerts(Sharing.mergeWebAlerts([], remote), new Map([[1, 450]]), "US", T0 + 100).alerts;
   assert.equal(local[0].seen, false, "the app's own bell still counts it");
-  const out = Core.webAlertsForRelay(local, remote);
+  const out = Sharing.webAlertsForRelay(local, remote);
   assert.equal(out[0].triggeredCents, 450);
   assert.equal(out[0].seen, true);
 });
 
 test("only website alerts go back to the relay, never the app's own", () => {
   const local = [makeAlert(game(1, 999), 499, "US", T0), webAlert(2, 499, 999)];
-  assert.deepEqual(Core.webAlertsForRelay(local, []).map((a) => a.appid), [2]);
+  assert.deepEqual(Sharing.webAlertsForRelay(local, []).map((a) => a.appid), [2]);
 });
 
 test("website rebase keeps its own alerts and targets, takes the app's check state", () => {
   const fired = { ...webAlert(1, 499, 999), armed: false, triggeredAt: T0 + 100, triggeredCents: 450, lastCents: 450, seen: true };
   const mine = [webAlert(1, 499, 999), webAlert(3, 299, 999, T0 + 50)]; // added game 3 meanwhile
-  const out = Core.rebaseWebAlerts(mine, [fired]);
+  const out = Sharing.rebaseWebAlerts(mine, [fired]);
   assert.deepEqual(out.map((a) => a.appid).sort(), [1, 3]);
   const one = out.find((a) => a.appid === 1);
   assert.equal(one.triggeredAt, T0 + 100);
@@ -72,8 +72,8 @@ test("website rebase keeps its own alerts and targets, takes the app's check sta
 test("the same alerts in a different field order (as the relay stores them) count as unchanged", () => {
   const a = webAlert(1, 499, 999);
   const reordered = Object.fromEntries(Object.entries(a).reverse());
-  assert.ok(Core.sameAlerts([a], [reordered]));
-  assert.ok(!Core.sameAlerts([a], [{ ...a, seen: !a.seen }]));
+  assert.ok(Sharing.sameAlerts([a], [reordered]));
+  assert.ok(!Sharing.sameAlerts([a], [{ ...a, seen: !a.seen }]));
 });
 
 // ----- who checks -----
@@ -112,7 +112,7 @@ function fakeRelay() {
   };
   /** The website writes (as web/src/browser-api/pairing.js does). */
   r.webSet = (alerts) => {
-    r.alerts = structuredClone(Core.tagWebAlerts(alerts));
+    r.alerts = structuredClone(Sharing.tagWebAlerts(alerts));
     r.arev += 1;
   };
   return r;
@@ -221,8 +221,8 @@ test("unpaired from the PC: the app drops the website's alerts and keeps its own
 
 test("withoutWebAlerts keeps exactly the app's own alerts", () => {
   const own = makeAlert(game(1, 999), 499, "US", T0);
-  assert.deepEqual(Core.withoutWebAlerts([webAlert(2, 499, 999), own]), [own]);
-  assert.deepEqual(Core.withoutWebAlerts(undefined), []);
+  assert.deepEqual(Sharing.withoutWebAlerts([webAlert(2, 499, 999), own]), [own]);
+  assert.deepEqual(Sharing.withoutWebAlerts(undefined), []);
 });
 
 test("a save from an interface that hadn't caught up doesn't delete website alerts that just arrived", async () => {

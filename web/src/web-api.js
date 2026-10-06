@@ -8,7 +8,7 @@ import { getHistory } from "./browser-api/history.js";
 import { ApiError, fail, http, wrap } from "./browser-api/http.js";
 import { lookupItems } from "./browser-api/items.js";
 import { loadLibrary, setLibrary } from "./browser-api/library.js";
-import { claim, pairId, pushAlerts, pushBasket, pushPrefs, syncNow, syncStatus, unpair } from "./browser-api/pairing.js";
+import { claim, pairId, pushAlerts, pushBasket, pushPrefs, syncNow, syncStatus, unlinkAccount, unpair } from "./browser-api/pairing.js";
 import { ALLOWED_SETTINGS, APIKEY_KEY, publicSettings, saveSettings, settings } from "./browser-api/settings.js";
 import { features, ready } from "./browser-api/startup.js";
 import { store } from "./browser-api/store.js";
@@ -26,6 +26,7 @@ const auth = {
   },
   signOut: wrap(async () => {
     const wasSteam = settings.account?.method === "steam";
+    if (wasSteam) unlinkAccount();
     settings.account = null;
     setLibrary(null);
     store.del(APIKEY_KEY);

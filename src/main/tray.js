@@ -5,7 +5,7 @@ const path = require("node:path");
 const settings = require("./settings");
 const { sync } = require("./pairing");
 const { runtime, sendToUI } = require("./runtime");
-const { showWindow } = require("./window");
+const { showWindow, toggleWindow } = require("./window");
 
 const ROOT = path.join(__dirname, "..", "..");
 
@@ -83,8 +83,8 @@ function createTray() {
   const image = fs.existsSync(ico) ? nativeImage.createFromPath(ico) : fs.existsSync(png) ? nativeImage.createFromPath(png).resize({ width: 16, height: 16 }) : null;
   if (!image || image.isEmpty()) return;
   runtime.tray = new Tray(image);
-  runtime.tray.on("click", showWindow);
-  runtime.tray.on("double-click", showWindow);
+  // A click shows or minimizes the window. (No separate double-click: each of its clicks already toggles.)
+  runtime.tray.on("click", toggleWindow);
   refreshTray();
 }
 

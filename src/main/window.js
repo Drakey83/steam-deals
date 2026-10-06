@@ -44,6 +44,9 @@ function createWindow() {
 
   rememberBounds(win);
   hideToTrayOnClose(win);
+  win.on("blur", () => {
+    blurredAt = Date.now();
+  });
   win.on("closed", () => {
     runtime.mainWindow = null;
   });
@@ -107,6 +110,25 @@ function hideToTrayOnClose(win) {
   });
 }
 
+// When the window last lost focus. Clicking the tray icon takes focus from the window just before the click
+// arrives, so "was it in front?" means "did it have focus a moment ago?".
+let blurredAt = 0;
+const FOCUS_GRACE_MS = 400;
+
+/**
+ * Tray icon click: minimize the window when it's open and in front; otherwise bring it back (restored to how it
+ * was, so a maximized window comes back maximized).
+ */
+function toggleWindow() {
+  const win = runtime.mainWindow;
+  const inFront = win && !win.isDestroyed() && win.isVisible() && !win.isMinimized() && (win.isFocused() || Date.now() - blurredAt < FOCUS_GRACE_MS);
+  if (inFront) {
+    win.minimize();
+    return win;
+  }
+  return showWindow();
+}
+
 function showWindow() {
   const win = runtime.mainWindow;
   if (!win || win.isDestroyed()) return createWindow();
@@ -116,4 +138,4 @@ function showWindow() {
   return win;
 }
 
-module.exports = { createWindow, showWindow };
+module.exports = { createWindow, showWindow, toggleWindow };

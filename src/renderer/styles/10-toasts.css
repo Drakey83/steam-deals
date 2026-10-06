@@ -127,3 +127,22 @@
     transition: none;
   }
 }
+.tip-text {
+  max-width: 280px;
+  white-space: pre-line; /* tips may use line breaks and • lists */
+  color: var(--text-2);
+}
+.rich-tip:has(.tip-text) {
+  min-width: 0;
+  padding: 9px 12px;
+}
+/* Press-and-hold shows a tip on touch screens: don't let the system select text or open its menu instead. */
+@media (hover: none) {
+  [title],
+  [data-tip],
+  .help-tip {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}

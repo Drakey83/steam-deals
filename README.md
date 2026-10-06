@@ -143,6 +143,8 @@ checkout, in the Steam app, the website, or on your phone, since the cart belong
   [IsThereAnyDeal](https://isthereanydeal.com), shown only when there's real data behind it.
 - **Learns from what you do.** Games you open, basket, dismiss or buy fine-tune For you over time; your library
   always has the bigger say, and Settings has “Reset my recommendations”.
+- **Hints everywhere.** Hover any button, badge, filter or tag to see what it does (on a phone or tablet, press and
+  hold it; tap a ? for help). The basket button shows how its total is made up.
 - **Edit your taste.** In For you, drag a tag from Tags onto “Your taste” to add it, or drag one of your taste's
   tags back onto Tags (or click its ×) to remove it. You can also type a tag into “Add a tag”. Removed tags can be
   restored with a click, Reset undoes every change, and the ? next to “Your taste” explains it all on hover.

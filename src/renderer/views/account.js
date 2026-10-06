@@ -44,7 +44,7 @@ export async function signOut() {
 /** The avatar + name button in the top bar. */
 export function accountChip() {
   const a = state.account;
-  const chip = el("button", { class: "account", id: "account", "aria-haspopup": "menu" }, avatarEl(a), el("span", { class: "name" }, a?.name || "Guest"));
+  const chip = el("button", { class: "account", id: "account", "aria-haspopup": "menu", title: !a || a.method === "guest" ? "Browsing as a guest. Click to sign in." : "Your account: library, sign-in and sign-out" }, avatarEl(a), el("span", { class: "name" }, a?.name || "Guest"));
   chip.addEventListener("click", (e) => {
     e.stopPropagation();
     if (isMenuOpen()) closeMenu();

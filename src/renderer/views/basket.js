@@ -74,7 +74,7 @@ function paintToggle(b, name, label) {
   const isIn = inBasket(Number(b.dataset.appid));
   b.classList.toggle("on", isIn);
   b.setAttribute("aria-pressed", isIn);
-  b.title = isIn ? "Remove from basket" : "Add to basket";
+  b.title = isIn ? "In your basket. Click to take it out." : "Add to basket: collect games here, then send them all to your Steam cart at once.";
   if (name) b.setAttribute("aria-label", isIn ? `Remove ${name} from basket` : `Add ${name} to basket`);
   b.innerHTML = (isIn ? ICON.check : ICON.plus) + (label ? `<span>${isIn ? "In basket" : "Add to basket"}</span>` : "");
 }

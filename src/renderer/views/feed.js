@@ -251,8 +251,8 @@ function card(d, rank) {
   const model = personal ? tasteModel() : null;
   const similar = model ? model.similar(d, 2) : [];
   const ring = personal
-    ? el("div", { class: "ring match", style: { "--p": Math.round(d.match) }, title: `${Math.round(d.match)}% match · deal score ${d.score.toFixed(1)} · #${rank}` }, el("span", { class: "num" }, `${Math.round(d.match)}%`))
-    : el("div", { class: "ring", style: { "--p": Math.round(d.score) }, title: `Score ${d.score.toFixed(1)} · #${rank}` }, el("span", { class: "num" }, Math.round(d.score)));
+    ? el("div", { class: "ring match", style: { "--p": Math.round(d.match) }, title: `${Math.round(d.match)}% match with your taste, mixed with a deal score of ${d.score.toFixed(1)}. #${rank} in this list.` }, el("span", { class: "num" }, `${Math.round(d.match)}%`))
+    : el("div", { class: "ring", style: { "--p": Math.round(d.score) }, title: `Deal score ${d.score.toFixed(1)} out of 100: discount, review rating and popularity combined. #${rank} in this list. Change the mix with Score weights.` }, el("span", { class: "num" }, Math.round(d.score)));
   const because = personal
     ? el("div", { class: "because", title: similar.map((x) => x.name).join(", ") },
         similar.length
@@ -264,9 +264,9 @@ function card(d, rank) {
   const node = el("div", { class: "card", role: "button", tabindex: 0, dataset: { appid: d.appid }, "aria-label": `${d.name}, ${d.discount}% off, ${d.price}` },
     el("div", { class: "card-art" },
       imgEl(d.image, ""),
-      d.discount > 0 ? el("span", { class: "badge-discount num" }, `-${d.discount}%`) : null,
+      d.discount > 0 ? el("span", { class: "badge-discount num", title: `${d.discount}% off the usual price${d.originalPrice ? ` of ${d.originalPrice}` : ""}` }, `-${d.discount}%`) : null,
       ring,
-      owned ? el("span", { class: "ribbon" }, "Owned") : null,
+      owned ? el("span", { class: "ribbon", title: "Already in your Steam library" }, "Owned") : null,
       wished ? el("span", { class: "heart", html: ICON.heart, title: "On your wishlist" }) : null,
     ),
     el("div", { class: "card-body" },
@@ -280,7 +280,7 @@ function card(d, rank) {
         dismissButton(d),
         basketToggle(d)),
       el("div", { class: `rating-row ${ratingClass(d.rating)}` },
-        el("span", { class: "pct num" }, d.rating != null ? `${d.rating}%` : "n/a"),
+        el("span", { class: "pct num", title: d.rating != null ? `${d.rating}% of ${fmtInt(d.reviews)} Steam reviews are positive` : "Not enough Steam reviews for a rating yet" }, d.rating != null ? `${d.rating}%` : "n/a"),
         d.reviewLabel ? el("span", { class: "lbl" }, d.reviewLabel) : null,
         el("span", { class: "muted num" }, `· ${fmtInt(d.reviews)}`),
         compatBadges(d, true),

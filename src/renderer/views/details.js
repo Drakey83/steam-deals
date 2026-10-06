@@ -37,8 +37,8 @@ export function openDetails(d) {
         el("div", {}, el("div", { class: "price num" }, d.price ?? "—"), d.discount > 0 && d.originalPrice ? el("div", { class: "price-orig num" }, d.originalPrice) : null),
         el("div", { class: "actions" },
           basketToggle(d, { label: true }),
-          el("button", { class: "btn btn-sm", html: `${ICON.external}<span>Open on Steam</span>`, onclick: () => api.openExternal(d.url) }),
-          el("button", { class: "btn btn-sm", title: "Open in the Steam app", html: `${ICON.play}<span>Steam app</span>`, onclick: () => api.openExternal(`steam://store/${d.appid}`) }),
+          el("button", { class: "btn btn-sm", title: "Open the store page in your browser", html: `${ICON.external}<span>Open on Steam</span>`, onclick: () => api.openExternal(d.url) }),
+          el("button", { class: "btn btn-sm", title: "Open the store page in the Steam app", html: `${ICON.play}<span>Steam app</span>`, onclick: () => api.openExternal(`steam://store/${d.appid}`) }),
           dismissButton(d, { label: true }),
         ),
       ),
@@ -63,7 +63,7 @@ function scoreBox(d) {
   const w = normWeights(state.settings.weights);
   const pct = (x) => `${Math.max(0, Math.min(100, x))}%`;
   const share = (x) => Math.round(x * 100);
-  return el("div", { class: "score-box" },
+  return el("div", { class: "score-box", title: "How the deal score is worked out: each part times its weight. Change the weights in Settings." },
     el("div", { class: "score-head" }, el("span", { class: "muted" }, "Deal score"), el("span", { class: "big num" }, d.score != null ? d.score.toFixed(1) : "—")),
     el("div", { class: "score-bar" },
       el("span", { class: "s-d", style: { width: pct(parts.discount) } }),

@@ -38,7 +38,7 @@ export function renderBrowse() {
 }
 
 function topbar() {
-  const search = el("input", { class: "input", id: "search", type: "search", placeholder: "Search deals", autocomplete: "off", spellcheck: "false" });
+  const search = el("input", { class: "input", id: "search", type: "search", placeholder: "Search deals", autocomplete: "off", spellcheck: "false", title: "Search by game name. Press / to jump here." });
   search.addEventListener("input", () => {
     state.query = search.value;
     updateResults();
@@ -118,7 +118,7 @@ export function renderSortSelect() {
   const base = SORTS.filter(([v]) => v !== "match");
   const options = viewMode() === "foryou" ? [["match", "Best match"], ...base] : base;
   const current = options.some(([v]) => v === state.settings.sort) ? state.settings.sort : options[0][0];
-  const sort = el("select", { class: "select", id: "sort", "aria-label": "Sort" }, options.map(([v, l]) => el("option", { value: v, selected: current === v }, l)));
+  const sort = el("select", { class: "select", id: "sort", "aria-label": "Sort", title: "How the list is ordered" }, options.map(([v, l]) => el("option", { value: v, selected: current === v }, l)));
   sort.addEventListener("change", () => patchSettings({ sort: sort.value }, { persistNow: true }));
   slot.replaceChildren(sort);
 }

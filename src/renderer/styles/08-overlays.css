@@ -281,3 +281,21 @@
 .learning-row .btn {
   flex: none;
 }
+
+/* Small phones: a Settings row's label and its menu share the line when they fit and stack when they don't,
+   instead of a 200 px minimum pushing the dialog wider than the screen. */
+.modal-body > *,
+.settings-group > * {
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .row:not(.row-toggle) {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .row .select,
+  .row .input {
+    min-width: 0;
+    flex: 1 1 170px;
+  }
+}

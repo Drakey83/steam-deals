@@ -51,7 +51,7 @@ export function openSettings() {
           "The free Steam Deals Windows app does everything this site does and adds the one thing a browser can't: it fills your Steam cart. Pair this browser with it (basket → “Already have it?”) and your basket becomes your Steam cart, live, from anywhere. ",
           el("a", { class: "link", href: "/app", target: "_blank", rel: "noopener" }, "How it works and download"), "."))
       : group("Windows app",
-          toggleRow("Keep my Steam cart in sync with the basket", "pairAutoCart", true, "Adds what you put in the basket, here or on a paired phone, to your Steam cart and removes what you take out. It never buys anything."),
+          toggleRow("Keep my Steam cart in sync with the basket", "pairAutoCart", true, "Adds what you put in the basket, here or on your other devices, to your Steam cart and removes what you take out. It never buys anything."),
           toggleRow("Close to the tray instead of quitting", "closeToTray", true, "The X button hides Steam Deals next to the clock so syncing keeps running. Quit from the tray menu."),
           ...startupRows()),
     group("About", el("div", { class: "about", id: "about" }, isWeb
@@ -162,7 +162,7 @@ function dismissedSection() {
 
 /** "Start with Windows", and under it "Open closed to the tray", which only applies (and is only enabled) when it's on. */
 function startupRows() {
-  const start = toggleRow("Start with Windows", "startWithWindows", false, "Opens Steam Deals full screen (maximized) when you sign in to Windows, so your PC is always ready for your phone.");
+  const start = toggleRow("Start with Windows", "startWithWindows", false, "Opens Steam Deals full screen (maximized) when you sign in to Windows, so your basket keeps reaching your Steam cart from your other devices.");
   const minimized = toggleRow("Open closed to the tray", "startMinimized", false, "Instead of opening full screen, Steam Deals starts quietly in the tray next to the clock. Click the icon to open it.");
   const sync = () => {
     const on = start.querySelector("input").checked;

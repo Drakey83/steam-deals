@@ -9,7 +9,7 @@
 //   check       { pairId }                         → { claimed, expired }          PC waits for the code
 //   sig         { pairId, touch?, pc?, withCart? } → { rev, arev, prev, active, pc, pcok, pcv, cart? }
 //                                                                                   cheap poll: has anything changed?
-//   basket.get  { pairId }                         → { rev, items, updatedAt }
+//   basket.get  { pairId }                         → { rev, items, updatedAt, by }  by: pc | phone | web
 //   basket.ops  { pairId, ops, by }                → { rev, items, updatedAt }     add/remove/clear, atomically
 //   cart.set    { pairId, cart, ok }               → { ok }                        PC reports Steam-cart status
 //   alerts.get  { pairId }                         → { rev, alerts }               the website's price alerts

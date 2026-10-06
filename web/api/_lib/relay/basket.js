@@ -51,7 +51,7 @@ module.exports = {
   async "basket.get"({ db, alive }) {
     const id = await alive();
     const b = parse(await db.command("GET", K.basket(id)), emptyBasket());
-    return { rev: b.rev || 0, items: b.items || [], updatedAt: b.updatedAt || 0 };
+    return { rev: b.rev || 0, items: b.items || [], updatedAt: b.updatedAt || 0, by: b.by || null };
   },
 
   async "basket.ops"({ db, body, alive, now }) {

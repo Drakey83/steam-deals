@@ -4,7 +4,7 @@ import { $, appendKids, el } from "../lib/dom.js";
 import { EV, emit } from "../lib/events.js";
 import { durationText, fmtInt, plural, timeAgo } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
-import { api, isPhoneDevice, isWeb } from "../lib/platform.js";
+import { Core, api, isPhoneDevice, isWeb } from "../lib/platform.js";
 import { mergeIncoming } from "../logic/basket.js";
 import { basket, patchSettings, state } from "../state.js";
 import { openCartButtons } from "../ui/common.js";
@@ -52,9 +52,9 @@ function syncLine() {
     else line.textContent = `Your PC hasn't checked in for ${durationText(s.pcSeenAgo)}. Your basket is saved; it syncs the moment Steam Deals is running there again.`;
     return line;
   }
-  if (s.paused) line.textContent = "Syncing with your phone is paused (tray menu). Changes made there wait until you resume.";
+  if (s.paused) line.textContent = "Syncing with your other devices is paused (tray menu). Changes made there wait until you resume.";
   else if (s.lastError) line.textContent = `Last sync problem: ${s.lastError}`;
-  else if (s.paired && s.lastPoll) line.textContent = `Shared with your phone · checked ${timeAgo(s.lastPoll)}${subtotal}`;
+  else if (s.paired && s.lastPoll) line.textContent = `Shared with your other devices · checked ${timeAgo(s.lastPoll)}${subtotal}`;
   else if (s.subtotal) line.textContent = `Steam cart subtotal ${s.subtotal}`;
   return line;
 }
@@ -88,7 +88,7 @@ function desktopPanel(ids, missingNote) {
   if (state.settings.pairAutoCart !== false) {
     return [
       el("div", { class: "send-title ok", html: ICON.sync }, el("span", {}, "Synced with your Steam cart")),
-      el("div", { class: "muted" }, `Everything in this basket is put into your Steam cart for you, and taken out again if you remove it here${state.sync?.paired ? " or on your phone" : ""}. Nothing is purchased: you review and pay in Steam's own checkout.`),
+      el("div", { class: "muted" }, `Everything in this basket is put into your Steam cart for you, and taken out again if you remove it here${state.sync?.paired ? " or on your other devices" : ""}. Nothing is purchased: you review and pay in Steam's own checkout.`),
       syncLine(),
       openCartButtons(true),
       el("div", { class: "btn-row" },
@@ -168,17 +168,17 @@ async function undoSend() {
 }
 
 /** The shared basket changed somewhere else (phone, PC, or a merge after pairing). */
-export function onBasketReplaced({ items, source } = {}) {
+export function onBasketReplaced({ items, source, by } = {}) {
   const before = basket().length;
   state.settings = { ...state.settings, basket: Array.isArray(items) ? items : [] };
   state.lastSent = null;
   emit(EV.basketChanged);
   if (source !== "remote") return;
   const after = basket().length;
-  const from = isWeb ? "your PC" : "your phone";
-  const msg = after > before ? `${plural(after - before, "game")} added from ${from}`
-    : after < before ? `${plural(before - after, "game")} removed from ${from}`
-    : `Basket updated from ${from}`;
+  const where = Core.deviceWhere(by);
+  const msg = after > before ? `${plural(after - before, "game")} added ${where}`
+    : after < before ? `${plural(before - after, "game")} removed ${where}`
+    : `Basket updated ${where}`;
   toast(msg, { type: "ok", timeout: 4000 });
 }
 

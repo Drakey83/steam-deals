@@ -26,7 +26,16 @@ const RECONCILE_FAST_MS = 60000; // re-check the Steam cart this often while fas
 const RECONCILE_SLOW_MS = 5 * 60000; // and this often while idle (catches purchases / manual removals)
 const HEARTBEAT_MS = 5 * 60000; // tell the relay "I'm here" at least this often even when nobody looks
 
-module.exports = function createSync({ settings, steam, cartSession, sessionFetch, pairApi, sendToUI, version, shouldNotify, onNotificationClick, log = () => {} }) {
+/** Show a Windows notification (required here so the engine can be unit-tested in plain Node). */
+function windowsNotification(body, onClick) {
+  const { Notification } = require("electron");
+  if (!Notification.isSupported()) return;
+  const n = new Notification({ title: "Steam Deals", body });
+  n.on("click", () => onClick?.());
+  n.show();
+}
+
+module.exports = function createSync({ settings, steam, cartSession, sessionFetch, pairApi, sendToUI, version, shouldNotify, onNotificationClick, log = () => {}, showNotification = windowsNotification }) {
   let timer = null;
   let polling = false;
   let fastUntil = 0;
@@ -47,11 +56,7 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
     notified.set(key, now);
     if (!shouldNotify()) return;
     try {
-      const { Notification } = require("electron"); // required here so the engine can be unit-tested in plain Node
-      if (!Notification.isSupported()) return;
-      const n = new Notification({ title: "Steam Deals", body });
-      n.on("click", () => onNotificationClick?.());
-      n.show();
+      showNotification(body, onNotificationClick);
     } catch {
       /* notifications are decoration */
     }
@@ -127,8 +132,8 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
     fastUntil = Math.max(fastUntil, Date.now() + CHANGE_HOLD_MS);
     if (changed) {
       log(`[sync] basket from relay: ${items.length} item(s), rev ${r.rev}`);
-      sendToUI("basket:replaced", { items, source: "remote", rev: r.rev });
-      cart.setSource("remote");
+      sendToUI("basket:replaced", { items, source: "remote", rev: r.rev, by: r.by || null });
+      cart.setSource("remote", r.by);
     }
     await cart.reconcile();
   }

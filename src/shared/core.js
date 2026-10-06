@@ -207,6 +207,12 @@ function estimateTax(subtotalCents, region, customRate) {
 
 // ---------- shared basket (used by the desktop sync engine and the website) ----------
 
+/** Where a shared-basket change was made, for messages ("added on your phone"). The relay records "pc", "phone" or
+ *  "web" (any browser that isn't a phone); anything else is "on another device". */
+function deviceWhere(by) {
+  return by === "phone" ? "on your phone" : by === "web" ? "in a browser" : by === "pc" ? "on your PC" : "on another device";
+}
+
 /** True when two baskets hold the same games (ignores names and prices). */
 function sameBasket(a, b) {
   const key = (list) => JSON.stringify((list || []).map((i) => [i.appid, i.packageid]));
@@ -226,7 +232,7 @@ function basketOps(prev, next) {
   return ops;
 }
 
-const api = { sameBasket, basketOps, COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
+const api = { deviceWhere, sameBasket, basketOps, COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.SteamCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

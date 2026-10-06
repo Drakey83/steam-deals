@@ -105,6 +105,10 @@ function priceHistoryBox(d) {
         el("span", {}, "low ", el("b", { class: "num" }, fmtCents(win.lowCents, d.price)),
           win.typicalCut != null ? ` · typical sale −${win.typicalCut}%` : " · no sales",
           win.saleShare > 0 ? ` · on sale ${Math.round(win.saleShare * 100)}% of the time` : "")));
+    } else if (entry.low && Array.isArray(entry.points)) {
+      // The log came back empty: say so, so a missing 90-day row doesn't look like a fault. (Dying Light, for
+      // one: IsThereAnyDeal stopped logging its Steam price in January 2025.)
+      lines.push(el("div", { class: "history-line muted small" }, "No recent price log from IsThereAnyDeal for this game, so no 90-day summary."));
     }
     if (!lines.length) return;
     box.replaceChildren(

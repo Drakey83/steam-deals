@@ -14,7 +14,7 @@
 // says so when its basket is open) or right after a change. Steam itself is only asked about the cart
 // when something changed or on a slow heartbeat, which also catches purchases made on Steam.
 
-const { sameBasket: sameItems, basketOps: diffOps, mergeWebAlerts, webAlertsForRelay, sameAlerts, withoutWebAlerts } = require("../shared/core.js");
+const { sameBasket: sameItems, basketOps: diffOps, mergeWebAlerts, webAlertsForRelay, sameAlerts, withoutWebAlerts, alertKey } = require("../shared/core.js");
 
 const FAST_MS = 3000;
 const SLOW_MS = 30000;
@@ -24,6 +24,7 @@ const RECONCILE_FAST_MS = 60000; // re-check the Steam cart this often while fas
 const RECONCILE_SLOW_MS = 5 * 60000; // and this often while idle (catches purchases / manual removals)
 const HEARTBEAT_MS = 5 * 60000; // tell the relay "I'm here" at least this often even when nobody looks
 const ADD_GRACE_MS = 90000; // a game we just added may take a moment to show in GetCart
+const ADOPT_GRACE_MS = 5000; // an interface save this soon after website alerts arrived may not include them yet
 
 module.exports = function createSync({ settings, steam, cartSession, sessionFetch, pairApi, sendToUI, version, shouldNotify, onNotificationClick, log = () => {} }) {
   let timer = null;
@@ -43,6 +44,7 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
   let remoteAlerts = null; // the relay's alert list as last read or written (null = not read yet)
   let alertsBusy = false;
   let alertsAgain = false;
+  let adopted = { keys: new Set(), at: 0 }; // website alerts that just arrived, and when
 
   const paired = () => Boolean(settings.get().pairId);
   const mirroring = () => settings.get().pairAutoCart !== false;
@@ -171,6 +173,8 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
     remoteAlerts = Array.isArray(list) ? list : [];
     const merged = mergeWebAlerts(s.alerts, remoteAlerts);
     const changed = !sameAlerts(merged, s.alerts || []);
+    const had = new Set((s.alerts || []).map(alertKey));
+    adopted = { keys: new Set(merged.filter((a) => !had.has(alertKey(a))).map(alertKey)), at: Date.now() };
     settings.update({ alerts: merged, alertsRev: rev || 0 });
     if (changed) {
       log(`[sync] alerts from the website: ${remoteAlerts.length}`);
@@ -428,6 +432,16 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
         return;
       }
       push(prev, next).catch((err) => log(`[sync] ${err.message}`));
+    },
+    /**
+     * The interface is saving `next` alerts. If website alerts arrived moments ago and the save lacks them, it was
+     * made from a list that predates them (the interface hadn't caught up), not a deletion: keep them.
+     */
+    guardAlerts(next) {
+      if (!Array.isArray(next) || Date.now() - adopted.at > ADOPT_GRACE_MS || !adopted.keys.size) return next;
+      const have = new Set(next.map(alertKey));
+      const lost = (settings.get().alerts || []).filter((a) => adopted.keys.has(alertKey(a)) && !have.has(alertKey(a)));
+      return lost.length ? [...lost, ...next] : next;
     },
     /** settings.alerts changed here (the interface checked prices, or the person edited an alert). */
     onLocalAlertsChange() {

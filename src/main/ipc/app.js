@@ -24,6 +24,7 @@ function register() {
   handle("settings:update", (patch) => {
     const clean = {};
     for (const [k, v] of Object.entries(patch || {})) if (ALLOWED_SETTING_KEYS.has(k)) clean[k] = v;
+    if ("alerts" in clean) clean.alerts = sync.guardAlerts(clean.alerts);
     const before = settings.get();
     settings.update(clean);
     if ("basket" in clean) sync.onLocalBasketChange(before.basket, clean.basket);

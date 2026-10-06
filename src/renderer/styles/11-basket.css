@@ -400,3 +400,19 @@ details.shortcut summary:hover {
   color: var(--text-2);
   white-space: nowrap;
 }
+
+/* Small phones (320 px): the tax region menu and its label shrink and wrap instead of stretching the summary
+   wider than the basket panel. */
+.basket-summary,
+.sum-row > *,
+.tax-pick {
+  min-width: 0;
+}
+.tax-pick .select {
+  min-width: 0;
+  width: 100%;
+  text-overflow: ellipsis;
+}
+.sum-row .num {
+  flex: none;
+}

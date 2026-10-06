@@ -131,9 +131,35 @@ function touchTipsHint() {
   setTimeout(() => toast("Tip: press and hold a button, badge or tag to see what it does. Tap ? for help.", { timeout: 9000 }), 2500);
 }
 
+/**
+ * Hear about changes made outside the interface (the shared basket, alerts and taste edits arriving from the
+ * account's other devices, the tray menu) from the moment settings are loaded, then read the settings once more:
+ * anything that arrived before we were listening is picked up, so the interface never starts from a stale basket
+ * (and never sends a stale basket back as the new one).
+ */
+async function listenForSync() {
+  if (api.sync) {
+    api.sync.onBasket(onBasketReplaced);
+    api.sync.onCart(onCartStatus);
+    api.sync.status().then((r) => {
+      if (!r.ok) return;
+      state.sync = api.platform === "web" ? r : { ...r, status: r.cart?.status || {}, subtotal: r.cart?.subtotal ?? null };
+    });
+  }
+  api.settings.onChanged?.((s) => {
+    const { alerts, ...rest } = s || {};
+    state.settings = { ...state.settings, ...rest };
+    if (Array.isArray(alerts)) receiveAlerts(alerts);
+    if (rest.tasteTags) updateResults(); // "Your taste" edited on another device
+  });
+  const fresh = (await api.settings.get()).settings;
+  state.settings = { ...state.settings, basket: fresh.basket, tasteTags: fresh.tasteTags, alerts: fresh.alerts };
+}
+
 async function init() {
   if (typeof api.ready === "function") await api.ready(); // website: load config, finish a Steam sign-in redirect
   state.settings = (await api.settings.get()).settings;
+  await listenForSync();
   // Older builds offered different scan depths; snap anything unknown to the standard depth.
   if (!SCAN_DEPTHS.some(([v]) => v === Number(state.settings.scanDepth))) {
     state.settings.scanDepth = 10000;
@@ -166,23 +192,6 @@ async function init() {
       if (p?.ok && p.basket) receiveBasket(p.basket.items);
     });
   }
-  // The shared basket: changes made on a paired device, and what is in the Steam cart right now.
-  if (api.sync) {
-    api.sync.onBasket(onBasketReplaced);
-    api.sync.onCart(onCartStatus);
-    api.sync.status().then((r) => {
-      if (!r.ok) return;
-      state.sync = api.platform === "web" ? r : { ...r, status: r.cart?.status || {}, subtotal: r.cart?.subtotal ?? null };
-    });
-  }
-  // Settings changed outside the interface: the tray menu (desktop), or price alerts arriving from the paired
-  // website or Windows app.
-  api.settings.onChanged?.((s) => {
-    const { alerts, ...rest } = s || {};
-    state.settings = { ...state.settings, ...rest };
-    if (Array.isArray(alerts)) receiveAlerts(alerts);
-    if (rest.tasteTags) updateResults(); // "Your taste" edited on a paired device
-  });
   startupNotices();
 }
 

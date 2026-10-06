@@ -249,8 +249,36 @@ body.dragging-taste-tag #tags-section::after {
   top: -4px;
   bottom: auto;
 }
-@media (max-width: 860px) {
+@media (min-width: 641px) and (max-width: 860px) {
   .fy-add {
     width: 120px;
+  }
+}
+
+/* Narrow screens: the panel's top row (title, Add a tag, Reset, Rebuild, Hide) wraps instead of pushing the page
+   sideways; on phones "Add a tag" takes its own full-width line under the title and buttons. */
+.fy-head > * {
+  min-width: 0;
+}
+.fy-row {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+@media (max-width: 640px), (max-height: 500px) {
+  .fy-row .spacer {
+    flex: 1 1 0;
+  }
+  .fy-row .btn-sm {
+    padding: 0 8px;
+  }
+  .fy-row .btn-sm span {
+    display: none; /* Rebuild shows just its icon (its tip says what it does), so the buttons fit beside the title */
+  }
+  .fy-add-wrap {
+    order: 10;
+    flex: 1 1 100%;
+  }
+  .fy-add {
+    width: 100%;
   }
 }

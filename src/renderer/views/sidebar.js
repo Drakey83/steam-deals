@@ -18,23 +18,23 @@ export function renderSidebar() {
   if (!side) return;
   const s = state.settings;
 
-  const range = (key, label, min, max, step, fmt) => {
+  const range = (key, label, min, max, step, fmt, tip) => {
     const val = el("span", { class: "val num" }, fmt(s[key]));
     const input = el("input", { type: "range", min, max, step, value: s[key], "aria-label": label });
     input.addEventListener("input", () => {
       val.textContent = fmt(Number(input.value));
       patchSettings({ [key]: Number(input.value) });
     });
-    return el("div", { class: "field" }, el("div", { class: "field-row" }, el("span", {}, label), val), input);
+    return el("div", { class: "field", title: tip }, el("div", { class: "field-row" }, el("span", {}, label), val), input);
   };
-  const toggle = (key, label, disabled = false) => switchEl(label, s[key], (on) => patchSettings({ [key]: on }, { persistNow: true }), { disabled });
-  const select = (key, label, options, { refetch = false } = {}) => {
+  const toggle = (key, label, disabled = false, tip = null) => switchEl(label, s[key], (on) => patchSettings({ [key]: on }, { persistNow: true }), { disabled, tip });
+  const select = (key, label, options, { refetch = false, tip = null } = {}) => {
     const sel = el("select", { class: "select", "aria-label": label }, options.map(([v, l]) => el("option", { value: v, selected: String(s[key]) === String(v) }, l)));
     sel.addEventListener("change", () => {
       const v = /^\d+$/.test(sel.value) ? Number(sel.value) : sel.value;
       patchSettings({ [key]: v }, { refetch, persistNow: true });
     });
-    return el("div", { class: "field" }, el("div", { class: "field-row" }, el("span", {}, label)), sel);
+    return el("div", { class: "field", title: tip }, el("div", { class: "field-row" }, el("span", {}, label)), sel);
   };
 
   const signedIn = state.library.signedIn;
@@ -48,31 +48,31 @@ export function renderSidebar() {
   side.replaceChildren(
     el("button", { class: "btn btn-sm sidebar-done", onclick: () => document.body.classList.remove("filters-open") }, "Done"),
     el("div", {},
-      el("div", { class: "section-title" }, "Filters", el("button", { class: "btn btn-ghost btn-sm", onclick: resetFilters }, "Reset")),
+      el("div", { class: "section-title" }, "Filters", el("button", { class: "btn btn-ghost btn-sm", title: "Put every filter and tag back to its default", onclick: resetFilters }, "Reset")),
       el("div", { style: { display: "grid", gap: "14px" } },
         saleOnly
-          ? range("minDiscount", "Min discount", 50, 95, 5, (v) => `${v}%`)
+          ? range("minDiscount", "Min discount", 50, 95, 5, (v) => `${v}%`, "Hide deals with a smaller discount than this.")
           : el("div", { class: "muted", style: { fontSize: "12px" } }, "Showing the whole catalog. Switch to “On sale” to filter by discount."),
-        range("minRating", "Min rating", 50, 95, 5, (v) => `${v}%`),
-        select("minReviews", "Min reviews", REVIEW_MINS),
+        range("minRating", "Min rating", 50, 95, 5, (v) => `${v}%`, "Hide games whose Steam reviews are less positive than this."),
+        select("minReviews", "Min reviews", REVIEW_MINS, { tip: "Hide games with fewer Steam reviews than this. A rating from a handful of reviews is less reliable." }),
       ),
     ),
     el("div", {},
       el("div", { class: "section-title" }, "Plays on"),
-      toggle("deckMachineOnly", "Steam Deck / Machine only"),
+      toggle("deckMachineOnly", "Steam Deck / Machine only", false, "Show only games Valve rates Verified or Playable on Steam Deck or Steam Machine."),
       el("div", { class: "muted", style: MUTED_NOTE }, "On: only games Valve rates Verified (✓) or Playable (~) on Steam Deck or Steam Machine. Off: every game. Cards also mark Unsupported (✕) and not rated yet (?)."),
     ),
     el("div", {},
       el("div", { class: "section-title" }, "Library"),
-      toggle("hideOwned", "Hide games I own", !signedIn),
-      toggle("wishlistOnly", "Wishlist only", !signedIn),
+      toggle("hideOwned", "Hide games I own", !signedIn, signedIn ? "Leave out games already in your Steam library." : "Sign in through Steam to hide games you own."),
+      toggle("wishlistOnly", "Wishlist only", !signedIn, signedIn ? "Show only games on your Steam wishlist." : "Sign in through Steam to filter by your wishlist."),
       signedIn ? null : el("div", { class: "muted", style: MUTED_NOTE }, "Sign in to hide owned games."),
     ),
     tagsHost,
-    select("scanDepth", "Scan depth", SCAN_DEPTHS, { refetch: true }),
+    select("scanDepth", "Scan depth", SCAN_DEPTHS, { refetch: true, tip: "How many of Steam's most popular discounted games to look through. Deeper finds more deals but takes longer." }),
     // Pinned to the bottom of the sidebar (06-sidebar.css), so Settings is never scrolled out of reach.
     el("div", { class: "sidebar-foot" },
-      el("button", { class: "btn", html: `${ICON.settings}<span>Settings</span>`, onclick: openSettings }),
+      el("button", { class: "btn", title: "Store region and language, score weights, price alerts, startup and more", html: `${ICON.settings}<span>Settings</span>`, onclick: openSettings }),
       usersLine(),
     ),
   );

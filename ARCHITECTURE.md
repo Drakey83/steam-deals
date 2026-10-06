@@ -17,7 +17,8 @@ src/
     lib/                    dom helpers, icons, formatting, the event hub, platform access
     logic/                  pure maths, no DOM (unit-tested): ranking, taste model, basket totals,
                             dismissals, behaviour blend, price history, price alerts
-    ui/                     shared widgets: toasts, progress bar, drawer/modal/menu, small bits
+    ui/                     shared widgets: toasts, progress bar, drawer/modal/menu, tooltips (every `title`
+                            becomes a styled card; touch: press and hold), small bits
     views/                  screens and panels: login, shell (top bar), sidebar, feed (cards),
                             details, basket, cart (Steam-cart section), web-cart, pairing, settings, account,
                             taste-tags (dragging tags in and out of Your taste)

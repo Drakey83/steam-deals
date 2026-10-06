@@ -41,8 +41,8 @@ export function openCartButtons(primary = false) {
 }
 
 /** A labelled on/off switch. */
-export function switchEl(label, checked, onChange, { disabled = false } = {}) {
+export function switchEl(label, checked, onChange, { disabled = false, tip = null } = {}) {
   const input = el("input", { type: "checkbox", checked: Boolean(checked), disabled });
   input.addEventListener("change", () => onChange(input.checked));
-  return el("label", { class: "toggle", style: disabled ? { opacity: 0.5 } : {} }, el("span", {}, label), input, el("span", { class: "switch" }));
+  return el("label", { class: "toggle", style: disabled ? { opacity: 0.5 } : {}, title: tip }, el("span", {}, label), input, el("span", { class: "switch" }));
 }

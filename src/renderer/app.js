@@ -17,6 +17,7 @@ import { registerScreen } from "./router.js";
 import { closeDrawer, closeMenu, closeModal, isDrawerOpen, isModalOpen } from "./ui/overlays.js";
 import { setProgress } from "./ui/progress.js";
 import { toast } from "./ui/toast.js";
+import { initTooltips } from "./ui/tooltip.js";
 import { RECHECK_MS, receiveAlerts, runAlertCheck } from "./alerts.js";
 import { initAlerts, scheduleAlertChecks } from "./views/alerts.js";
 import { ensureTaxRegion, initBasket } from "./views/basket.js";
@@ -63,6 +64,7 @@ function wireEvents() {
   on(EV.tasteLoading, renderForYouHead);
   on(EV.tasteProgress, renderForYouHead);
   on(EV.modalClosed, renderSidebar); // reflect store/depth changes made in Settings
+  initTooltips();
   initBasket();
   initAlerts();
   scheduleAlertChecks(RECHECK_MS);
@@ -107,6 +109,19 @@ function startupNotices() {
   if (f.privateProfile) toast("Your Steam profile's Game details are private, so owned games can't be hidden. Set them to Public in Steam, then refresh.", { type: "err", timeout: 12000 });
   if (f.siteKeyInvalid) toast("You're signed in, but this site can't read Steam libraries right now (its Steam connection needs fixing). Deals still work; try again later or use your own API key.", { type: "err", timeout: 14000 });
   if (f.signInError) toast(`Sign-in didn't finish: ${f.signInError}`, { type: "err", timeout: 10000 });
+  touchTipsHint();
+}
+
+/** Touch screens have no hover: say once, per device, how to see what something does. */
+function touchTipsHint() {
+  if (!matchMedia("(hover: none)").matches) return;
+  try {
+    if (localStorage.getItem("sd:touchTipsHint")) return;
+    localStorage.setItem("sd:touchTipsHint", "1");
+  } catch {
+    return; // no storage: better to skip the hint than show it every time
+  }
+  setTimeout(() => toast("Tip: press and hold a button, badge or tag to see what it does. Tap ? for help.", { timeout: 9000 }), 2500);
 }
 
 async function init() {

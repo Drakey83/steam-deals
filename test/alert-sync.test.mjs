@@ -224,3 +224,20 @@ test("withoutWebAlerts keeps exactly the app's own alerts", () => {
   assert.deepEqual(Core.withoutWebAlerts([webAlert(2, 499, 999), own]), [own]);
   assert.deepEqual(Core.withoutWebAlerts(undefined), []);
 });
+
+test("a save from an interface that hadn't caught up doesn't delete website alerts that just arrived", async () => {
+  const relay = fakeRelay();
+  relay.webSet([makeAlert(game(10, 1999), 999, "US", T0)]);
+  const own = makeAlert(game(20, 999), 499, "US", T0 - 1);
+  const pc = desktop(relay, [own]);
+  try {
+    await pc.sync.afterPaired();
+    await until(() => pc.data.alerts.length === 2);
+    const stale = [{ ...own, lastCents: 950 }]; // the interface's list from before the website alert arrived
+    const kept = pc.sync.guardAlerts(stale);
+    assert.deepEqual(kept.map((a) => a.appid).sort(), [10, 20]);
+    assert.equal(kept.find((a) => a.appid === 20).lastCents, 950, "the interface's own change still lands");
+  } finally {
+    pc.sync.stop();
+  }
+});

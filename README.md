@@ -18,6 +18,8 @@ keeps only the games Valve rates Verified or Playable there, and every card show
 | ![Game details with the deal-score breakdown](docs/screenshots/05-game-details.png) | ![Basket with savings and an estimated tax](docs/screenshots/06-basket.png) |
 | ![Price history from IsThereAnyDeal: lowest ever, 90-day low, typical sale, and a price alert](docs/screenshots/11-price-history.png) | ![Price alerts: tell me when a game is at or below my price](docs/screenshots/12-price-alerts.png) |
 
+![Paired with the website: alerts set there are checked by the Windows app in the tray and marked From the website](docs/screenshots/13-paired-alerts.png)
+
 | Phone | Filters | Basket | Tablet |
 |---|---|---|---|
 | ![Phone](docs/screenshots/07-phone-browse.png) | ![Phone filters](docs/screenshots/08-phone-filters.png) | ![Phone basket](docs/screenshots/09-phone-basket.png) | ![Tablet](docs/screenshots/10-tablet-browse.png) |

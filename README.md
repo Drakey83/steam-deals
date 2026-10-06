@@ -20,6 +20,10 @@ keeps only the games Valve rates Verified or Playable there, and every card show
 
 ![Paired with the website: alerts set there are checked by the Windows app in the tray and marked From the website](docs/screenshots/13-paired-alerts.png)
 
+| Your taste, edited by hand | The basket total, with estimated tax |
+|---|---|
+| ![Your taste: tags added by hand are marked +, removed ones can be restored; drag tags in from the sidebar or type one](docs/screenshots/15-your-taste.png) | ![Hovering the basket shows games, savings, estimated tax for your region and the estimated total](docs/screenshots/14-basket-total.png) |
+
 | Phone | Filters | Basket | Tablet |
 |---|---|---|---|
 | ![Phone](docs/screenshots/07-phone-browse.png) | ![Phone filters](docs/screenshots/08-phone-filters.png) | ![Phone basket](docs/screenshots/09-phone-basket.png) | ![Tablet](docs/screenshots/10-tablet-browse.png) |

@@ -38,3 +38,92 @@
   text-align: center;
   margin-top: 6px;
 }
+
+/* ---------- styled hover cards (ui/tooltip.js) ---------- */
+.rich-tip {
+  position: fixed;
+  z-index: 200;
+  min-width: 230px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: rgba(17, 23, 31, 0.97);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+.rich-tip.above {
+  transform: translateY(4px);
+}
+.rich-tip.open {
+  opacity: 1;
+  transform: none;
+}
+.rich-tip::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: calc(var(--arrow-x, 50%) - 6px);
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  border-left: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-strong);
+  transform: rotate(45deg);
+}
+.rich-tip.above::before {
+  top: auto;
+  bottom: -6px;
+  transform: rotate(225deg);
+}
+.tip-title {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 3px 0;
+  color: var(--text-2);
+}
+.tip-row .num {
+  color: var(--text);
+}
+.tip-row.savings .num {
+  color: var(--green);
+}
+.tip-row.muted .num {
+  color: var(--text-3);
+}
+.tip-row.total {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-weight: 700;
+  color: var(--text);
+}
+.tip-row.total .num {
+  font-size: 15px;
+}
+.tip-note {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rich-tip {
+    transition: none;
+  }
+}

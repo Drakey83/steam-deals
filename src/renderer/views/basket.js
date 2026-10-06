@@ -13,6 +13,7 @@ import { toast } from "../ui/toast.js";
 import { cartBadge, sendPanel } from "./cart.js";
 import { pairRow } from "./pairing.js";
 import { appPromo } from "./web-cart.js";
+import { richTip } from "../ui/tooltip.js";
 
 /** Replace the basket's contents (saved right away) and let every view catch up. */
 export function setBasket(list) {
@@ -83,7 +84,32 @@ function refreshBasketToggles() {
 }
 
 export function basketButton() {
-  return el("button", { class: "btn basket-btn", id: "basket-btn", title: "Your basket", "aria-label": "Basket", onclick: openBasket });
+  return richTip(el("button", { class: "btn basket-btn", id: "basket-btn", "aria-label": "Basket", onclick: openBasket }), basketBreakdown);
+}
+
+/** The hover card on the basket button: what the price on it is made of. */
+function basketBreakdown() {
+  const t = totals();
+  if (!t.items.length) return el("div", { class: "tip-note" }, "Your basket is empty. Add games with + on any card.");
+  const money = (c) => fmtCents(c, t.sample);
+  const row = (label, value, cls = "") => el("div", { class: `tip-row ${cls}` }, el("span", {}, label), el("span", { class: "num" }, value));
+  const regionName = Core.TAX_REGIONS.find((r) => r.code === t.region)?.name;
+  const rows = [
+    el("div", { class: "tip-title" }, "Basket total"),
+    row(plural(t.items.length, "game"), money(t.subtotal)),
+    t.savings ? row("You save", money(t.savings), "savings") : null,
+  ];
+  if (t.region == null) {
+    rows.push(row("Estimated tax", "—", "muted"), row("Total before tax", money(t.total), "total"),
+      el("div", { class: "tip-note" }, "Open the basket and pick your region to include an estimate."));
+  } else if (t.region === "included") {
+    rows.push(row("Tax", "included", "muted"), row("Total", money(t.total), "total"),
+      el("div", { class: "tip-note" }, "Steam prices in your region already include tax."));
+  } else {
+    rows.push(row(`Estimated tax · ${regionName ? `${regionName} ` : ""}${t.rate}%`, money(t.taxCents)), row("Estimated total", money(t.total), "total"),
+      el("div", { class: "tip-note" }, "An estimate. Steam's checkout shows the exact tax."));
+  }
+  return rows;
 }
 
 export function renderBasketButton() {
@@ -94,18 +120,14 @@ export function renderBasketButton() {
   b.classList.toggle("has-items", t.items.length > 0);
   if (!t.items.length) {
     b.append(el("span", { class: "basket-label" }, "Basket"));
-    b.title = "Your basket";
+    b.setAttribute("aria-label", "Basket, empty");
     return;
   }
   // The price shown is what checkout should come to: the games plus the estimated tax for the person's region.
   const money = (c) => fmtCents(c, t.sample);
   b.append(el("span", { class: "basket-count num" }, fmtInt(t.items.length)), el("span", { class: "basket-total num" }, money(t.total)));
-  b.title = t.region == null
-    ? `${plural(t.items.length, "game")}: ${money(t.subtotal)} before tax. Open the basket and pick your region to include an estimate.`
-    : t.region === "included"
-      ? `${plural(t.items.length, "game")}: ${money(t.total)}. Steam prices in your region already include tax.`
-      : `${plural(t.items.length, "game")}: ${money(t.subtotal)} + estimated tax ${money(t.taxCents)} (${t.rate}%) = ${money(t.total)}. An estimate; Steam's checkout shows the exact tax.`;
-  b.setAttribute("aria-label", `Basket, ${b.title}`);
+  // The hover card (basketBreakdown) shows how it's made up; screen readers get the same in the label.
+  b.setAttribute("aria-label", `Basket, ${plural(t.items.length, "game")}, ${t.region == null || t.region === "included" ? "" : "estimated "}total ${money(t.total)}`);
 }
 
 // ----- the basket panel (lives in the drawer) -----

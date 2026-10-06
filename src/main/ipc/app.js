@@ -14,7 +14,7 @@ const { handle } = require("./handle");
 const ALLOWED_SETTING_KEYS = new Set([
   "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights",
   "hideOwned", "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste", "showTastePhone", "deckMachineOnly",
-  "basket", "dismissed", "behavior", "alerts", "taxRegion", "taxCustomRate", "taxRegionAuto", "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows", "startMinimized",
+  "basket", "dismissed", "behavior", "alerts", "tasteTags", "taxRegion", "taxCustomRate", "taxRegionAuto", "pairAutoCart", "syncPaused", "closeToTray", "startWithWindows", "startMinimized",
 ]);
 
 function register() {

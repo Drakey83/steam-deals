@@ -19,7 +19,8 @@ src/
                             dismissals, behaviour blend, price history, price alerts
     ui/                     shared widgets: toasts, progress bar, drawer/modal/menu, small bits
     views/                  screens and panels: login, shell (top bar), sidebar, feed (cards),
-                            details, basket, cart (Steam-cart section), web-cart, pairing, settings, account
+                            details, basket, cart (Steam-cart section), web-cart, pairing, settings, account,
+                            taste-tags (dragging tags in and out of Your taste)
     styles.css              imports styles/01-…16-*.css in cascade order (responsive rules last-ish)
     index.html              the desktop page (the website has its own in web/src)
   main/                     the Windows app's main process

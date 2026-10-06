@@ -21,6 +21,7 @@ const DEFAULTS = {
   deckMachineOnly: false,
   dismissed: [],
   behavior: [],
+  tasteTags: { added: [], removed: [] },
   alerts: [],
   view: "foryou",
   personalWeight: 60,
@@ -32,7 +33,7 @@ const DEFAULTS = {
 export const ALLOWED_SETTINGS = new Set([
   "country", "language", "minDiscount", "minRating", "minReviews", "scanDepth", "weights", "hideOwned",
   "wishlistOnly", "sort", "selectedTags", "view", "personalWeight", "catalog", "showTaste", "showTastePhone",
-  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "deckMachineOnly", "dismissed", "behavior", "alerts",
+  "basket", "taxRegion", "taxCustomRate", "taxRegionAuto", "deckMachineOnly", "dismissed", "behavior", "alerts", "tasteTags",
 ]);
 
 function guessCountry() {

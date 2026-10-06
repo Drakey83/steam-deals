@@ -3,13 +3,14 @@
 // 6-character code. Stored per pairing: the basket (Steam app/package ids plus the name and price shown
 // in the UI), a small signal record (basket revision, "a phone is active", "the PC checked in"), and the
 // PC's report of what is in the Steam cart, and the price alerts made on the website (the PC checks them and
-// notifies). No account data, no names of people, nothing personal.
+// notifies), and the person's hand edits to "Your taste" (tag ids). No account data, no names of people, nothing
+// personal.
 //
 //   start       { pairId? }                   → { code, pairId, expiresIn }   PC asks for a code (10 min); with
 //                                                                               pairId, a new code for the same pairing
 //   claim       { code }                      → { pairId, rev }               phone/browser redeems the code
 //   check       { pairId }                    → { claimed, expired }          PC waits for the code to be redeemed
-//   sig         { pairId, touch?, pc?, withCart? } → { rev, arev, active, pc, pcok, pcv, cart? }
+//   sig         { pairId, touch?, pc?, withCart? } → { rev, arev, prev, active, pc, pcok, pcv, cart? }
 //                                                                            cheap poll: has anything changed?
 //   basket.get  { pairId }                    → { rev, items, updatedAt }
 //   basket.ops  { pairId, ops, by }           → { rev, items, updatedAt }     add/remove/clear, applied atomically
@@ -17,6 +18,8 @@
 //   alerts.get  { pairId }                    → { rev, alerts }               the website's price alerts
 //   alerts.set  { pairId, alerts, rev }       → { rev, alerts, applied }      replace them if nobody changed them
 //                                                                            since `rev` (else applied:false + current)
+//   prefs.get   { pairId }                    → { rev, prefs }                shared preferences: { tasteTags }
+//   prefs.set   { pairId, prefs, rev }        → { rev, prefs, applied }       same compare-and-set as alerts.set
 //   unpair      { pairId }                    → { ok }                        the PC forgets the pairing (all devices)
 //   send/inbox/ack/status                                                    legacy one-shot hand-off (v1.4–1.5 apps)
 const crypto = require("node:crypto");
@@ -38,6 +41,7 @@ const K = {
   sig: (id) => `sd:sig:${id}`,
   cart: (id) => `sd:cart:${id}`,
   alerts: (id) => `sd:alerts:${id}`,
+  prefs: (id) => `sd:prefs:${id}`,
   box: (id) => `sd:pairbox:${id}`,
 };
 
@@ -92,6 +96,11 @@ function cleanAlerts(list) {
   return out.slice(0, MAX_ALERTS);
 }
 
+// Hand edits to "Your taste": tag ids added and removed, and when they were last changed (newest wins).
+const MAX_TASTE_EDITS = 60;
+const tagIdList = (list) => [...new Set((Array.isArray(list) ? list : []).map(int).filter((n) => n > 0))].slice(0, MAX_TASTE_EDITS);
+const cleanPrefs = (p) => ({ tasteTags: { added: tagIdList(p?.tasteTags?.added), removed: tagIdList(p?.tasteTags?.removed), at: Math.max(0, int(p?.tasteTags?.at)) } });
+
 const emptyBasket = () => ({ rev: 0, items: [], updatedAt: 0, by: null });
 const parse = (raw, fallback) => {
   try {
@@ -113,13 +122,14 @@ if ARGV[5] ~= '' then redis.call('HSET', KEYS[2], 'active', ARGV[5]) end
 redis.call('EXPIRE', KEYS[2], ARGV[4])
 return 1`;
 
-// The same for the alert list. KEYS[1]=alerts KEYS[2]=sig ARGV: expectedRev, alertsJson, newRev, ttl
+// The same for the alert list and the shared preferences. KEYS[1]=doc KEYS[2]=sig
+// ARGV: expectedRev, docJson, newRev, ttl, revField ('arev' | 'prev')
 const ALERTS_CAS = `
-local cur = redis.call('HGET', KEYS[2], 'arev')
+local cur = redis.call('HGET', KEYS[2], ARGV[5])
 if cur == false then cur = '0' end
 if cur ~= ARGV[1] then return 0 end
 redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[4])
-redis.call('HSET', KEYS[2], 'arev', ARGV[3])
+redis.call('HSET', KEYS[2], ARGV[5], ARGV[3])
 redis.call('EXPIRE', KEYS[2], ARGV[4])
 return 1`;
 
@@ -196,6 +206,7 @@ module.exports = handler(async (req, res) => {
     const result = {
       rev: Number(sig.rev) || 0,
       arev: Number(sig.arev) || 0,
+      prev: Number(sig.prev) || 0,
       active: Number(sig.active) > now,
       pc: Number(sig.pc) || 0,
       pcok: sig.pcok === "1",
@@ -286,16 +297,32 @@ module.exports = handler(async (req, res) => {
     await alive();
     const alerts = cleanAlerts(body.alerts);
     const expected = int(body.rev);
-    const ok = await db.command("EVAL", ALERTS_CAS, 2, K.alerts(pairId), K.sig(pairId), String(expected), JSON.stringify(alerts), String(expected + 1), String(KEEP));
+    const ok = await db.command("EVAL", ALERTS_CAS, 2, K.alerts(pairId), K.sig(pairId), String(expected), JSON.stringify(alerts), String(expected + 1), String(KEEP), "arev");
     if (ok === 1) return send(res, 200, { rev: expected + 1, alerts, applied: true });
     // Someone else wrote first: hand back what is there now, so the caller can merge and try again.
     const [list, rev] = await db.pipeline([["GET", K.alerts(pairId)], ["HGET", K.sig(pairId), "arev"]]);
     return send(res, 200, { rev: Number(rev) || 0, alerts: cleanAlerts(parse(list, [])), applied: false });
   }
 
+  if (action === "prefs.get") {
+    await alive();
+    const [doc, rev] = await db.pipeline([["GET", K.prefs(pairId)], ["HGET", K.sig(pairId), "prev"]]);
+    return send(res, 200, { rev: Number(rev) || 0, prefs: cleanPrefs(parse(doc, {})) });
+  }
+
+  if (action === "prefs.set") {
+    await alive();
+    const prefs = cleanPrefs(body.prefs);
+    const expected = int(body.rev);
+    const ok = await db.command("EVAL", ALERTS_CAS, 2, K.prefs(pairId), K.sig(pairId), String(expected), JSON.stringify(prefs), String(expected + 1), String(KEEP), "prev");
+    if (ok === 1) return send(res, 200, { rev: expected + 1, prefs, applied: true });
+    const [doc, rev] = await db.pipeline([["GET", K.prefs(pairId)], ["HGET", K.sig(pairId), "prev"]]);
+    return send(res, 200, { rev: Number(rev) || 0, prefs: cleanPrefs(parse(doc, {})), applied: false });
+  }
+
   if (action === "unpair") {
     needPair();
-    await db.command("DEL", K.pair(pairId), K.box(pairId), K.basket(pairId), K.sig(pairId), K.cart(pairId), K.alerts(pairId));
+    await db.command("DEL", K.pair(pairId), K.box(pairId), K.basket(pairId), K.sig(pairId), K.cart(pairId), K.alerts(pairId), K.prefs(pairId));
     return send(res, 200, { ok: true });
   }
 

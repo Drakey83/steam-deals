@@ -11,7 +11,7 @@ import { SCAN_DEPTHS } from "./config.js";
 import { $ } from "./lib/dom.js";
 import { EV, on } from "./lib/events.js";
 import { NARROW, PHONE, api } from "./lib/platform.js";
-import { state } from "./state.js";
+import { flushSettings, state } from "./state.js";
 import { loadAll, onDealsPartial, onTasteProgress, reload } from "./data.js";
 import { registerScreen } from "./router.js";
 import { closeDrawer, closeMenu, closeModal, isDrawerOpen, isModalOpen } from "./ui/overlays.js";
@@ -65,6 +65,9 @@ function wireEvents() {
   on(EV.tasteProgress, renderForYouHead);
   on(EV.modalClosed, renderSidebar); // reflect store/depth changes made in Settings
   initTooltips();
+  // A change made just before the window is hidden or closed is written straight away, not after the pause.
+  addEventListener("pagehide", flushSettings);
+  document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && flushSettings());
   initBasket();
   initAlerts();
   scheduleAlertChecks(RECHECK_MS);
@@ -174,6 +177,7 @@ async function init() {
     const { alerts, ...rest } = s || {};
     state.settings = { ...state.settings, ...rest };
     if (Array.isArray(alerts)) receiveAlerts(alerts);
+    if (rest.tasteTags) updateResults(); // "Your taste" edited on a paired device
   });
   startupNotices();
 }

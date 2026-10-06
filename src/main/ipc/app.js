@@ -29,6 +29,7 @@ function register() {
     settings.update(clean);
     if ("basket" in clean) sync.onLocalBasketChange(before.basket, clean.basket);
     if ("alerts" in clean) sync.onLocalAlertsChange();
+    if ("tasteTags" in clean) sync.onLocalPrefsChange();
     if ("pairAutoCart" in clean || "syncPaused" in clean) sync.kick();
     if ("startWithWindows" in clean || "startMinimized" in clean) applyLoginItem();
     if ("closeToTray" in clean || "syncPaused" in clean || "startWithWindows" in clean) refreshTray();

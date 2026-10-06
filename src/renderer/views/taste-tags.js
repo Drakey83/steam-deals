@@ -18,9 +18,10 @@ export const TASTE_HELP =
 
 export const SIDEBAR_TAG_HINT = "Drag onto Your taste (in For you) to add it to your taste.";
 
+// Each change is stamped with its time: paired devices keep the most recent one (src/shared/core.js).
 function save(next, message, undoTo) {
-  patchSettings({ tasteTags: next }, { persistNow: true });
-  toast(message, { type: "ok", action: () => patchSettings({ tasteTags: undoTo }, { persistNow: true }), actionLabel: "Undo", timeout: 6000 });
+  patchSettings({ tasteTags: { ...next, at: Date.now() } }, { persistNow: true });
+  toast(message, { type: "ok", action: () => patchSettings({ tasteTags: { ...undoTo, at: Date.now() } }, { persistNow: true }), actionLabel: "Undo", timeout: 6000 });
 }
 
 export function addToTaste(id) {

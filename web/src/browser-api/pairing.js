@@ -18,6 +18,7 @@ const Core = window.SteamCore;
 const PAIR_KEY = "sd:pair";
 const REV_KEY = "sd:pairrev";
 const AREV_KEY = "sd:pairarev";
+const PREV_KEY = "sd:pairprev"; // revision of the shared "Your taste" edits last merged
 const MINE_KEY = "sd:pairmine"; // alerts made in this browser (keys), which it takes back if it alone unpairs
 const POLL_MS = 4000;
 const TOUCH_MS = 45000; // "someone is looking": the PC polls faster while this is fresh
@@ -30,6 +31,9 @@ let syncBusy = false;
 let lastTouch = 0;
 let lastRevSeen = Number(store.get(REV_KEY, 0)) || 0;
 let lastArevSeen = Number(store.get(AREV_KEY, 0)) || 0;
+let lastPrevSeen = Number(store.get(PREV_KEY, 0)) || 0;
+let remoteTaste = null;
+let prefsBusy = false;
 let alertsBusy = false;
 let alertsAgain = false;
 const noPc = () => ({ pc: 0, pcok: false, pcv: null, cart: null, at: 0, now: 0 });
@@ -65,6 +69,48 @@ function adoptAlerts(list, rev) {
 async function pullAlerts(id) {
   const r = await relay({ action: "alerts.get", pairId: id });
   adoptAlerts(r.alerts, r.rev);
+}
+
+/** Take the relay's "Your taste" edits (newer wins; combined when first paired). */
+function adoptPrefs(prefs, rev, { combine = false } = {}) {
+  remoteTaste = prefs?.tasteTags || null;
+  const merged = Core.mergeTasteTags(settings.tasteTags, remoteTaste, { combine });
+  const changed = !Core.sameTasteTags(merged, settings.tasteTags);
+  settings.tasteTags = merged;
+  saveSettings();
+  lastPrevSeen = rev || 0;
+  store.set(PREV_KEY, lastPrevSeen);
+  if (changed) emit("settings:changed", { tasteTags: merged });
+}
+
+async function pullPrefs(id, opts) {
+  const r = await relay({ action: "prefs.get", pairId: id });
+  adoptPrefs(r.prefs, r.rev, opts);
+  await pushPrefs();
+}
+
+/** This browser's "Your taste" edits changed: write them to the relay. */
+export async function pushPrefs() {
+  const id = pairId();
+  if (!id || prefsBusy) return;
+  prefsBusy = true;
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (remoteTaste && Core.sameTasteTags(settings.tasteTags, remoteTaste)) return;
+      const r = await relay({ action: "prefs.set", pairId: id, prefs: { tasteTags: settings.tasteTags || {} }, rev: lastPrevSeen });
+      if (r.applied) {
+        remoteTaste = r.prefs?.tasteTags || settings.tasteTags;
+        lastPrevSeen = r.rev || 0;
+        store.set(PREV_KEY, lastPrevSeen);
+        return;
+      }
+      adoptPrefs(r.prefs, r.rev);
+    }
+  } catch (err) {
+    if (err.code === "bad_pair") forgetPair();
+  } finally {
+    prefsBusy = false;
+  }
 }
 
 const mineKeys = () => new Set(store.get(MINE_KEY, []) || []);
@@ -116,6 +162,9 @@ export function forgetPair() {
   store.del(REV_KEY);
   store.del(AREV_KEY);
   store.del(MINE_KEY);
+  store.del(PREV_KEY);
+  lastPrevSeen = 0;
+  remoteTaste = null;
   lastRevSeen = 0;
   lastArevSeen = 0;
   clearInterval(syncTimer);
@@ -156,6 +205,7 @@ export async function syncTick(force) {
       adopt(b.items, b.rev, "remote");
     }
     if ((sig.arev || 0) !== lastArevSeen && !alertsBusy) await pullAlerts(id);
+    if ((sig.prev || 0) !== lastPrevSeen && !prefsBusy) await pullPrefs(id);
   } catch (err) {
     if (err.code === "bad_pair") {
       forgetPair();
@@ -222,6 +272,9 @@ export async function claim(code) {
   settings.alerts = Core.tagWebAlerts([...(settings.alerts || []), ...(shared.alerts || [])]);
   if (settings.alerts.length) await pushAlerts();
   else adoptAlerts(shared.alerts, shared.rev);
+  // "Your taste" edits from this browser and the paired devices are combined.
+  lastPrevSeen = 0;
+  await pullPrefs(r.pairId, { combine: true });
   startSync();
   return { pairId: r.pairId };
 }

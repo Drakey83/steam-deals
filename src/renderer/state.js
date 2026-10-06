@@ -91,13 +91,29 @@ export function tasteModel() {
  * Change settings locally and persist them (debounced unless persistNow). Announces whether the
  * results need recomputing or the deals need re-scanning.
  */
+// Changes waiting to be written. Quick successive changes (a slider being dragged) are written together after a
+// short pause; a change that must land now writes everything still waiting along with it. Nothing is ever
+// dropped: before, a second change within the pause cancelled the first one's save.
 let saveTimer = null;
+let unsaved = {};
+function flushSettings() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const patch = unsaved;
+  unsaved = {};
+  if (Object.keys(patch).length) api.settings.update(patch);
+}
+/** Write any waiting changes now (e.g. when the page is being hidden or closed). */
+export { flushSettings };
+
 export function patchSettings(patch, { refetch = false, persistNow = false } = {}) {
   state.settings = { ...state.settings, ...patch };
-  clearTimeout(saveTimer);
-  const save = () => api.settings.update(patch);
-  if (persistNow) save();
-  else saveTimer = setTimeout(save, 300);
+  unsaved = { ...unsaved, ...patch };
+  if (persistNow) flushSettings();
+  else {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSettings, 300);
+  }
   if (refetch) emit(EV.refetch);
   else if (Object.keys(patch).some((k) => !NON_RESULT_KEYS.has(k))) emit(EV.resultsStale);
 }

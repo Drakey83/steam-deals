@@ -16,6 +16,17 @@ const parse = (raw, fallback) => {
   }
 };
 
+/** A game's art address, kept only if it's on one of Steam's own image servers (https, *.steamstatic.com). */
+function steamImage(v) {
+  const s = str(v, 300);
+  try {
+    const u = new URL(s);
+    return u.protocol === "https:" && /\.steamstatic\.com$/.test(u.hostname) ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
 /** One basket game. */
 function cleanItem(i) {
   const appid = int(i?.appid);
@@ -29,6 +40,8 @@ function cleanItem(i) {
     priceCents: Math.max(0, int(i?.priceCents)) || null,
     originalCents: Math.max(0, int(i?.originalCents)) || null,
     discount: Math.min(100, Math.max(0, int(i?.discount))),
+    // Only Steam's own image servers: the art path Steam listed for the game.
+    image: steamImage(i?.image),
   };
 }
 const emptyBasket = () => ({ rev: 0, items: [], updatedAt: 0, by: null });

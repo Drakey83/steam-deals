@@ -18,7 +18,7 @@ module.exports = handler(async (req, res) => {
     ids: ids.map((appid) => ({ appid })),
     context: { language, country_code: country, steam_realm: 1 },
     data_request: full
-      ? { include_basic_info: true, include_reviews: true, include_release: true, include_tag_count: 8, include_platforms: true }
+      ? { include_basic_info: true, include_reviews: true, include_release: true, include_tag_count: 8, include_platforms: true, include_assets: true }
       : { include_basic_info: true, include_tag_count: 20 },
   };
   const data = await steamJSON(`${API}/IStoreBrowseService/GetItems/v1/?input_json=${encodeURIComponent(JSON.stringify(input))}`);

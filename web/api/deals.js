@@ -18,8 +18,7 @@ module.exports = handler(async (req, res) => {
   for (const it of raw) {
     const n = core.normalizeItem(it, { requireDiscount: discounted });
     if (n && (!discounted || n.discount >= floor)) {
-      delete n.image; // the browser rebuilds these from the appid (packageid stays: the cart needs it)
-      delete n.url;
+      delete n.url; // the browser rebuilds this from the appid; the image stays (newer games' art has hashed paths)
       delete n.tagids;
       items.push(n);
     }

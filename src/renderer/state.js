@@ -3,7 +3,7 @@
 
 import { NON_RESULT_KEYS } from "./config.js";
 import { EV, emit } from "./lib/events.js";
-import { api } from "./lib/platform.js";
+import { Core, api } from "./lib/platform.js";
 import { withBehavior } from "./logic/behavior.js";
 import { buildTasteModel } from "./logic/taste.js";
 
@@ -38,6 +38,14 @@ export function emptyLibrary() {
 }
 
 export const tagName = (id) => state.tags[id] || `#${id}`;
+
+/** A game's art: the path Steam listed for it when it was loaded, else the plain address (older games). */
+let images = { deals: null, map: new Map() };
+export function gameImage(appid, known = null) {
+  if (known) return known;
+  if (images.deals !== state.deals) images = { deals: state.deals, map: new Map(state.deals.map((d) => [d.appid, d.image])) };
+  return images.map.get(appid) || Core.headerImage(appid);
+}
 
 /** Price alerts (logic/alerts.js), newest first. */
 export const alertList = () => (Array.isArray(state.settings?.alerts) ? state.settings.alerts : []);

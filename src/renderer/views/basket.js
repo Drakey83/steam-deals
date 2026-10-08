@@ -1,13 +1,13 @@
 // The basket: the + buttons, the top-bar button, and the basket panel with totals and tax.
 // What happens with the Steam cart is in cart.js (and pairing.js / web-cart.js).
-import { $, el } from "../lib/dom.js";
+import { $, el, imgEl } from "../lib/dom.js";
 import { EV, emit, on } from "../lib/events.js";
 import { fmtCents, fmtInt, plural } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
 import { Core, api, isWeb } from "../lib/platform.js";
 import { basketTotals, toggleInList } from "../logic/basket.js";
 import { learn } from "../learning.js";
-import { basket, inBasket, patchSettings, state } from "../state.js";
+import { basket, gameImage, inBasket, patchSettings, state } from "../state.js";
 import { closeDrawer, closeModal, isBasketOpen, showDrawer } from "../ui/overlays.js";
 import { toast } from "../ui/toast.js";
 import { cartBadge, sendPanel } from "./cart.js";
@@ -161,7 +161,7 @@ export function openBasket() {
 function basketRow(b) {
   const badgeHost = el("div", { class: "basket-sync", dataset: { cartBadge: b.appid } }, cartBadge(b.appid));
   return el("div", { class: "basket-row" },
-    el("img", { class: "basket-thumb", src: Core.headerImage(b.appid), alt: "", loading: "lazy" }),
+    imgEl(gameImage(b.appid, b.image), "basket-thumb", Core.headerImage(b.appid)),
     el("div", { class: "basket-info" },
       el("div", { class: "basket-name" }, b.name),
       el("div", { class: "basket-price-row" },

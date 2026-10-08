@@ -3,6 +3,16 @@
 (function (root) {
 const STORE = "https://store.steampowered.com";
 
+// Steam keeps newer games' art under a hashed path (steam/apps/<appid>/<hash>/header.jpg); the plain
+// steam/apps/<appid>/header.jpg is missing for many of them, so a game's own listed path comes first.
+const STEAM_ASSETS = "https://shared.akamai.steamstatic.com/store_item_assets/";
+function itemImage(it) {
+  const fmt = it?.assets?.asset_url_format;
+  const file = it?.assets?.header;
+  return fmt && file ? STEAM_ASSETS + fmt.replace("${FILENAME}", file) : headerImage(it?.appid);
+}
+
+/** The plain address of a game's header art: right for older games, and the fallback when nothing better is known. */
 function headerImage(appid) {
   return `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appid}/header.jpg`;
 }
@@ -44,7 +54,7 @@ function normalizeItem(it, { requireDiscount = true } = {}) {
     tagids: Array.isArray(it.tags) ? it.tags.map((t) => t.tagid).filter(Number.isFinite) : [],
     tags: normTags(it.tags),
     description: it.basic_info?.short_description ?? "",
-    image: headerImage(it.appid),
+    image: itemImage(it),
     url: storeUrl(it.appid),
   };
 }
@@ -159,7 +169,7 @@ function buildQueryInput({ start = 0, count = 500, discounted = true, minDiscoun
   return {
     query: { start, count, sort: 10, filters },
     context: { language, country_code: country, steam_realm: 1 },
-    data_request: { include_basic_info: true, include_reviews: true, include_release: true, include_tag_count: 8, include_platforms: true },
+    data_request: { include_basic_info: true, include_reviews: true, include_release: true, include_tag_count: 8, include_platforms: true, include_assets: true },
   };
 }
 

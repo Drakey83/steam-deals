@@ -61,3 +61,14 @@ test("unpair still closes a code channel for every device", async () => {
   assert.deepEqual(r, { ok: true });
   assert.ok(db.deleted.includes(`sd:basket:${id}`) && db.deleted.includes(`sd:prefs:${id}`));
 });
+
+test("the relay keeps a basket game's art only from Steam's image servers", async () => {
+  const basket = require("../web/api/_lib/relay/basket.js");
+  const saved = [];
+  const db = { command: async (cmd, ...args) => (cmd === "GET" ? null : cmd === "EVAL" ? (saved.push(JSON.parse(args[5])), 1) : null) };
+  const add = (image) => ({ op: "add", item: { appid: 1 + saved.length, name: "G", image } });
+  await basket["basket.ops"]({ db, body: { ops: [add("https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1/abc/header.jpg?t=1")], by: "web" }, alive: async () => "e".repeat(32), now: 1 });
+  await basket["basket.ops"]({ db, body: { ops: [add("https://evil.example.com/x.jpg")], by: "web" }, alive: async () => "e".repeat(32), now: 1 });
+  assert.match(saved[0].items[0].image, /steamstatic\.com/);
+  assert.equal(saved[1].items[0].image, null, "anything else is dropped");
+});

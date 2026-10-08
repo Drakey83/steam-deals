@@ -8,6 +8,7 @@ const { sync } = require("../pairing");
 const { SITE } = require("../site");
 const { runtime, sendToUI } = require("../runtime");
 const { keepUnseen } = require("../../shared/core.js");
+const { notePrefsEdit, PREFS_KEYS } = require("../../shared/sharing.js");
 const { applyLoginItem, refreshTray } = require("../tray");
 const { handle } = require("./handle");
 const updates = require("../updates");
@@ -39,11 +40,11 @@ function register() {
       clean.basket = guarded;
       runtime.shownBasket = guarded;
     }
-    settings.update(clean);
+    settings.update({ ...clean, ...notePrefsEdit(before, clean) }); // stamps what other devices must take as newer
     if (keptUnseen) sendToUI("basket:replaced", { items: clean.basket, source: "merge" });
     if ("basket" in clean) sync.onLocalBasketChange(before.basket, clean.basket);
     if ("alerts" in clean) sync.onLocalAlertsChange();
-    if ("tasteTags" in clean) sync.onLocalPrefsChange();
+    if (Object.keys(clean).some((k) => PREFS_KEYS.has(k))) sync.onLocalPrefsChange(); // filters, taste, Not interested, behaviour
     if ("pairAutoCart" in clean || "syncPaused" in clean) sync.kick();
     if ("startWithWindows" in clean || "startMinimized" in clean) applyLoginItem();
     if ("closeToTray" in clean || "syncPaused" in clean || "startWithWindows" in clean) refreshTray();

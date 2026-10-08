@@ -1,8 +1,7 @@
 // Everything a device sends the relay is cleaned to a known shape and size before it's stored: the relay keeps game
-// ids, names and prices, alert targets and tag ids, nothing else.
+// ids, names and prices, alert targets, tag ids and filter choices, nothing else.
 const MAX_ITEMS = 100;
 const MAX_ALERTS = 200;
-const MAX_TASTE_EDITS = 60;
 
 const str = (v, max) => String(v ?? "").slice(0, max);
 const int = (v) => (Number.isInteger(Number(v)) ? Number(v) : 0);
@@ -81,8 +80,15 @@ function cleanAlerts(list) {
   return out.slice(0, MAX_ALERTS);
 }
 
-/** Shared preferences: hand edits to "Your taste" (tag ids added and removed, and when; newest wins). */
-const tagIdList = (list) => [...new Set((Array.isArray(list) ? list : []).map(int).filter((n) => n > 0))].slice(0, MAX_TASTE_EDITS);
-const cleanPrefs = (p) => ({ tasteTags: { added: tagIdList(p?.tasteTags?.added), removed: tagIdList(p?.tasteTags?.removed), at: Math.max(0, int(p?.tasteTags?.at)) } });
+// Shared preferences (filters, "Your taste" edits, Not interested, behaviour): the same cleaning every device uses.
+// The website build copies src/shared/sharing.js next to this folder; before a build (unit tests) the source is used.
+const Sharing = (() => {
+  try {
+    return require("../sharing.js");
+  } catch {
+    return require("../../../../src/shared/sharing.js");
+  }
+})();
+const cleanPrefs = Sharing.cleanPrefs;
 
 module.exports = { MAX_ITEMS, str, int, parse, cleanItem, emptyBasket, cleanAlerts, cleanPrefs };

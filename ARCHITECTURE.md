@@ -37,14 +37,14 @@ src/
     updates.js              updating from inside the app (electron-updater + GitHub releases, latest.yml)
     sync/                   the sync engine: index.js polls the relay and keeps the shared basket;
                             cart-mirror.js keeps the real Steam cart matching it; shared-alerts.js and
-                            shared-prefs.js bring in and write back price alerts and Your taste edits
+                            shared-prefs.js bring in and write back price alerts and the shared preferences
     steam.js, auth.js       Steam HTTP calls; Steam's own login page in an isolated window
     settings.js, cache.js   settings.json and a small TTL cache in the user's AppData
   preload.js                the only bridge from the interface to the main process
   shared/core.js            pure logic used everywhere (normalising store items, taste profile, tax, basket
                             diffs). CommonJS in Node, window.SteamCore in browsers.
-  shared/sharing.js         what paired devices share and how two copies merge (price alerts, Your taste
-                            edits). CommonJS in Node, window.SteamSharing in browsers.
+  shared/sharing.js         what paired devices share, how two copies merge and how the relay cleans them (price
+                            alerts, preferences). CommonJS in Node, window.SteamSharing in browsers.
 web/
   src/                      the website's page, /app page, and its implementation of window.steamDeals
     web-api.js              assembles window.steamDeals from browser-api/*
@@ -66,8 +66,10 @@ scripts/                    website build/serve, import checker, live relay test
 
 ## How devices stay in sync
 
-Every device on a **channel** shares one basket, the Steam-cart status, price alerts and Your taste edits through
-the relay (`web/api/pair.js`). A device gets onto a channel in one of two ways:
+Every device on a **channel** shares one basket, the Steam-cart status, price alerts and the preferences through
+the relay (`web/api/pair.js`). The preferences are everything that decides what the list shows and how Your taste
+comes out: the view, sale/all, sort, sidebar filters, scan depth, score weights, Your taste edits, Not interested
+and the behaviour log. Store region and language stay per device. A device gets onto a channel in one of two ways:
 
 - **Steam account** (automatic). The website signed in through Steam proves its account with its session cookie;
   the Windows app signed in to Steam shows the site its short-lived Steam store token once, which the site checks
@@ -75,8 +77,21 @@ the relay (`web/api/pair.js`). A device gets onto a channel in one of two ways:
 - **Code** (manual). For a guest browser or an API-key sign-in: a six-character code from the Windows app.
 
 Each shared document has a revision in the channel's signal record, so a poll fetches only what changed. Writes
-are compare-and-set; a refused write returns the current copy to merge. The merge rules are in
-`src/shared/sharing.js`.
+are compare-and-set; a refused write returns the current copy to merge. The merge rules, and the cleaning the relay
+applies, are in `src/shared/sharing.js` (the website build copies it to `web/api/_lib/`):
+
+- **Filters** travel as one set with the time of the last change (`filtersAt`); the newer set wins.
+- **Not interested** keeps restore marks (`dismissRestored`), so an undo on one device isn't brought back by
+  another; per game, the newest dismiss or restore wins.
+- **Behaviour** is the union of every device's events; "Reset my recommendations" (`behaviorClearedAt`) forgets
+  everything older everywhere.
+- Each host stamps these on a local change (`notePrefsEdit`, in its settings update), so the interface knows
+  nothing about syncing. A change arriving from elsewhere comes in as `settings:changed`; `app.js`
+  (`onSettingsFromElsewhere`) redraws, and rescans only when the scan itself changed.
+- While a website tab is open, the app checks every few seconds (the tab marks the channel "active"), and the
+  tab checks every 4 s, so a change shows on the other device within seconds. Each side also compares with the
+  relay once at launch, so a change that didn't get out is sent then.
+- Apps before 1.15 write only Your taste edits; the relay keeps the rest of the document for them.
 
 ## Deals, the wishlist and images
 

@@ -35,7 +35,10 @@ const DEFAULTS = Object.freeze({
   pairAutoCart: true, // keep the Steam cart in step with the shared basket (adds and removals; never a purchase)
   basketRev: 0, // revision of the shared basket last seen on the relay
   alertsRev: 0, // revision of the website's price alerts last merged from the relay
-  prefsRev: 0, // revision of the shared "Your taste" edits last merged from the relay
+  prefsRev: 0, // revision of the shared preferences last merged from the relay (src/shared/sharing.js)
+  filtersAt: 0, // when the filters / view / sort / weights last changed (the newest change wins across devices)
+  dismissRestored: [], // [{ appid, at }]: games taken off "Not interested", so other devices drop them too
+  behaviorClearedAt: 0, // "Reset my recommendations": behaviour before this is forgotten on every device
   mirror: {}, // appid -> { packageid, lineItemId, addedAt }: cart lines this app put there, so only those are ever removed
   syncPaused: false,
   closeToTray: true, // the X button hides the app to the tray so syncing keeps running

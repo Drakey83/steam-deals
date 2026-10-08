@@ -161,13 +161,13 @@ function handler(fn) {
   };
 }
 
-async function readJsonBody(req) {
+async function readJsonBody(req, max = 10000) {
   if (req.body && typeof req.body === "object") return req.body;
   const chunks = [];
   let size = 0;
   for await (const c of req) {
     size += c.length;
-    if (size > 10000) throw new HttpError(413, "Request too large.", "too_large");
+    if (size > max) throw new HttpError(413, "Request too large.", "too_large");
     chunks.push(c);
   }
   try {

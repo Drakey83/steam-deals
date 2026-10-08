@@ -1,7 +1,8 @@
 // The pairing relay: how the Steam Deals Windows app, phones and browsers share one basket, the Steam-cart status,
-// price alerts and "Your taste" edits. Everything is keyed by a channel id: a random one both sides learned from a
-// one-time 6-character code, or a Steam account's own (opened by ./auth/[action].js "link"). No account data,
-// no names of people, nothing personal: game ids, names and prices, alert targets and tag ids.
+// price alerts and preferences (filters, Your taste, Not interested). Everything is keyed by a channel id: a random
+// one both sides learned from a one-time 6-character code, or a Steam account's own (opened by ./auth/[action].js
+// "link"). No account data, no names of people, nothing personal: game ids, names and prices, alert targets, tag
+// ids and filter choices.
 //
 //   start       { pairId? }                        → { code, pairId, expiresIn }   PC asks for a code (10 min);
 //                                                                                   with pairId, another device
@@ -14,7 +15,8 @@
 //   cart.set    { pairId, cart, ok }               → { ok }                        PC reports Steam-cart status
 //   alerts.get  { pairId }                         → { rev, alerts }               the website's price alerts
 //   alerts.set  { pairId, alerts, rev }            → { rev, alerts, applied }      replace if unchanged since rev
-//   prefs.get   { pairId }                         → { rev, prefs }                { tasteTags }
+//   prefs.get   { pairId }                         → { rev, prefs }                { tasteTags, filters, dismissed,
+//                                                                                   restored, behavior, behaviorClearedAt }
 //   prefs.set   { pairId, prefs, rev }             → { rev, prefs, applied }       same compare-and-set
 //   unpair      { pairId }                         → { ok }                        PC closes a code channel
 //   send/inbox/ack/status                                                         legacy hand-off (v1.4–1.5 apps)
@@ -37,7 +39,7 @@ module.exports = handler(async (req, res) => {
   const db = redisClient({ message: "Pairing is unavailable right now.", code: "pair_down" });
   res.setHeader("Access-Control-Allow-Origin", "*"); // the Windows app calls this too
   if (!db) return send(res, 200, { enabled: false });
-  const body = await readJsonBody(req);
+  const body = await readJsonBody(req, 400000); // the shared preferences carry the Not interested and behaviour lists
   const act = ACTIONS[String(body.action || "")];
   if (!act || !Object.hasOwn(ACTIONS, String(body.action))) throw new HttpError(400, "Unknown action.", "bad_input");
 

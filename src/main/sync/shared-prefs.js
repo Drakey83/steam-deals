@@ -1,22 +1,25 @@
-// Hand edits to "Your taste" (settings.tasteTags), shared on the relay ("prefs", revision "prev" in the signal
-// record) with every paired device. The most recent edit wins; when devices first pair, both sides' edits are
-// combined (src/shared/sharing.js).
-const { mergeTasteTags, sameTasteTags } = require("../../shared/sharing.js");
+// The shared preferences (filters and view, "Your taste" edits, Not interested, behaviour), one document on the
+// relay ("prefs", revision "prev" in the signal record) that every paired device keeps the same. The merge rules
+// are in src/shared/sharing.js; when devices first pair, both sides' taste edits are combined.
+const { mergePrefs, samePrefs, prefsFromSettings, settingsFromPrefs } = require("../../shared/sharing.js");
+
+const sameValue = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 module.exports = function createSharedPrefs({ settings, pairApi, sendToUI, log, paused }) {
-  let remote = null; // the relay's taste edits as last read or written (null = not read yet)
+  let remote = null; // the relay's document as last read or written (null = not read yet)
   let busy = false;
+  let again = false; // a change arrived while a write was under way: write once more after it
 
-  /** Take the relay's edits and tell the interface if ours changed. */
+  /** Take the relay's document and tell the interface what changed here. */
   function adopt(prefs, rev, { combine = false } = {}) {
     const s = settings.get();
-    remote = prefs?.tasteTags || null;
-    const merged = mergeTasteTags(s.tasteTags, remote, { combine });
-    const changed = !sameTasteTags(merged, s.tasteTags);
-    settings.update({ tasteTags: merged, prefsRev: rev || 0 });
-    if (changed) {
-      log("[sync] taste edits from a paired device");
-      sendToUI("settings:changed", { tasteTags: merged });
+    remote = prefs || null;
+    const merged = settingsFromPrefs(mergePrefs(prefsFromSettings(s), remote, { combine }));
+    const changed = Object.fromEntries(Object.entries(merged).filter(([k, v]) => !sameValue(v, s[k])));
+    settings.update({ ...changed, prefsRev: rev || 0 });
+    if (Object.keys(changed).length) {
+      log(`[sync] from a paired device: ${Object.keys(changed).join(", ")}`);
+      sendToUI("settings:changed", changed);
     }
   }
 
@@ -26,18 +29,23 @@ module.exports = function createSharedPrefs({ settings, pairApi, sendToUI, log, 
     await push();
   }
 
-  /** Write this app's edits to the relay if they differ (merging first if another device wrote meanwhile). */
+  /** Write this app's document to the relay if it differs (merging first if another device wrote meanwhile). */
   async function push() {
-    if (busy) return;
+    if (busy) {
+      again = true;
+      return;
+    }
     busy = true;
+    again = false;
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
         const s = settings.get();
         if (!s.pairId || paused()) return;
-        if (remote && sameTasteTags(s.tasteTags, remote)) return;
-        const r = await pairApi("prefs.set", { pairId: s.pairId, prefs: { tasteTags: s.tasteTags || {} }, rev: s.prefsRev || 0 });
+        const mine = prefsFromSettings(s);
+        if (remote && samePrefs(mine, remote)) return;
+        const r = await pairApi("prefs.set", { pairId: s.pairId, prefs: mine, rev: s.prefsRev || 0 });
         if (r.applied) {
-          remote = r.prefs?.tasteTags || s.tasteTags;
+          remote = r.prefs || mine;
           settings.update({ prefsRev: r.rev || 0 });
           return;
         }
@@ -45,14 +53,16 @@ module.exports = function createSharedPrefs({ settings, pairApi, sendToUI, log, 
       }
     } finally {
       busy = false;
+      if (again) await push();
     }
   }
 
   return {
-    isStale: (sig) => (sig.prev || 0) !== (settings.get().prefsRev || 0),
+    // Also once after launch (nothing read yet), so a change that didn't get out last time is sent now.
+    isStale: (sig) => remote === null || (sig.prev || 0) !== (settings.get().prefsRev || 0),
     pull,
     push,
-    /** Paired or unpaired: forget what the relay had (the edits themselves stay on this device). */
+    /** Paired or unpaired: forget what the relay had (the preferences themselves stay on this device). */
     reset() {
       remote = null;
     },

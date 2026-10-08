@@ -26,6 +26,9 @@ const DEFAULTS = {
   view: "foryou",
   personalWeight: 60,
   showTaste: true,
+  filtersAt: 0, // shared preferences bookkeeping (src/shared/sharing.js): when the filters last changed here,
+  dismissRestored: [], // games taken off "Not interested",
+  behaviorClearedAt: 0, // and when the behaviour log was last reset
   account: null,
 };
 

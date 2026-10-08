@@ -307,6 +307,24 @@ Supersedes the one-shot phone→PC hand-off in §13 (the relay still answers `se
 - **Verified 2026-10-04** against the real Steam cart with POSTAL 2 ($0.99): phone add → cart within ~9 s,
   phone remove → cart emptied, PC add/remove → phone basket follows, PC unpair → phone forgets. Cart left empty.
 
+## 15. Shared preferences (v1.15.0)
+
+- **What.** One relay document per channel (`sd:prefs:<id>`, revision `prev`): `tasteTags`, `filters`
+  `{values, at}` (view, catalog, sort, minDiscount, minRating, minReviews, scanDepth, weights, personalWeight,
+  hideOwned, wishlistOnly, selectedTags, deckMachineOnly), `dismissed` + `restored` marks, `behavior` +
+  `behaviorClearedAt`. Country and language are not shared. Cleaning and merging: `src/shared/sharing.js`, used by
+  the app, the website and the relay.
+- **Merge.** Filters: the newer set wins whole. Not interested: per game, newest dismiss or restore. Behaviour:
+  union, newest 300, minus anything before the last reset. Taste edits: newest wins, combined on first pairing.
+- **Writes.** Each host stamps local changes (`notePrefsEdit`) and pushes the whole document compare-and-set; a
+  change during a write triggers one more write; each side pulls once at launch. `prefs.set` from an app before
+  1.15 (tasteTags only) keeps the rest. Relay body limit raised to 400 KB for this document (a full one is ~80 KB).
+- **Renderer.** `settings:changed` → `onSettingsFromElsewhere` (app.js): redraws top bar, sort and sidebar;
+  rescans when catalog, scan depth or the scan floor changed; otherwise re-ranks in place.
+- **Verified 2026-10-07** with a packaged 1.15.0 test copy and the live website (code pairing): website → app in
+  ~1 s, app → website in ~2 s (sort, catalog, reviews, Deck only); Not interested added on the website reached the
+  app, restored in the app and stayed restored on the website.
+
 ## 11. Work plan
 
 1. Scaffold package.json, install Electron + electron-builder, .gitignore, README.

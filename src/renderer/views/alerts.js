@@ -1,13 +1,13 @@
 // Price alerts UI: the bell in the top bar, the alerts panel (fired, watching, from your wishlist), and the
 // "Alert me" control in a game's details. The checking itself is in ../alerts.js; the rules in logic/alerts.js.
-import { $, el } from "../lib/dom.js";
+import { $, el, imgEl } from "../lib/dom.js";
 import { EV, on } from "../lib/events.js";
 import { fmtCents, timeAgo } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
 import { Core, api } from "../lib/platform.js";
 import { alertFor, alertsCheckedByPc, makeAlert, parseMoney, removeAlert, unseenAlerts, upsertAlert } from "../logic/alerts.js";
 import { markAlertsSeen, runAlertCheck, saveAlerts } from "../alerts.js";
-import { alertList, state } from "../state.js";
+import { alertList, gameImage, state } from "../state.js";
 import { closeDrawer, closeModal, isAlertsOpen, showDrawer } from "../ui/overlays.js";
 import { toast } from "../ui/toast.js";
 
@@ -143,7 +143,7 @@ function alertRow(a, fired) {
     ? el("span", { class: "alert-origin", title: "Made on the Steam Deals website. This app checks it and notifies you; changes sync back." }, "From the website")
     : null;
   return el("div", { class: `alert-row ${fired ? "fired" : ""}`, dataset: { origin: a.origin || "app" } },
-    el("img", { class: "basket-thumb small", src: Core.headerImage(a.appid), alt: "", loading: "lazy" }),
+    imgEl(gameImage(a.appid), "basket-thumb small", Core.headerImage(a.appid)),
     el("div", { class: "basket-info" },
       el("a", { class: "basket-name link", href: "#", onclick: (e) => { e.preventDefault(); api.openExternal(Core.storeUrl(a.appid)); } }, a.name),
       el("div", { class: "muted small" }, status, fromWeb)),
@@ -162,7 +162,7 @@ function wishlistSection() {
     const rows = (wishlistItems || []).filter((d) => !alerted.has(d.appid) && Number.isFinite(d.priceCents)).map((d) => {
       const input = targetInput(suggestion(d), (v) => setAlert(d, v));
       return el("div", { class: "alert-row" },
-        el("img", { class: "basket-thumb small", src: Core.headerImage(d.appid), alt: "", loading: "lazy" }),
+        imgEl(gameImage(d.appid, d.image), "basket-thumb small", Core.headerImage(d.appid)),
         el("div", { class: "basket-info" }, el("div", { class: "basket-name" }, d.name), el("div", { class: "muted small num" }, d.discount > 0 ? `${d.price} (−${d.discount}%)` : d.price)),
         el("label", { class: "alert-target" }, el("span", { class: "muted small" }, "at or below"), input),
         el("button", { class: "btn btn-sm", onclick: () => setAlert(d, input.value) }, "Alert me"));

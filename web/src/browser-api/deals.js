@@ -25,7 +25,7 @@ export async function fetchDeals({ force = false } = {}) {
   // "Refresh" asks the edge for a newer copy at most every 10 minutes, so Steam isn't hammered.
   const bust = force ? `&r=${Math.floor(Date.now() / 600000)}` : "";
   const floor = Core.scanFloor(s.minDiscount);
-  const qs = (start) => `/api/deals?catalog=${discounted ? "sale" : "all"}&start=${start}&cc=${s.country}&l=${s.language}&md=${floor}&v=2${bust}`;
+  const qs = (start) => `/api/deals?catalog=${discounted ? "sale" : "all"}&start=${start}&cc=${s.country}&l=${s.language}&md=${floor}&v=3${bust}`; // v3: pages carry each game's listed art path
 
   const first = await http(qs(0), { signal: controller.signal });
   const total = first.total ?? 0;
@@ -40,7 +40,7 @@ export async function fetchDeals({ force = false } = {}) {
       if (seen.has(it.appid)) continue;
       seen.add(it.appid);
       it.tagids = (it.tags || []).map((t) => t.id);
-      it.image = Core.headerImage(it.appid);
+      it.image ||= Core.headerImage(it.appid);
       it.url = Core.storeUrl(it.appid);
       items.push(it);
       fresh.push(it);

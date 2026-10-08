@@ -10,6 +10,7 @@ export function basketItem(d) {
     priceCents: d.priceCents ?? null,
     originalCents: d.originalCents ?? null,
     discount: d.discount || 0,
+    image: d.image || null, // the game's own art path (newer games have no plain header.jpg)
   };
 }
 

@@ -95,3 +95,11 @@ test("a scan asks Steam for the fixed floor that covers the person's minimum dis
   assert.equal(core.scanFloor(0), 1, "Any discount: every game on sale");
   assert.equal(core.scanFloor(undefined), 1);
 });
+
+test("a game's art comes from the path Steam lists for it (newer games have no plain header.jpg)", () => {
+  const base = { appid: 2806050, name: "Halo: Campaign Evolved", item_type: 0, type: 0, best_purchase_option: { discount_pct: 20, final_price_in_cents: 3999, original_price_in_cents: 4999 } };
+  const hashed = core.normalizeItem({ ...base, assets: { asset_url_format: "steam/apps/2806050/${FILENAME}?t=1786379031", header: "c4569404/header.jpg" } });
+  assert.equal(hashed.image, "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2806050/c4569404/header.jpg?t=1786379031");
+  const old = core.normalizeItem({ ...base, appid: 620 });
+  assert.equal(old.image, core.headerImage(620), "no listed art: the plain address");
+});

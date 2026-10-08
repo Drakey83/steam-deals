@@ -1,11 +1,11 @@
 // The Settings dialog: store region and language, scan depth, score weights, For-you mix, account,
 // the Windows app's background options, and About.
 import { COUNTRIES, LANGUAGES, SCAN_DEPTHS } from "../config.js";
-import { $, el } from "../lib/dom.js";
+import { $, el, imgEl } from "../lib/dom.js";
 import { ICON } from "../lib/icons.js";
 import { api, isWeb } from "../lib/platform.js";
 import { normWeights } from "../logic/ranking.js";
-import { alertList, behaviorEvents, dismissedList, patchSettings, state } from "../state.js";
+import { alertList, behaviorEvents, dismissedList, gameImage, patchSettings, state } from "../state.js";
 import { resetLearning } from "../learning.js";
 import { toast } from "../ui/toast.js";
 import { Core } from "../lib/platform.js";
@@ -149,7 +149,7 @@ function dismissedSection() {
     }
     const rows = list.map((x) =>
       el("div", { class: "dismissed-row" },
-        el("img", { class: "basket-thumb small", src: Core.headerImage(x.appid), alt: "", loading: "lazy" }),
+        imgEl(gameImage(x.appid), "basket-thumb small", Core.headerImage(x.appid)),
         el("span", { class: "dismissed-name" }, x.name),
         el("button", { class: "btn btn-sm", onclick: () => { restoreGame(x.appid); render(); } }, "Restore")));
     host.replaceChildren(

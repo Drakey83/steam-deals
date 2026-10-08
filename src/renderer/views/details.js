@@ -2,7 +2,7 @@
 import { el, imgEl } from "../lib/dom.js";
 import { fmtDate, fmtInt } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
-import { api } from "../lib/platform.js";
+import { Core, api } from "../lib/platform.js";
 import { lowestEver, summarizeWindow, WINDOW_DAYS } from "../logic/history.js";
 import { normWeights } from "../logic/ranking.js";
 import { fmtCents } from "../lib/format.js";
@@ -21,7 +21,7 @@ export function openDetails(d) {
   const owned = state.library.owned.has(d.appid);
   const wished = state.library.wishlist.has(d.appid);
   showDrawer([
-    el("div", { class: "drawer-art" }, imgEl(d.image, "loaded"),
+    el("div", { class: "drawer-art" }, imgEl(d.image, "loaded", Core.headerImage(d.appid)),
       el("button", { class: "btn btn-icon drawer-close", "aria-label": "Close", html: ICON.close, onclick: closeDrawer })),
     el("div", { class: "drawer-body" },
       el("h2", {}, d.name),

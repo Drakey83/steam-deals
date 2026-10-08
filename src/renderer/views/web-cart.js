@@ -1,12 +1,12 @@
 // Website only: opening basket games one by one in Steam, and the Windows-app explanation with
 // the pairing-code field (what lets a browser's basket reach the Steam cart).
 import { APP_DOWNLOAD_URL, STEAM_CART_URL } from "../config.js";
-import { el } from "../lib/dom.js";
+import { el, imgEl } from "../lib/dom.js";
 import { EV, emit } from "../lib/events.js";
 import { fmtInt } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
 import { Core, api, appPageUrl, isPhoneDevice, steamLink } from "../lib/platform.js";
-import { state } from "../state.js";
+import { gameImage, state } from "../state.js";
 import { toast } from "../ui/toast.js";
 
 /** What the Windows app adds, where to get it, and the pairing-code field. */
@@ -90,7 +90,7 @@ export function perGameList(t) {
     const done = opened.has(b.appid);
     const btn = el("button", { class: "btn btn-sm", html: `${done ? ICON.check : ICON.play}<span>${done ? "Opened" : "Open in Steam"}</span>` });
     const row = el("div", { class: `steam-row ${done ? "done" : ""}` },
-      el("img", { class: "basket-thumb small", src: Core.headerImage(b.appid), alt: "", loading: "lazy" }),
+      imgEl(gameImage(b.appid, b.image), "basket-thumb small", Core.headerImage(b.appid)),
       el("div", { class: "basket-info" }, el("div", { class: "basket-name" }, b.name), el("div", { class: "muted small num" }, b.price ?? "")),
       btn);
     btn.addEventListener("click", () => {

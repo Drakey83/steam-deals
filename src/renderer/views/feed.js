@@ -172,7 +172,7 @@ function card(d, rank) {
   // nested buttons are invalid HTML with inconsistent focus and scroll behaviour.
   const node = el("div", { class: "card", role: "button", tabindex: 0, dataset: { appid: d.appid }, "aria-label": `${d.name}, ${d.discount}% off, ${d.price}` },
     el("div", { class: "card-art" },
-      imgEl(d.image, ""),
+      imgEl(d.image, "", Core.headerImage(d.appid)),
       d.discount > 0 ? el("span", { class: "badge-discount num", title: `${d.discount}% off the usual price${d.originalPrice ? ` of ${d.originalPrice}` : ""}` }, `-${d.discount}%`) : null,
       ring,
       owned ? el("span", { class: "ribbon", title: "Already in your Steam library" }, "Owned") : null,

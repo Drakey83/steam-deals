@@ -177,3 +177,21 @@ test("equal scores always come out in the same order", () => {
   assert.deepEqual(r1, [10, 20, 30]);
   assert.deepEqual(r2, r1);
 });
+
+test("Wishlist only shows every wishlist game on sale, whatever the discount, rating and review minimums", () => {
+  const deals = [
+    deal(1, { discount: 25, rating: 70, reviews: 40 }), // small sale, middling rating, few reviews
+    deal(2, { discount: 90, rating: 95, reviews: 5000 }),
+    deal(3, { discount: 0, rating: 95, reviews: 5000 }), // on the wishlist but not on sale
+    deal(4, { discount: 80, rating: 95, reviews: 5000 }), // on sale but not on the wishlist
+  ];
+  const library = lib({ signedIn: true, wishlist: new Set([1, 2, 3]) });
+  const on = rankDeals({ deals, settings: settings({ wishlistOnly: true }), library }).list.map((d) => d.appid).sort();
+  assert.deepEqual(on, [1, 2], "both wishlist sales, even the 25% one; not the unsold one or the non-wishlist one");
+  const forYou = rankDeals({ deals, settings: settings({ wishlistOnly: true }), library, personal: true }).list.map((d) => d.appid).sort();
+  assert.deepEqual(forYou, [1, 2], "For you's quality floor doesn't hide wishlist games either");
+  const all = rankDeals({ deals, settings: settings({ wishlistOnly: true, catalog: "all" }), library }).list.map((d) => d.appid).sort();
+  assert.deepEqual(all, [1, 2, 3], "All games: the whole wishlist");
+  const off = rankDeals({ deals, settings: settings({ wishlistOnly: false }), library }).list.map((d) => d.appid).sort();
+  assert.deepEqual(off, [2, 4], "switched off, the minimums apply as before");
+});

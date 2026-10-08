@@ -18,6 +18,7 @@ import { closeDrawer, closeMenu, closeModal, isDrawerOpen, isModalOpen } from ".
 import { setProgress } from "./ui/progress.js";
 import { toast } from "./ui/toast.js";
 import { initTooltips } from "./ui/tooltip.js";
+import { initUpdates } from "./views/updates.js";
 import { RECHECK_MS, receiveAlerts, runAlertCheck } from "./alerts.js";
 import { initAlerts, scheduleAlertChecks } from "./views/alerts.js";
 import { ensureTaxRegion, initBasket } from "./views/basket.js";
@@ -66,6 +67,7 @@ function wireEvents() {
   on(EV.tasteProgress, renderForYouHead);
   on(EV.modalClosed, renderSidebar); // reflect store/depth changes made in Settings
   initTooltips();
+  initUpdates();
   // A change made just before the window is hidden or closed is written straight away, not after the pause.
   addEventListener("pagehide", flushSettings);
   document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && flushSettings());

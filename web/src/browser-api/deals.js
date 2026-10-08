@@ -24,7 +24,8 @@ export async function fetchDeals({ force = false } = {}) {
   const runId = Date.now();
   // "Refresh" asks the edge for a newer copy at most every 10 minutes, so Steam isn't hammered.
   const bust = force ? `&r=${Math.floor(Date.now() / 600000)}` : "";
-  const qs = (start) => `/api/deals?catalog=${discounted ? "sale" : "all"}&start=${start}&cc=${s.country}&l=${s.language}&v=2${bust}`;
+  const floor = Core.scanFloor(s.minDiscount);
+  const qs = (start) => `/api/deals?catalog=${discounted ? "sale" : "all"}&start=${start}&cc=${s.country}&l=${s.language}&md=${floor}&v=2${bust}`;
 
   const first = await http(qs(0), { signal: controller.signal });
   const total = first.total ?? 0;
@@ -62,5 +63,5 @@ export async function fetchDeals({ force = false } = {}) {
   };
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, starts.length) }, worker));
   if (dealsAbort === controller) dealsAbort = null;
-  return { items, total, scanned, discounted, runId, fetchedAt: Date.now(), truncated: scanned < total, fromCache: false };
+  return { items, total, scanned, discounted, scanFloor: floor, runId, fetchedAt: Date.now(), truncated: scanned < total, fromCache: false };
 }

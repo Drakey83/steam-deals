@@ -2,7 +2,7 @@
 // (lib/events.js); it never draws anything itself.
 import { EV, emit } from "./lib/events.js";
 import { fmtInt } from "./lib/format.js";
-import { api } from "./lib/platform.js";
+import { Core, api } from "./lib/platform.js";
 import { invalidateTasteModel, state, syncSortWithView } from "./state.js";
 import { learnOwned } from "./learning.js";
 import { setProgress } from "./ui/progress.js";
@@ -53,6 +53,7 @@ export async function loadAll({ force = false } = {}) {
       fromCache: Boolean(dealsRes.fromCache),
       truncated: Boolean(dealsRes.truncated),
       discounted: dealsRes.discounted !== false,
+      scanFloor: dealsRes.scanFloor ?? Core.scanFloor(state.settings.minDiscount),
       streaming: false,
     };
   } else if (dealsRes.error.code !== "cancelled") {
@@ -64,8 +65,31 @@ export async function loadAll({ force = false } = {}) {
   setProgress(null);
   syncSortWithView();
   emit(EV.loadFinished);
+  addWishlistGames().catch(() => {}); // a missing wishlist game is a smaller list, not an error
 
   applyTaste(await tasteP);
+}
+
+/**
+ * The scan covers Steam's most popular discounted games at the chosen discount, so wishlist games that are less
+ * popular, or on a smaller sale, aren't in it. Look those up directly and add them, so "Wishlist only" shows every
+ * wishlist game on sale (logic/ranking.js lets the wishlist past the minimums).
+ */
+const LOOKUP_BATCH = 100;
+export async function addWishlistGames() {
+  const wish = [...(state.library.wishlist || [])];
+  if (!state.library.signedIn || !wish.length || !api.items?.lookup) return;
+  const have = new Set(state.deals.map((d) => d.appid));
+  const missing = wish.filter((a) => !have.has(a));
+  const found = [];
+  for (let i = 0; i < missing.length; i += LOOKUP_BATCH) {
+    const r = await api.items.lookup(missing.slice(i, i + LOOKUP_BATCH));
+    if (r?.ok) found.push(...(r.items || []));
+  }
+  if (!found.length || state.loading) return; // a new scan started meanwhile: it will look them up again
+  const now = new Set(state.deals.map((d) => d.appid));
+  state.deals = [...state.deals, ...found.filter((d) => !now.has(d.appid))];
+  emit(EV.resultsStale);
 }
 
 /** A setting changed that needs a new scan: stop the current one and start over. */

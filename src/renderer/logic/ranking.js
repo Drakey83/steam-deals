@@ -52,11 +52,15 @@ export function rankDeals({ deals, settings: s, library: lib, query = "", person
   const minRating = personal ? Math.max(s.minRating, 80) : s.minRating;
   const minReviews = personal ? Math.max(s.minReviews, 300) : s.minReviews;
 
-  const base = deals.filter((d) => (!saleOnly || d.discount >= s.minDiscount) && (d.rating ?? -1) >= minRating && d.reviews >= minReviews);
+  // "Wishlist only": the person already chose these games, so the bargain-hunting minimums (discount, rating,
+  // reviews, and For-you's quality floor) don't apply. Every wishlist game on sale shows (in All games: every one).
+  const wishlistMode = Boolean(s.wishlistOnly && lib.signedIn);
+  const base = wishlistMode
+    ? deals.filter((d) => lib.wishlist.has(d.appid) && (!saleOnly || d.discount > 0))
+    : deals.filter((d) => (!saleOnly || d.discount >= s.minDiscount) && (d.rating ?? -1) >= minRating && d.reviews >= minReviews);
   const ownedInBase = lib.signedIn ? base.filter((d) => lib.owned.has(d.appid)).length : 0;
   let pool = hideOwned ? base.filter((d) => !lib.owned.has(d.appid)) : base;
   if (dismissed.size) pool = pool.filter((d) => !dismissed.has(d.appid));
-  if (s.wishlistOnly && lib.signedIn) pool = pool.filter((d) => lib.wishlist.has(d.appid));
   if (tags.length) pool = pool.filter((d) => tags.every((t) => d.tagids.includes(t)));
   if (s.deckMachineOnly) pool = pool.filter(playsOnDeckOrMachine);
 

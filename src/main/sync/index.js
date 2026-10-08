@@ -8,9 +8,10 @@
 //   preferences         filters, view and sort, Your taste edits, Not interested, behaviour: the same on every
 //                       device, both ways (shared-prefs.js; merge rules in src/shared/sharing.js)
 //
-// Cost model: the relay is a free Redis with a monthly command budget, so the app polls a one-record "signal"
-// every 30 s while idle and every 3 s only while a phone is actively looking (the website says so when its
-// basket is open) or right after a change. The signal carries a revision per document, so each is fetched only
+// Cost model: the relay is a free Redis with a monthly command budget (shared by everyone), so the app polls a
+// one-record "signal" every 30 s while idle, every 10 s while a website tab is open or right after a change, and
+// every second only while another device is actually being used (busy mode: that device says so on its polls,
+// and this app says so while its window is in use). The signal carries a revision per document, so each is fetched only
 // when it changed. Steam itself is only asked about the cart when something changed or on a slow heartbeat,
 // which also catches purchases made on Steam.
 
@@ -19,7 +20,8 @@ const createCartMirror = require("./cart-mirror.js");
 const createSharedAlerts = require("./shared-alerts.js");
 const createSharedPrefs = require("./shared-prefs.js");
 
-const FAST_MS = 3000;
+const BUSY_MS = 1000; // another device is being used right now
+const FAST_MS = 10000;
 const SLOW_MS = 30000;
 const ACTIVE_HOLD_MS = 12000; // stay fast this long after the phone was last seen looking
 const CHANGE_HOLD_MS = 60000; // and this long after a basket change
@@ -36,13 +38,14 @@ function windowsNotification(body, onClick) {
   n.show();
 }
 
-module.exports = function createSync({ settings, steam, cartSession, sessionFetch, pairApi, sendToUI, version, shouldNotify, onNotificationClick, log = () => {}, showNotification = windowsNotification }) {
+module.exports = function createSync({ settings, steam, cartSession, sessionFetch, pairApi, sendToUI, version, shouldNotify, onNotificationClick, log = () => {}, showNotification = windowsNotification, inUse = () => false }) {
   let timer = null;
   let polling = false;
   let fastUntil = 0;
   let lastHeartbeat = 0;
   let lastPoll = 0;
   let lastError = null;
+  let othersBusy = false; // another device on the channel is being used right now (busy mode)
   const notified = new Map(); // key -> last time we showed that notification
 
   const paired = () => Boolean(settings.get().pairId);
@@ -71,7 +74,7 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
 
   function schedule(ms) {
     clearTimeout(timer);
-    timer = setTimeout(tick, ms ?? (!paired() ? RECONCILE_SLOW_MS : Date.now() < fastUntil ? FAST_MS : SLOW_MS));
+    timer = setTimeout(tick, ms ?? (!paired() ? RECONCILE_SLOW_MS : othersBusy ? BUSY_MS : Date.now() < fastUntil ? FAST_MS : SLOW_MS));
   }
 
   async function tick() {
@@ -94,7 +97,8 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       const now = Date.now();
       const fast = now < fastUntil;
       const heartbeat = fast || now - lastHeartbeat > HEARTBEAT_MS;
-      const sig = await pairApi("sig", { pairId: s.pairId, pc: heartbeat ? { ok: cart.signedIn() && cart.mirroring(), v: version } : undefined });
+      const sig = await pairApi("sig", { pairId: s.pairId, pc: heartbeat ? { ok: cart.signedIn() && cart.mirroring(), v: version } : undefined, me: "pc", busy: inUse() || undefined });
+      othersBusy = Boolean(sig.busy);
       lastPoll = Date.now();
       lastError = null;
       if (heartbeat) lastHeartbeat = lastPoll;
@@ -232,6 +236,10 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       schedule(300); // keep mirroring this app's own basket
     },
     /** Something that affects mirroring changed (sign-in, the sync switch, pause). */
+    /** This app's window just started being used: tell the other devices now (busy mode), not at the next poll. */
+    nowInUse() {
+      if (paired() && !paused()) schedule(0);
+    },
     kick() {
       cart.due();
       fastUntil = Date.now() + CHANGE_HOLD_MS;

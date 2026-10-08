@@ -11,7 +11,9 @@
 //   Code            otherwise, a six-letter code from the Windows app (claim).
 //
 // This module owns joining and leaving, the polling, and the shared basket. It polls a tiny signal record every
-// few seconds while the page is visible, and fetches a document only when its revision changed. Nothing here is a
+// few seconds while the page is visible, and fetches a document only when its revision changed. Busy mode: while
+// someone is using this page it says so on each poll, and while another device is in use (the relay's `busy`) it
+// polls every second, so changes made there show here within about a second. Nothing here is a
 // purchase; checkout always happens in Steam.
 import { isPhone } from "./device.js";
 import { emit } from "./events.js";
@@ -26,8 +28,11 @@ const Core = window.SteamCore;
 const PAIR_KEY = "sd:pair";
 const REV_KEY = "sd:pairrev"; // revision of the shared basket last merged here
 const VIA_KEY = "sd:pairvia"; // "account" when this is the Steam account's channel
-const POLL_MS = 4000;
-const TOUCH_MS = 45000; // "someone is looking": the PC polls faster while this is fresh
+const TAG_KEY = "sd:devtag"; // this browser's tag in busy mode
+const POLL_MS = 10000; // nobody on another device is using it: changes arrive within ~10 s
+const BUSY_POLL_MS = 1000; // while another device is in use
+const IN_USE_MS = 25000; // input this recent means "someone is using this page" (the relay holds it 30 s)
+const TOUCH_MS = 45000; // "someone is looking": the PC polls a bit faster (10 s) while this is fresh
 const PC_ONLINE_MS = 90000;
 
 export const pairId = () => store.get(PAIR_KEY);
@@ -35,6 +40,9 @@ const viaAccount = () => Boolean(pairId()) && store.get(VIA_KEY) === "account";
 
 let syncTimer = null;
 let syncBusy = false;
+let othersBusy = false; // another device on the channel is in use right now
+let lastInput = 0;
+const inUse = () => Date.now() - lastInput < IN_USE_MS && document.visibilityState === "visible";
 let lastTouch = 0;
 let lastRevSeen = Number(store.get(REV_KEY, 0)) || 0;
 const noPc = () => ({ pc: 0, pcok: false, pcv: null, cart: null, at: 0, now: 0 });
@@ -50,8 +58,9 @@ export function forgetPair() {
   forgetAlerts();
   forgetPrefs();
   lastRevSeen = 0;
-  clearInterval(syncTimer);
+  clearTimeout(syncTimer);
   syncTimer = null;
+  othersBusy = false;
   pcState = noPc();
 }
 
@@ -125,7 +134,8 @@ export async function syncTick(force) {
     const now = Date.now();
     const touch = now - lastTouch > TOUCH_MS;
     if (touch) lastTouch = now;
-    const sig = await relay({ action: "sig", pairId: id, touch, withCart: true });
+    const sig = await relay({ action: "sig", pairId: id, touch, withCart: true, me: deviceTag(), busy: inUse() || undefined });
+    othersBusy = Boolean(sig.busy);
     pcState = { pc: sig.pc || 0, pcok: Boolean(sig.pcok), pcv: sig.pcv || null, cart: sig.cart || null, at: Date.now(), now: sig.now || Date.now() };
     emit("cart:status", syncStatus());
     if ((sig.rev || 0) !== lastRevSeen) {
@@ -141,15 +151,40 @@ export async function syncTick(force) {
   }
 }
 
-export function startSync() {
-  clearInterval(syncTimer);
-  if (!pairId()) return;
-  shareOlderAlerts(pairId())?.catch(relayFailed);
-  syncTimer = setInterval(() => syncTick(false), POLL_MS);
-  syncTick(true);
+/** This browser's tag in busy mode (random, kept), so it isn't sped up by its own use. */
+function deviceTag() {
+  let tag = store.get(TAG_KEY);
+  if (!/^[a-z0-9]{8}$/.test(tag || "")) {
+    tag = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
+    store.set(TAG_KEY, tag);
+  }
+  return tag;
 }
 
-/** Check right away whenever the page comes back into view. */
+function scheduleTick() {
+  clearTimeout(syncTimer);
+  if (!pairId()) return;
+  syncTimer = setTimeout(async () => {
+    await syncTick(false);
+    scheduleTick();
+  }, othersBusy ? BUSY_POLL_MS : POLL_MS);
+}
+
+export function startSync() {
+  if (!pairId()) return;
+  shareOlderAlerts(pairId())?.catch(relayFailed);
+  syncTick(true);
+  scheduleTick();
+}
+
+/** Someone started using this page after a pause: tell the other devices now, not at the next poll. */
+function noteInput() {
+  const idle = !inUse();
+  lastInput = Date.now();
+  if (idle && pairId()) syncTick(true);
+}
+
+/** Check right away whenever the page comes back into view; notice when someone is using it (busy mode). */
 export function watchVisibility() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && pairId()) {
@@ -157,6 +192,8 @@ export function watchVisibility() {
       syncTick(true);
     }
   });
+  // Busy mode: any click, tap, key or scroll counts as using this page.
+  for (const type of ["pointerdown", "keydown", "wheel", "input"]) document.addEventListener(type, noteInput, { capture: true, passive: true });
 }
 
 /** "Check now": also tells the PC someone is looking, so it switches to fast checks. */

@@ -280,7 +280,7 @@ Supersedes the one-shot phone→PC hand-off in §13 (the relay still answers `se
   pulls the basket only when rev changed; stops when the tab is hidden. Desktop (`src/main/sync.js`): `sig`
   every 3 s while a phone is active or within 60 s of a change, else every 30 s; heartbeat on fast ticks and at
   least every 5 min; reconciles the Steam cart on changes and on a 1 min (fast) / 5 min (slow) heartbeat. An
-  idle paired PC costs ≈2.9k commands/day. Unpaired, the desktop still reconciles its own basket every 5 min
+  idle paired PC costs ≈2.9k commands/day. (Superseded in v1.15.2: see §15, busy mode and quiet rates.) Unpaired, the desktop still reconciles its own basket every 5 min
   and on every basket edit.
 - **Mirroring rules** (`reconcileOnce`): GetCart → for each basket item with a packageid: in cart → "added";
   not in cart and never added by us → add; not in cart but in `settings.mirror` (we added it) → not re-added:
@@ -327,6 +327,10 @@ Supersedes the one-shot phone→PC hand-off in §13 (the relay still answers `se
   (checked locally every 2 s; the start of use triggers a poll at once); a website tab with input in the last 25 s
   (the first input after a pause polls at once). Polling: 1 s while another device is in use; otherwise website
   10 s, app 10 s (tab open or recent change) / 30 s.
+- **Quiet rates (v1.15.2), to stay on the free plan.** App: 2 min when nobody is around, heartbeat every 10 min
+  (website's "PC online" window 12 min) → ≈1k commands/day for an app left running (was ≈2.9k). Website: 10 s
+  while used, 2 min after 5 quiet minutes, asleep after 30 (wakes on input, focus or coming back); only a tab used
+  in the last 5 minutes marks the channel active, so a tab left open doesn't keep the PC checking every 10 s.
 - **Verified 2026-10-07** with a packaged 1.15.0 test copy and the live website (code pairing): website → app in
   ~1 s, app → website in ~2 s (sort, catalog, reviews, Deck only); Not interested added on the website reached the
   app, restored in the app and stayed restored on the website.

@@ -28,10 +28,12 @@ for (const icon of ["icon.png", "icon-192.png", "icon-512.png", "icon-512-maskab
 const { version } = JSON.parse(readFileSync(at("package.json"), "utf8"));
 const apiEntry = join(pub, "web-api.js");
 const src = readFileSync(apiEntry, "utf8");
-const stamped = src.replace(`const VERSION = "web";`, `const VERSION = "${version} · web";`);
-if (stamped === src) throw new Error("build-web: version marker not found in web-api.js");
+// Every deploy also gets its own build id, so open tabs notice website-only updates too (browser-api/updates.js).
+const build = `${version}+${Date.now().toString(36)}`;
+const stamped = src.replace(`const VERSION = "web";`, `const VERSION = "${version} · web";`).replace(`const BUILD = "dev";`, `const BUILD = "${build}";`);
+if (!stamped.includes(build) || stamped.includes(`const VERSION = "web";`)) throw new Error("build-web: version or build marker not found in web-api.js");
 writeFileSync(apiEntry, stamped);
-// Open tabs compare this with the version they're running and offer a reload (browser-api/updates.js).
-writeFileSync(join(pub, "version.json"), JSON.stringify({ version }) + "\n");
+// Open tabs compare this with the build they're running and update themselves (browser-api/updates.js).
+writeFileSync(join(pub, "version.json"), JSON.stringify({ version, build }) + "\n");
 
 console.log(`web build ${version}: web/public assembled`);

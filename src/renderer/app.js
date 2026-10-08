@@ -118,7 +118,7 @@ function startupNotices() {
   touchTipsHint();
   // Website: a newer version was deployed while this tab was open. Offer the reload (it keeps everything).
   api.updates?.onAvailable?.(({ version }) =>
-    toast(`Steam Deals ${version} is out. Reload to get it; your basket and settings stay.`, { action: () => location.reload(), actionLabel: "Reload", timeout: 30 * 60000 }));
+    toast(`Steam Deals has been updated${version ? ` (${version})` : ""}. It switches over by itself when you leave this tab, or reload now; your basket and settings stay.`, { action: () => location.reload(), actionLabel: "Reload", timeout: 30 * 60000 }));
 }
 
 /** Touch screens have no hover: say once, per device, how to see what something does. */

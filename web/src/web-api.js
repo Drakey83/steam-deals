@@ -16,6 +16,7 @@ import { watchForUpdates } from "./browser-api/updates.js";
 import { buildTaste } from "./browser-api/taste.js";
 
 const VERSION = "web";
+const BUILD = "dev"; // replaced by the website build with this deploy's id
 const Core = window.SteamCore;
 const Sharing = window.SteamSharing;
 
@@ -190,4 +191,4 @@ window.steamDeals = {
   updates: { onAvailable: (cb) => on("update:available", cb) },
 };
 
-watchForUpdates(VERSION.replace(" · web", ""));
+watchForUpdates(BUILD);

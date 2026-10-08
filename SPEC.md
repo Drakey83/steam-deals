@@ -109,11 +109,16 @@ Deals: `IStoreQueryService/Query/v1` (keyless)
 
 Tags: `IStoreService/GetTagList/v1?language=` → `{tagid: name}`; cached 7 days.
 
-Caching: deals pages cached 30 minutes keyed by `(country, language, minDiscountServer, scanDepth)`.
-"Refresh" bypasses the cache. The server-side min discount is fixed at 50 so the cache covers all UI filter changes
-(the UI slider filters client-side from 50 to 95).
+Caching: deals pages cached keyed by `(country, language, scan floor, scanDepth)`. "Refresh" bypasses the cache.
+The scan asks Steam for one of a few fixed discount floors (50, 25, 10, 1) covering the UI's minimum, so the cache is
+shared across most filter changes; the UI narrows client-side. Lowering the minimum below the current floor rescans.
 
-Images: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/<appid>/header.jpg` (460x215), lazy-loaded.
+Wishlist: signed in, wishlist games the scan didn't include are looked up by appid (`GetItems`) after each scan, so
+"Wishlist only" shows every wishlist game on sale; the discount, rating and review minimums don't apply to it.
+
+Images: the header art path Steam lists for the game (`include_assets`: `assets.asset_url_format` + `assets.header`,
+under `https://shared.akamai.steamstatic.com/store_item_assets/`), since newer games have no plain
+`steam/apps/<appid>/header.jpg`; that plain address is the fallback. 460x215, lazy-loaded.
 
 ## 6. Scoring
 
@@ -133,7 +138,7 @@ Screens
 2. Browse:
    - Title bar (hidden native frame + overlay caption buttons): app mark + name on the left; drag region.
    - Top bar: search (`/` focuses), sort select, Refresh with "updated 4 min ago", account chip (avatar, name) → menu (Settings, Sign out).
-   - Left sidebar (280 px): Min discount slider (50–95), Min rating slider (70–95), Min reviews select, toggles (Hide owned, Wishlist only),
+   - Left sidebar (280 px): Min discount slider (Any–95), Min rating slider (50–95), Min reviews select, toggles (Hide owned, Wishlist only),
      Tags (chips, top 30 by frequency in the current pool, multi-select, searchable), Scan depth, Reset filters.
    - Stats strip: "412 deals · 638 owned hidden · best discount 95%".
    - Grid of cards (auto-fill, min 300 px): header art, discount badge (top-left, green), score ring (top-right), title,

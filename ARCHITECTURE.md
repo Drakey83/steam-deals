@@ -21,7 +21,7 @@ src/
                             becomes a styled card; touch: press and hold), small bits
     views/                  screens and panels: login, shell (top bar), sidebar, feed (cards), foryou (the
                             Your taste panel), taste-tags (editing it), details, basket, cart (Steam-cart
-                            section), web-cart, pairing, alerts, dismiss, settings, account
+                            section), web-cart, pairing, alerts, dismiss, settings, account, updates
     styles.css              imports styles/01-…16-*.css in cascade order (responsive rules last-ish)
     index.html              the desktop page (the website has its own in web/src)
   main/                     the Windows app's main process
@@ -34,6 +34,7 @@ src/
     library.js              the library and the taste profile
     pairing.js              the relay client, and the one sync engine instance
     account-sync.js         signed in to Steam: join the account's own sync channel (no code)
+    updates.js              updating from inside the app (electron-updater + GitHub releases, latest.yml)
     sync/                   the sync engine: index.js polls the relay and keeps the shared basket;
                             cart-mirror.js keeps the real Steam cart matching it; shared-alerts.js and
                             shared-prefs.js bring in and write back price alerts and Your taste edits
@@ -76,6 +77,23 @@ the relay (`web/api/pair.js`). A device gets onto a channel in one of two ways:
 Each shared document has a revision in the channel's signal record, so a poll fetches only what changed. Writes
 are compare-and-set; a refused write returns the current copy to merge. The merge rules are in
 `src/shared/sharing.js`.
+
+## Deals, the wishlist and images
+
+- **Scans** ask Steam for one of a few fixed discount floors (50%, 25%, 10%, any; `scanFloor` in shared/core.js),
+  the one that covers the person's minimum, so scans are shared and cached; the device narrows to the exact
+  minimum. Lowering the minimum below the current scan's floor starts a new scan.
+- **The wishlist** isn't left to the scan: signed in, every wishlist game the scan missed is looked up directly
+  (data.js `addWishlistGames`), and with Wishlist only on, the bargain minimums don't apply (logic/ranking.js).
+- **Images**: newer games have no plain `steam/apps/<appid>/header.jpg`; Steam lists a hashed path in the game's
+  data. Every Steam request asks for it (`include_assets`), `normalizeItem` builds the image from it, the website
+  keeps it end to end, and every image falls back to the plain address once before hiding (`imgEl`).
+
+## Releasing
+
+`npx electron-builder --win --x64 --publish never` writes `Steam-Deals-Setup-<version>.exe`, its `.blockmap` and
+`latest.yml`. A release must carry all three (the app's updater reads `latest.yml`), plus a copy named
+`Steam-Deals-Setup.exe`, which the README's and the /app page's download links point at.
 
 ## Rules of thumb
 

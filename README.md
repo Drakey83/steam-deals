@@ -66,8 +66,13 @@ The app has two jobs.
    and it syncs with the app automatically. Optional: turn on **Start with Windows** in Settings (it opens
    full screen at sign-in; turn on **Open closed to the tray** if you'd rather it start quietly in the tray).
 
-After that the app keeps itself up to date: it checks GitHub for new versions, downloads them in the background,
-and offers **Restart to update** (Settings → Updates, or the tray menu). Your basket and settings stay.
+After that the app keeps itself up to date. It checks GitHub for a new version a minute after it starts and every
+six hours, downloads it in the background, and shows "Version x.y.z is ready" with **Restart to update**: in
+Settings → Updates, in the tray menu, and in a message in the app. Restarting installs it quietly and reopens the
+app; your basket and settings stay. **Check for updates** in the same places checks right away. (If you quit
+instead, the update installs then.)
+
+![Settings → Updates in the Windows app: the version you have and a Check for updates button](docs/screenshots/16-updates.png)
 
 The X button hides the app to the tray so syncing keeps running; quit from the tray menu, or turn that off in
 Settings. Clicking the tray icon minimizes the window, or brings it back. The [steamdeal.vercel.app/app](https://steamdeal.vercel.app/app) page explains all of this for
@@ -163,9 +168,12 @@ checkout, in the Steam app, the website, or on your phone, since the cart belong
   restored with a click, Reset undoes every change, and the ? next to “Your taste” explains it all on hover.
   Paired with the Windows app, your edits are shared: change them on either side and the other follows.
 
-Filters live in the left sidebar: minimum discount and rating, minimum review count, **Steam Deck / Machine only** (on:
-only games Valve rates Verified or Playable on Steam Deck or Steam Machine; off: every game. Cards carry a
-Deck ✓ / Machine ✓ badge for Verified and ~ for Playable, and the details panel lists every published rating), tags, hide-owned and wishlist-only.
+Filters live in the left sidebar: minimum discount (all the way down to **Any**, for every game on sale; the app
+scans again for the smaller sales when you go below 50%), minimum rating and review count, **Steam Deck / Machine
+only** (on: only games Valve rates Verified or Playable on Steam Deck or Steam Machine; off: every game. Cards carry a
+Deck ✓ / Machine ✓ badge for Verified and ~ for Playable, and the details panel lists every published rating), tags,
+hide-owned and **Wishlist only**. Wishlist only shows every game on your wishlist that's on sale, at any discount:
+the app looks your wishlist up on Steam directly, and the minimums don't apply to games you already chose.
 Click any card for details, a score breakdown, and why it matched you, plus buttons to open the store page in your
 browser or in the Steam client.
 

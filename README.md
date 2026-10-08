@@ -146,7 +146,8 @@ checkout, in the Steam app, the website, or on your phone, since the cart belong
   - **Not signed in?** Pair with a code instead: in the app's basket press **Pair a phone or browser** (or **Add a
     device without signing in**), then type the six-letter code on the website's basket under **Already have it?**.
   - From then on it's **one shared basket**. Add or remove a game on your phone and it appears in, or leaves,
-    your Steam cart through the PC within seconds. No send button. The website shows your PC's status and,
+    your Steam cart through the PC within seconds (the first one after a quiet spell can take up to two
+    minutes, while the PC is checking only now and then). No send button. The website shows your PC's status and,
     per game, whether it's in the cart yet. Works from anywhere, mobile data included; the PC just needs to be
     on with the app running (the tray is fine). If the PC is off, the basket waits and syncs when it's back.
   - Syncing stores only the shared basket, alerts and preferences (game ids, names, prices, tag ids, filter

@@ -8,10 +8,11 @@
 //   preferences         filters, view and sort, Your taste edits, Not interested, behaviour: the same on every
 //                       device, both ways (shared-prefs.js; merge rules in src/shared/sharing.js)
 //
-// Cost model: the relay is a free Redis with a monthly command budget (shared by everyone), so the app polls a
-// one-record "signal" every 30 s while idle, every 10 s while a website tab is open or right after a change, and
-// every second only while another device is actually being used (busy mode: that device says so on its polls,
-// and this app says so while its window is in use). The signal carries a revision per document, so each is fetched only
+// Cost model: the relay is a free Redis with a monthly command budget shared by everyone, and an app left running
+// all day is the biggest user of it. So the app polls a one-record "signal" every 2 minutes while nobody is
+// around, every 10 s while a website tab is being used or right after a change, and every second only while
+// another device is actually being used (busy mode: that device says so on its polls, and this app says so while
+// its window is in use). It tells the relay "I'm here" every 10 minutes when idle. The signal carries a revision per document, so each is fetched only
 // when it changed. Steam itself is only asked about the cart when something changed or on a slow heartbeat,
 // which also catches purchases made on Steam.
 
@@ -22,12 +23,12 @@ const createSharedPrefs = require("./shared-prefs.js");
 
 const BUSY_MS = 1000; // another device is being used right now
 const FAST_MS = 10000;
-const SLOW_MS = 30000;
+const SLOW_MS = 2 * 60000;
 const ACTIVE_HOLD_MS = 12000; // stay fast this long after the phone was last seen looking
 const CHANGE_HOLD_MS = 60000; // and this long after a basket change
 const RECONCILE_FAST_MS = 60000; // re-check the Steam cart this often while fast
 const RECONCILE_SLOW_MS = 5 * 60000; // and this often while idle (catches purchases / manual removals)
-const HEARTBEAT_MS = 5 * 60000; // tell the relay "I'm here" at least this often even when nobody looks
+const HEARTBEAT_MS = 10 * 60000; // tell the relay "I'm here" at least this often even when nobody looks (website: PC_ONLINE_MS)
 
 /** Show a Windows notification (required here so the engine can be unit-tested in plain Node). */
 function windowsNotification(body, onClick) {

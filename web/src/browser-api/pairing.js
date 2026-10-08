@@ -29,11 +29,17 @@ const PAIR_KEY = "sd:pair";
 const REV_KEY = "sd:pairrev"; // revision of the shared basket last merged here
 const VIA_KEY = "sd:pairvia"; // "account" when this is the Steam account's channel
 const TAG_KEY = "sd:devtag"; // this browser's tag in busy mode
-const POLL_MS = 10000; // nobody on another device is using it: changes arrive within ~10 s
-const BUSY_POLL_MS = 1000; // while another device is in use
+// How often to check, from the relay's shared free budget: every second while another device is in use (busy
+// mode), every 10 s while this page is being used, every 2 minutes after 5 quiet minutes, and not at all after 30
+// (a tab left open all day costs nothing); any click, key, scroll or coming back to the tab checks right away.
+const BUSY_POLL_MS = 1000;
+const POLL_MS = 10000;
+const QUIET_POLL_MS = 2 * 60000;
+const QUIET_AFTER_MS = 5 * 60000;
+const ASLEEP_AFTER_MS = 30 * 60000;
 const IN_USE_MS = 25000; // input this recent means "someone is using this page" (the relay holds it 30 s)
-const TOUCH_MS = 45000; // "someone is looking": the PC polls a bit faster (10 s) while this is fresh
-const PC_ONLINE_MS = 90000;
+const TOUCH_MS = 45000; // "someone is using the site": the PC polls a bit faster (10 s) while this is fresh
+const PC_ONLINE_MS = 12 * 60000; // an idle PC says "I'm here" every 10 minutes (src/main/sync/index.js)
 
 export const pairId = () => store.get(PAIR_KEY);
 const viaAccount = () => Boolean(pairId()) && store.get(VIA_KEY) === "account";
@@ -41,7 +47,8 @@ const viaAccount = () => Boolean(pairId()) && store.get(VIA_KEY) === "account";
 let syncTimer = null;
 let syncBusy = false;
 let othersBusy = false; // another device on the channel is in use right now
-let lastInput = 0;
+let lastInput = Date.now(); // opening the page counts as using it
+let asleep = false; // stopped checking after a long quiet spell
 const inUse = () => Date.now() - lastInput < IN_USE_MS && document.visibilityState === "visible";
 let lastTouch = 0;
 let lastRevSeen = Number(store.get(REV_KEY, 0)) || 0;
@@ -132,7 +139,7 @@ export async function syncTick(force) {
   syncBusy = true;
   try {
     const now = Date.now();
-    const touch = now - lastTouch > TOUCH_MS;
+    const touch = now - lastTouch > TOUCH_MS && now - lastInput < QUIET_AFTER_MS;
     if (touch) lastTouch = now;
     const sig = await relay({ action: "sig", pairId: id, touch, withCart: true, me: deviceTag(), busy: inUse() || undefined });
     othersBusy = Boolean(sig.busy);
@@ -164,10 +171,13 @@ function deviceTag() {
 function scheduleTick() {
   clearTimeout(syncTimer);
   if (!pairId()) return;
+  const quiet = Date.now() - lastInput;
+  asleep = !othersBusy && quiet > ASLEEP_AFTER_MS;
+  if (asleep) return; // noteInput / coming back to the tab wakes it
   syncTimer = setTimeout(async () => {
     await syncTick(false);
     scheduleTick();
-  }, othersBusy ? BUSY_POLL_MS : POLL_MS);
+  }, othersBusy ? BUSY_POLL_MS : quiet > QUIET_AFTER_MS ? QUIET_POLL_MS : POLL_MS);
 }
 
 export function startSync() {
@@ -180,8 +190,12 @@ export function startSync() {
 /** Someone started using this page after a pause: tell the other devices now, not at the next poll. */
 function noteInput() {
   const idle = !inUse();
+  const quiet = Date.now() - lastInput > QUIET_AFTER_MS;
   lastInput = Date.now();
-  if (idle && pairId()) syncTick(true);
+  if (!idle || !pairId()) return;
+  if (quiet) lastTouch = 0; // back after a while: the PC should speed up too
+  syncTick(true);
+  if (quiet || asleep) scheduleTick(); // back to the quick rate now
 }
 
 /** Check right away whenever the page comes back into view; notice when someone is using it (busy mode). */
@@ -189,7 +203,9 @@ export function watchVisibility() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && pairId()) {
       lastTouch = 0;
+      lastInput = Date.now(); // coming back to the tab counts as using it
       syncTick(true);
+      scheduleTick();
     }
   });
   // Busy mode: any click, tap, key or scroll counts as using this page.

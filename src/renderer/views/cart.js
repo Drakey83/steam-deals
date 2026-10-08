@@ -38,6 +38,9 @@ export function cartBadge(appid) {
   return el("span", { class: `cart-badge ${cls}`, title: st?.msg || "", html: icon }, el("span", {}, label));
 }
 
+const OVER_LIMIT_TEXT =
+  "Syncing is paused for now: the free sync service reached its monthly limit. Everything still works here, and your devices catch up with each other when it resets.";
+
 /** One line that says how the sync is doing. Re-rendered in place when a status event arrives. */
 function syncLine() {
   const line = el("div", { class: "sync-line muted small", id: "sync-line" });
@@ -45,7 +48,8 @@ function syncLine() {
   const subtotal = s.subtotal ? ` · Steam cart subtotal ${s.subtotal}` : "";
   if (isWeb) {
     if (!s.paired) return line;
-    if (!s.at) line.textContent = "Checking in with your PC…";
+    if (s.overLimit) line.textContent = OVER_LIMIT_TEXT;
+    else if (!s.at) line.textContent = "Checking in with your PC…";
     else if (s.pcOnline && s.pcok) line.textContent = `Your PC is connected${subtotal}`;
     else if (s.pcOnline) line.textContent = "Your PC's app is running, but it isn't signed in through Steam or syncing is switched off there, so nothing reaches the cart yet.";
     else if (s.pcSeenAgo == null) line.textContent = "Looking for your PC… Open Steam Deals there (it can sit in the tray). It checks in within half a minute.";
@@ -53,6 +57,7 @@ function syncLine() {
     return line;
   }
   if (s.paused) line.textContent = "Syncing with your other devices is paused (tray menu). Changes made there wait until you resume.";
+  else if (s.overLimit) line.textContent = OVER_LIMIT_TEXT;
   else if (s.lastError) line.textContent = `Last sync problem: ${s.lastError}`;
   else if (s.paired && s.lastPoll) line.textContent = `Shared with your other devices · checked ${timeAgo(s.lastPoll)}${subtotal}`;
   else if (s.subtotal) line.textContent = `Steam cart subtotal ${s.subtotal}`;

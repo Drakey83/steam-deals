@@ -37,6 +37,8 @@ const POLL_MS = 10000;
 const QUIET_POLL_MS = 2 * 60000;
 const QUIET_AFTER_MS = 5 * 60000;
 const ASLEEP_AFTER_MS = 30 * 60000;
+const OVER_LIMIT_WAIT_MS = 30 * 60000; // the relay's free monthly limit is reached: check only this often
+const MAX_RETRY_MS = 5 * 60000; // other relay failures: wait longer after each, up to this
 const IN_USE_MS = 25000; // input this recent means "someone is using this page" (the relay holds it 30 s)
 const TOUCH_MS = 45000; // "someone is using the site": the PC polls a bit faster (10 s) while this is fresh
 const PC_ONLINE_MS = 12 * 60000; // an idle PC says "I'm here" every 10 minutes (src/main/sync/index.js)
@@ -49,6 +51,9 @@ let syncBusy = false;
 let othersBusy = false; // another device on the channel is in use right now
 let lastInput = Date.now(); // opening the page counts as using it
 let asleep = false; // stopped checking after a long quiet spell
+let failures = 0; // relay failures in a row
+let waitUntil = 0; // don't poll the relay before this (backing off after failures)
+let overLimit = false;
 const inUse = () => Date.now() - lastInput < IN_USE_MS && document.visibilityState === "visible";
 let lastTouch = 0;
 let lastRevSeen = Number(store.get(REV_KEY, 0)) || 0;
@@ -73,7 +78,16 @@ export function forgetPair() {
 
 /** A relay call failed. If the relay no longer knows the channel, leave it quietly; the panel shows "not paired". */
 function relayFailed(err) {
-  if (err?.code !== "bad_pair") return;
+  if (err?.code !== "bad_pair") {
+    // Back off, so a struggling or full relay (and the site it runs on) isn't hammered by every open tab.
+    failures += 1;
+    const was = overLimit;
+    overLimit = err?.code === "over_limit";
+    othersBusy = false;
+    waitUntil = Date.now() + (overLimit ? OVER_LIMIT_WAIT_MS : Math.min(MAX_RETRY_MS, 10000 * 2 ** (failures - 1)));
+    if (overLimit !== was) emit("cart:status", syncStatus());
+    return;
+  }
   forgetPair();
   emit("cart:status", syncStatus());
 }
@@ -84,6 +98,7 @@ export function syncStatus() {
   return {
     paired: Boolean(pairId()),
     viaAccount: viaAccount(),
+    overLimit,
     pcOnline: age != null && age < PC_ONLINE_MS,
     pcSeenAgo: age,
     pcok: pcState.pcok,
@@ -136,6 +151,7 @@ export async function syncTick(force) {
   const id = pairId();
   if (!id || syncBusy) return;
   if (!force && document.visibilityState !== "visible") return;
+  if (force !== "now" && Date.now() < waitUntil) return; // backing off after relay failures (only "Check now" skips it)
   syncBusy = true;
   try {
     const now = Date.now();
@@ -143,6 +159,9 @@ export async function syncTick(force) {
     if (touch) lastTouch = now;
     const sig = await relay({ action: "sig", pairId: id, touch, withCart: true, me: deviceTag(), busy: inUse() || undefined });
     othersBusy = Boolean(sig.busy);
+    failures = 0;
+    waitUntil = 0;
+    overLimit = false;
     pcState = { pc: sig.pc || 0, pcok: Boolean(sig.pcok), pcv: sig.pcv || null, cart: sig.cart || null, at: Date.now(), now: sig.now || Date.now() };
     emit("cart:status", syncStatus());
     if ((sig.rev || 0) !== lastRevSeen) {
@@ -174,10 +193,11 @@ function scheduleTick() {
   const quiet = Date.now() - lastInput;
   asleep = !othersBusy && quiet > ASLEEP_AFTER_MS;
   if (asleep) return; // noteInput / coming back to the tab wakes it
+  const normal = othersBusy ? BUSY_POLL_MS : quiet > QUIET_AFTER_MS ? QUIET_POLL_MS : POLL_MS;
   syncTimer = setTimeout(async () => {
     await syncTick(false);
     scheduleTick();
-  }, othersBusy ? BUSY_POLL_MS : quiet > QUIET_AFTER_MS ? QUIET_POLL_MS : POLL_MS);
+  }, Math.max(normal, waitUntil - Date.now()));
 }
 
 export function startSync() {
@@ -215,7 +235,8 @@ export function watchVisibility() {
 /** "Check now": also tells the PC someone is looking, so it switches to fast checks. */
 export async function syncNow() {
   lastTouch = 0;
-  await syncTick(true);
+  waitUntil = 0;
+  await syncTick("now");
 }
 
 // ----- joining -----

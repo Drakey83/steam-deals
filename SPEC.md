@@ -331,6 +331,10 @@ Supersedes the one-shot phone→PC hand-off in §13 (the relay still answers `se
   (website's "PC online" window 12 min) → ≈1k commands/day for an app left running (was ≈2.9k). Website: 10 s
   while used, 2 min after 5 quiet minutes, asleep after 30 (wakes on input, focus or coming back); only a tab used
   in the last 5 minutes marks the channel active, so a tab left open doesn't keep the PC checking every 10 s.
+- **Over the free limit (v1.15.3).** Upstash "max requests limit" → HTTP 503 `over_limit` from every Redis
+  user (relay, counter; price history just skips its cache); the server instance skips Upstash for 10 min.
+  Devices: next relay poll in 30 min (automatic checks; "Check now" still tries), other failures back off 10 s ×
+  2ⁿ up to 5 min; busy mode is ignored meanwhile. The basket's sync line explains it on both hosts.
 - **Verified 2026-10-07** with a packaged 1.15.0 test copy and the live website (code pairing): website → app in
   ~1 s, app → website in ~2 s (sort, catalog, reviews, Deck only); Not interested added on the website reached the
   app, restored in the app and stayed restored on the website.

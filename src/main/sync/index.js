@@ -28,6 +28,8 @@ const ACTIVE_HOLD_MS = 12000; // stay fast this long after the phone was last se
 const CHANGE_HOLD_MS = 60000; // and this long after a basket change
 const RECONCILE_FAST_MS = 60000; // re-check the Steam cart this often while fast
 const RECONCILE_SLOW_MS = 5 * 60000; // and this often while idle (catches purchases / manual removals)
+const OVER_LIMIT_WAIT_MS = 30 * 60000; // the relay's free monthly limit is reached: check only this often
+const MAX_RETRY_MS = 5 * 60000; // other relay failures: wait longer after each, up to this
 const HEARTBEAT_MS = 10 * 60000; // tell the relay "I'm here" at least this often even when nobody looks (website: PC_ONLINE_MS)
 
 /** Show a Windows notification (required here so the engine can be unit-tested in plain Node). */
@@ -47,6 +49,9 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
   let lastPoll = 0;
   let lastError = null;
   let othersBusy = false; // another device on the channel is being used right now (busy mode)
+  let failures = 0; // relay failures in a row
+  let waitUntil = 0; // don't poll the relay before this (backing off after failures)
+  let overLimit = false;
   const notified = new Map(); // key -> last time we showed that notification
 
   const paired = () => Boolean(settings.get().pairId);
@@ -75,7 +80,10 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
 
   function schedule(ms) {
     clearTimeout(timer);
-    timer = setTimeout(tick, ms ?? (!paired() ? RECONCILE_SLOW_MS : othersBusy ? BUSY_MS : Date.now() < fastUntil ? FAST_MS : SLOW_MS));
+    const normal = !paired() ? RECONCILE_SLOW_MS : othersBusy ? BUSY_MS : Date.now() < fastUntil ? FAST_MS : SLOW_MS;
+    // After relay failures nothing polls sooner than the back-off allows, so a struggling or full relay (and the
+    // website it runs on) isn't hammered by every device.
+    timer = setTimeout(tick, Math.max(ms ?? normal, paired() ? waitUntil - Date.now() : 0));
   }
 
   async function tick() {
@@ -102,6 +110,10 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       othersBusy = Boolean(sig.busy);
       lastPoll = Date.now();
       lastError = null;
+      failures = 0;
+      waitUntil = 0;
+      if (overLimit) sendToUI("cart:status", { overLimit: false }); // syncing is back
+      overLimit = false;
       if (heartbeat) lastHeartbeat = lastPoll;
       if (sig.active) fastUntil = Math.max(fastUntil, lastPoll + ACTIVE_HOLD_MS);
       if (alerts.isStale(sig)) await alerts.pull().catch(quietly("alerts"));
@@ -113,6 +125,13 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       }
     } catch (err) {
       onError(err);
+      failures += 1;
+      const wasOverLimit = overLimit;
+      overLimit = err?.code === "over_limit";
+      if (overLimit !== wasOverLimit) sendToUI("cart:status", { overLimit }); // the basket's sync line says so
+      othersBusy = false;
+      waitUntil = Date.now() + (overLimit ? OVER_LIMIT_WAIT_MS : Math.min(MAX_RETRY_MS, 10000 * 2 ** (failures - 1)));
+      if (overLimit && failures === 1) log("[sync] the relay's free monthly limit is reached; checking every 30 minutes");
       if (err?.code === "bad_pair") {
         // The relay forgot us (a year idle, or wiped). Drop the pairing quietly; the UI shows "not paired".
         settings.update({ pairId: null, pairVia: null, basketRev: 0, alertsRev: 0, prefsRev: 0, mirror: {} });
@@ -176,6 +195,7 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       fast: Date.now() < fastUntil,
       lastPoll,
       lastError,
+      overLimit,
       rev: s.basketRev || 0,
       cart: cart.status(),
     };
@@ -248,6 +268,7 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
     },
     syncNow: () => {
       fastUntil = Date.now() + CHANGE_HOLD_MS;
+      waitUntil = 0; // the person asked: check now even while backing off
       cart.due();
       schedule(0);
     },

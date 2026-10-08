@@ -92,6 +92,9 @@ applies, are in `src/shared/sharing.js` (the website build copies it to `web/api
   tab checks every 4 s, so a change shows on the other device within seconds. Each side also compares with the
   relay once at launch, so a change that didn't get out is sent then.
 - Apps before 1.15 write only Your taste edits; the relay keeps the rest of the document for them.
+- **Website tabs update themselves.** Each deploy stamps a build id into `web-api.js` and `/version.json`; an open
+  tab checks every 5 minutes and on focus (browser-api/updates.js), and on a newer build reloads quietly once it's
+  in the background (or offers Reload meanwhile), so no tab keeps syncing with old code.
 
 ## Deals, the wishlist and images
 

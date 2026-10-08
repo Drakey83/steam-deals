@@ -1,6 +1,7 @@
-// What paired devices share, and how two copies are merged: price alerts made on the website, and hand edits
-// to "Your taste". Pure, no I/O. Used by the Windows app's sync engine (src/main/sync/) and the website's sync code
-// (web/src/browser-api/). Loads as CommonJS where `module` exists, otherwise as window.SteamSharing.
+// What paired devices share, and how two copies are merged: price alerts made on the website, and the shared
+// preferences (filters, "Your taste" edits, Not interested, behaviour). Pure, no I/O. Also cleans what the relay
+// stores (the website build copies this file to web/api/_lib/). Used by the Windows app's sync engine
+// (src/main/sync/), the website's sync code (web/src/browser-api/) and the relay. Loads as CommonJS where `module` exists, otherwise as window.SteamSharing.
 (function (root) {
 // ----- price alerts shared through the pairing relay -----
 // The alert shape is the one in src/renderer/logic/alerts.js, plus `origin: "web"` on alerts made on the website.
@@ -97,7 +98,180 @@ const sameTasteTags = (a, b) => JSON.stringify(cleanTasteTags(a)) === JSON.strin
 const canonicalAlerts = (list) => JSON.stringify(dedupeAlerts(list).map((a) => Object.keys(a).sort().map((k) => [k, a[k] ?? null])));
 const sameAlerts = (a, b) => canonicalAlerts(a) === canonicalAlerts(b);
 
-const api = { cleanTasteTags, mergeTasteTags, sameTasteTags, alertKey, withoutWebAlerts, mergeWebAlerts, webAlertsForRelay, tagWebAlerts, rebaseWebAlerts, sameAlerts, MAX_SHARED_ALERTS };
+// ----- the shared preferences document -----
+// Everything that decides what the list shows and how "Your taste" comes out is the same on every paired device:
+//   tasteTags          hand edits to Your taste (above)
+//   filters            { values, at }: the view, sale/all, sort, sidebar filters, scan depth, score weights.
+//                      The most recent change wins, as one set (settings.filtersAt stamps local changes).
+//   dismissed          "Not interested", plus `restored` [{appid, at}] so an undo on one device isn't brought back
+//                      by another; per game, the newest dismiss or restore wins.
+//   behavior           what the person did (logic/behavior.js), the union of every device's events, newest first;
+//                      `behaviorClearedAt` forgets everything older ("Reset my recommendations").
+// Store region and language stay per device (a phone abroad), as do panel and window choices.
+const FILTER_KEYS = ["view", "catalog", "sort", "minDiscount", "minRating", "minReviews", "scanDepth", "weights", "personalWeight", "hideOwned", "wishlistOnly", "selectedTags", "deckMachineOnly"];
+const SORT_VALUES = ["match", "score", "discount", "rating", "reviews", "price", "name"];
+const MAX_DISMISSED = 500;
+const MAX_EVENTS = 300;
+const EVENT_TYPES = ["opened", "basket", "owned", "dismissed"];
+
+const num = (v) => (typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN);
+const intIn = (v, lo, hi) => (Number.isFinite(num(v)) ? Math.min(hi, Math.max(lo, Math.round(num(v)))) : undefined);
+const time = (v) => Math.max(0, Math.round(num(v)) || 0);
+
+/** One filter value, or undefined when it isn't a valid one. */
+const FILTER_CLEAN = {
+  view: (v) => (v === "foryou" || v === "all" ? v : undefined),
+  catalog: (v) => (v === "sale" || v === "all" ? v : undefined),
+  sort: (v) => (SORT_VALUES.includes(v) ? v : undefined),
+  minDiscount: (v) => intIn(v, 0, 95),
+  minRating: (v) => intIn(v, 0, 100),
+  minReviews: (v) => intIn(v, 0, 10000000),
+  scanDepth: (v) => intIn(v, 0, 1000000),
+  personalWeight: (v) => intIn(v, 0, 100),
+  weights: (v) => {
+    if (!v || typeof v !== "object") return undefined;
+    const w = { discount: intIn(v.discount, 0, 100), rating: intIn(v.rating, 0, 100), popularity: intIn(v.popularity, 0, 100) };
+    return Object.values(w).every((x) => x !== undefined) ? w : undefined;
+  },
+  hideOwned: (v) => (typeof v === "boolean" ? v : undefined),
+  wishlistOnly: (v) => (typeof v === "boolean" ? v : undefined),
+  deckMachineOnly: (v) => (typeof v === "boolean" ? v : undefined),
+  selectedTags: (v) => (Array.isArray(v) ? tasteIds(v) : undefined),
+};
+
+function cleanFilters(f) {
+  const values = {};
+  for (const k of FILTER_KEYS) {
+    const v = FILTER_CLEAN[k](f?.values?.[k]);
+    if (v !== undefined) values[k] = v;
+  }
+  return { values, at: time(f?.at) };
+}
+
+const cleanTagWeights = (tags) => (Array.isArray(tags) ? tags : []).slice(0, 10).map((t) => ({ id: intIn(t?.id, 1, 1e9), w: Math.round((num(t?.w) || 0) * 1000) / 1000 })).filter((t) => t.id);
+const byNewest = (a, b) => b.at - a.at;
+
+function cleanDismissed(list) {
+  const seen = new Set();
+  const out = [];
+  for (const d of Array.isArray(list) ? list : []) {
+    const appid = intIn(d?.appid, 1, 1e9);
+    if (!appid || seen.has(appid)) continue;
+    seen.add(appid);
+    out.push({ appid, name: String(d.name ?? `App ${appid}`).slice(0, 200), tags: cleanTagWeights(d.tags), at: time(d.at) });
+  }
+  return out.sort(byNewest).slice(0, MAX_DISMISSED);
+}
+
+function cleanRestored(list) {
+  const newest = new Map();
+  for (const r of Array.isArray(list) ? list : []) {
+    const appid = intIn(r?.appid, 1, 1e9);
+    if (appid) newest.set(appid, Math.max(newest.get(appid) || 0, time(r.at)));
+  }
+  return [...newest].map(([appid, at]) => ({ appid, at })).sort(byNewest).slice(0, MAX_DISMISSED);
+}
+
+const eventKey = (e) => `${e.type}:${e.appid}:${e.at}`;
+function cleanBehavior(list, clearedAt = 0) {
+  const seen = new Set();
+  const out = [];
+  for (const e of Array.isArray(list) ? list : []) {
+    const ev = { type: EVENT_TYPES.includes(e?.type) ? e.type : null, appid: intIn(e?.appid, 1, 1e9), tags: cleanTagWeights(e?.tags), at: time(e?.at) };
+    if (!ev.type || !ev.appid || ev.at <= clearedAt || seen.has(eventKey(ev))) continue;
+    seen.add(eventKey(ev));
+    out.push(ev);
+  }
+  return out.sort(byNewest).slice(0, MAX_EVENTS);
+}
+
+/** The whole document in its known shape and size (the relay stores exactly this). */
+function cleanPrefs(p) {
+  const behaviorClearedAt = time(p?.behaviorClearedAt);
+  return {
+    tasteTags: cleanTasteTags(p?.tasteTags),
+    filters: cleanFilters(p?.filters),
+    dismissed: cleanDismissed(p?.dismissed),
+    restored: cleanRestored(p?.restored),
+    behavior: cleanBehavior(p?.behavior, behaviorClearedAt),
+    behaviorClearedAt,
+  };
+}
+
+/** This device's settings as the shared document. */
+function prefsFromSettings(s) {
+  const values = {};
+  for (const k of FILTER_KEYS) if (s?.[k] !== undefined) values[k] = s[k];
+  return cleanPrefs({
+    tasteTags: s?.tasteTags,
+    filters: { values, at: s?.filtersAt },
+    dismissed: s?.dismissed,
+    restored: s?.dismissRestored,
+    behavior: s?.behavior,
+    behaviorClearedAt: s?.behaviorClearedAt,
+  });
+}
+
+/** The shared document as a settings patch (only what the document holds). */
+function settingsFromPrefs(doc) {
+  const p = cleanPrefs(doc);
+  return { ...p.filters.values, filtersAt: p.filters.at, tasteTags: p.tasteTags, dismissed: p.dismissed, dismissRestored: p.restored, behavior: p.behavior, behaviorClearedAt: p.behaviorClearedAt };
+}
+
+/**
+ * Two copies of the document as one. Filters: the newer set wins (a copy without any is ignored; on a tie this
+ * device's stays). Not interested and behaviour: nothing is lost, see above. combine: devices pairing for the
+ * first time (taste edits are combined rather than the newest winning).
+ */
+function mergePrefs(local, remote, { combine = false } = {}) {
+  const a = cleanPrefs(local);
+  const b = cleanPrefs(remote);
+  const hasA = Object.keys(a.filters.values).length;
+  const hasB = Object.keys(b.filters.values).length;
+  const filters = !hasB ? a.filters : !hasA || b.filters.at > a.filters.at ? b.filters : a.filters;
+
+  const restored = cleanRestored([...a.restored, ...b.restored]);
+  const restoredAt = new Map(restored.map((r) => [r.appid, r.at]));
+  const newestDismiss = new Map();
+  for (const d of [...a.dismissed, ...b.dismissed]) if (!newestDismiss.has(d.appid) || d.at > newestDismiss.get(d.appid).at) newestDismiss.set(d.appid, d);
+  const dismissed = cleanDismissed([...newestDismiss.values()].filter((d) => d.at > (restoredAt.get(d.appid) || 0)));
+
+  const behaviorClearedAt = Math.max(a.behaviorClearedAt, b.behaviorClearedAt);
+  return {
+    tasteTags: mergeTasteTags(a.tasteTags, b.tasteTags, { combine }),
+    filters,
+    dismissed,
+    restored: restored.filter((r) => !dismissed.some((d) => d.appid === r.appid)),
+    behavior: cleanBehavior([...a.behavior, ...b.behavior], behaviorClearedAt),
+    behaviorClearedAt,
+  };
+}
+const samePrefs = (a, b) => JSON.stringify(cleanPrefs(a)) === JSON.stringify(cleanPrefs(b));
+
+const sameValue = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+/**
+ * A local settings change: what else to record so it reaches the other devices as a change. A filter that really
+ * changed stamps filtersAt; games taken off "Not interested" get a restore mark; emptying the behaviour log marks
+ * the reset. Returns extra settings fields (empty when there's nothing to add).
+ */
+function notePrefsEdit(before, patch, now = Date.now()) {
+  const extra = {};
+  if (FILTER_KEYS.some((k) => k in (patch || {}) && !sameValue(patch[k], before?.[k]))) extra.filtersAt = now;
+  if (Array.isArray(patch?.dismissed)) {
+    const still = new Set(patch.dismissed.map((d) => d?.appid));
+    const gone = (before?.dismissed || []).filter((d) => !still.has(d?.appid)).map((d) => ({ appid: d.appid, at: now }));
+    if (gone.length) extra.dismissRestored = cleanRestored([...gone, ...(before?.dismissRestored || [])]);
+  }
+  if (Array.isArray(patch?.behavior) && !patch.behavior.length && (before?.behavior || []).length) extra.behaviorClearedAt = now;
+  return extra;
+}
+/** Settings keys that are part of the shared document (a change to any of them is shared). */
+const PREFS_KEYS = new Set([...FILTER_KEYS, "tasteTags", "dismissed", "behavior"]);
+
+const api = {
+  cleanTasteTags, mergeTasteTags, sameTasteTags, alertKey, withoutWebAlerts, mergeWebAlerts, webAlertsForRelay, tagWebAlerts, rebaseWebAlerts, sameAlerts, MAX_SHARED_ALERTS,
+  FILTER_KEYS, PREFS_KEYS, cleanPrefs, prefsFromSettings, settingsFromPrefs, mergePrefs, samePrefs, notePrefsEdit,
+};
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.SteamSharing = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

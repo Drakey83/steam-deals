@@ -17,6 +17,7 @@ import { buildTaste } from "./browser-api/taste.js";
 
 const VERSION = "web";
 const Core = window.SteamCore;
+const Sharing = window.SteamSharing;
 
 // The basket the screen has been shown (settings.get, and every basket:replaced it hears). A save can only take out
 // games the screen showed; games that arrived unseen stay (Core.keepUnseen).
@@ -106,12 +107,13 @@ window.steamDeals = {
         shownBasket = guarded;
       }
       const prevAlerts = settings.alerts || [];
-      for (const [k, v] of Object.entries(patch || {})) if (ALLOWED_SETTINGS.has(k)) settings[k] = v;
+      const clean = Object.fromEntries(Object.entries(patch || {}).filter(([k]) => ALLOWED_SETTINGS.has(k)));
+      Object.assign(settings, clean, Sharing.notePrefsEdit(settings, clean)); // stamps what other devices must take as newer
       saveSettings();
       if (keptUnseen) emit("basket:replaced", { items: settings.basket, source: "merge" }); // show what was kept
       if (patch && "basket" in patch && pairId()) pushBasket(prevBasket, settings.basket || []);
       if (patch && "alerts" in patch && pairId()) pushAlerts(prevAlerts);
-      if (patch && "tasteTags" in patch && pairId()) pushPrefs();
+      if (Object.keys(clean).some((k) => Sharing.PREFS_KEYS.has(k)) && pairId()) pushPrefs(); // filters, taste, Not interested, behaviour
       return { ok: true, settings: publicSettings() };
     },
     // Price alerts arriving from the paired Windows app (what fired), as on the desktop.

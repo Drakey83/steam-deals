@@ -138,13 +138,19 @@ checkout, in the Steam app, the website, or on your phone, since the cart belong
 - On the **website**, a browser can't touch your cart, so the Windows app does it as the bridge:
   - **Sign in through Steam, and that's it.** Every phone, browser and Windows app signed in with the same Steam
     account shares one basket, your price alerts and Your taste, automatically. Nothing to type.
+  - **Everything you choose is the same everywhere.** For you / Browse, On sale / All games, the sort, every
+    sidebar filter (discount, rating, reviews, Steam Deck / Machine only, hide owned, wishlist only, tags), scan
+    depth, the score weights, Not interested and what the app has learned from what you open and basket. Change one
+    on any device and the others show it within a few seconds, both ways, so Your taste and For you come out the
+    same too. (Store region and language stay per device, for a phone abroad.)
   - **Not signed in?** Pair with a code instead: in the app's basket press **Pair a phone or browser** (or **Add a
     device without signing in**), then type the six-letter code on the website's basket under **Already have it?**.
   - From then on it's **one shared basket**. Add or remove a game on your phone and it appears in, or leaves,
     your Steam cart through the PC within seconds. No send button. The website shows your PC's status and,
     per game, whether it's in the cart yet. Works from anywhere, mobile data included; the PC just needs to be
     on with the app running (the tray is fine). If the PC is off, the basket waits and syncs when it's back.
-  - Syncing stores only the shared basket, alerts and taste edits (game ids, names, prices, tag ids) under a random
+  - Syncing stores only the shared basket, alerts and preferences (game ids, names, prices, tag ids, filter
+    choices) under a random
     channel id. With account sync that id is derived from your Steam ID with the site's secret; no account
     details are stored.
   - Without the app, each game in the basket has an **Open in Steam** button that opens its own Add to Cart
@@ -200,8 +206,8 @@ pages arrive, so the first cards show up in about a second at any depth.
 - **Windows app:** the only cookie it reads is the one that identifies your SteamID64. Your Steam session,
   settings, and caches stay in `%APPDATA%\Steam Deals`. Sign out wipes the session. It talks only to Steam,
   plus steamdeal.vercel.app for two things: one request to guess your state or province for the basket's tax
-  estimate (nothing stored), and syncing with your other devices: the shared basket, price alerts and taste edits
-  (game ids, names, prices and tag ids, and which games are in your cart; never account details). To join your
+  estimate (nothing stored), and syncing with your other devices: the shared basket, price alerts and preferences
+  (game ids, names, prices, tag ids and filter choices, and which games are in your cart; never account details). To join your
   account's sync channel, the app shows the site its short-lived Steam store token once; the site checks it with
   Steam and doesn't keep it. "Unpair all devices" deletes a code pairing's shared data from the site.
 - **Basket tax estimate:** the region is guessed from your connection's location and can be changed in the basket.

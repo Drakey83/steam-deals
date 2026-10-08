@@ -1,7 +1,7 @@
 // Assemble the website (web/public) from the shared sources. No bundler: browsers load the ES modules directly.
 //   src/renderer/**  (UI modules + styles)   -> web/public/          same UI as the desktop app
 //   src/shared/core.js                        -> web/public/ and web/api/_lib/   shared scoring + taste logic
-//   src/shared/sharing.js                     -> web/public/                     merging what paired devices share
+//   src/shared/sharing.js                     -> web/public/ and web/api/_lib/   merging and cleaning what paired devices share
 //   web/src/**       (page, browser API layer) -> web/public/
 //   build/*.png      (icons)                   -> web/public/
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -21,6 +21,7 @@ cpSync(at("web", "src"), pub, { recursive: true });
 cpSync(at("src", "shared", "core.js"), join(pub, "core.js"));
 cpSync(at("src", "shared", "sharing.js"), join(pub, "sharing.js")); // what paired devices share (browser-api)
 cpSync(at("src", "shared", "core.js"), at("web", "api", "_lib", "core.js"));
+cpSync(at("src", "shared", "sharing.js"), at("web", "api", "_lib", "sharing.js")); // the relay cleans shared preferences with it
 for (const icon of ["icon.png", "icon-192.png", "icon-512.png", "icon-512-maskable.png", "apple-touch-icon.png"]) cpSync(at("build", icon), join(pub, icon));
 
 // The website reports the same version as the desktop app it was built with.

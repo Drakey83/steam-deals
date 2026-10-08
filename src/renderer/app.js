@@ -10,7 +10,7 @@
 import { SCAN_DEPTHS } from "./config.js";
 import { $ } from "./lib/dom.js";
 import { EV, on } from "./lib/events.js";
-import { NARROW, PHONE, api } from "./lib/platform.js";
+import { Core, NARROW, PHONE, api } from "./lib/platform.js";
 import { flushSettings, state } from "./state.js";
 import { loadAll, onDealsPartial, onTasteProgress, reload } from "./data.js";
 import { registerScreen } from "./router.js";
@@ -133,6 +133,35 @@ function touchTipsHint() {
   setTimeout(() => toast("Tip: press and hold a button, badge or tag to see what it does. Tap ? for help.", { timeout: 9000 }), 2500);
 }
 
+// Settings that only change how the found games are filtered and ranked (no new scan needed).
+const SHARED_VIEW_KEYS = ["view", "sort", "minRating", "minReviews", "weights", "personalWeight", "hideOwned", "wishlistOnly", "selectedTags", "deckMachineOnly"];
+
+/**
+ * Settings changed somewhere else: another device (the shared preferences: filters, view, sort, Your taste,
+ * Not interested, behaviour; price alerts) or the tray menu. Show them as if they had been changed here:
+ * rescan when the scan itself changed, otherwise redraw in place.
+ */
+function onSettingsFromElsewhere(s) {
+  const { alerts, ...rest } = s || {};
+  const before = state.settings;
+  state.settings = { ...before, ...rest };
+  if (Array.isArray(alerts)) receiveAlerts(alerts);
+  const changed = (k) => k in rest && JSON.stringify(rest[k]) !== JSON.stringify(before[k]);
+  const rescan = changed("catalog") || changed("scanDepth") || (changed("minDiscount") && Core.scanFloor(rest.minDiscount) < (state.meta?.scanFloor ?? 50));
+  const filters = rescan || changed("minDiscount") || SHARED_VIEW_KEYS.some(changed);
+  if (!state.account) return; // the sign-in screen shows none of this
+  if (filters) {
+    renderSeg();
+    renderSortSelect();
+    renderSidebar();
+  }
+  if (rescan) {
+    state.deals = [];
+    reload();
+  } else if (filters || changed("tasteTags")) updateResults();
+  else if (changed("dismissed") || changed("behavior")) updateResults({ keepPlace: true }); // re-rank without jumping to the top
+}
+
 /**
  * Hear about changes made outside the interface (the shared basket, alerts and taste edits arriving from the
  * account's other devices, the tray menu) from the moment settings are loaded, then read the settings once more:
@@ -148,14 +177,9 @@ async function listenForSync() {
       state.sync = api.platform === "web" ? r : { ...r, status: r.cart?.status || {}, subtotal: r.cart?.subtotal ?? null };
     });
   }
-  api.settings.onChanged?.((s) => {
-    const { alerts, ...rest } = s || {};
-    state.settings = { ...state.settings, ...rest };
-    if (Array.isArray(alerts)) receiveAlerts(alerts);
-    if (rest.tasteTags) updateResults(); // "Your taste" edited on another device
-  });
+  api.settings.onChanged?.(onSettingsFromElsewhere);
   const fresh = (await api.settings.get()).settings;
-  state.settings = { ...state.settings, basket: fresh.basket, tasteTags: fresh.tasteTags, alerts: fresh.alerts };
+  state.settings = { ...state.settings, ...fresh }; // nothing is drawn yet: start from everything synced so far
 }
 
 async function init() {

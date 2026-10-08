@@ -5,7 +5,8 @@
 //   the shared basket   relay <-> this app's basket (here)
 //   the Steam cart      this app's basket -> the real Steam cart, and what's in it -> the relay (cart-mirror.js)
 //   price alerts        the website's alerts in, what fired back out (shared-alerts.js)
-//   Your taste          hand edits both ways, newest wins (shared-prefs.js)
+//   preferences         filters, view and sort, Your taste edits, Not interested, behaviour: the same on every
+//                       device, both ways (shared-prefs.js; merge rules in src/shared/sharing.js)
 //
 // Cost model: the relay is a free Redis with a monthly command budget, so the app polls a one-record "signal"
 // every 30 s while idle and every 3 s only while a phone is actively looking (the website says so when its
@@ -99,7 +100,7 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       if (heartbeat) lastHeartbeat = lastPoll;
       if (sig.active) fastUntil = Math.max(fastUntil, lastPoll + ACTIVE_HOLD_MS);
       if (alerts.isStale(sig)) await alerts.pull().catch(quietly("alerts"));
-      if (prefs.isStale(sig)) await prefs.pull().catch(quietly("taste"));
+      if (prefs.isStale(sig)) await prefs.pull().catch(quietly("preferences"));
       if ((sig.rev || 0) !== (s.basketRev || 0)) {
         await pullBasket();
       } else if (lastPoll - cart.lastReconcile() > (fast ? RECONCILE_FAST_MS : RECONCILE_SLOW_MS)) {
@@ -202,7 +203,7 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
     },
     /** settings.tasteTags changed here (the person edited Your taste). */
     onLocalPrefsChange() {
-      if (paired() && !paused()) prefs.push().catch(quietly("taste"));
+      if (paired() && !paused()) prefs.push().catch(quietly("preferences"));
     },
     /** Just paired: our basket, alerts and taste edits join the shared ones (merged with what's already there). */
     async afterPaired() {
@@ -218,14 +219,14 @@ module.exports = function createSync({ settings, steam, cartSession, sessionFetc
       alerts.reset();
       alerts.pull().catch(quietly("alerts"));
       prefs.reset();
-      prefs.pull({ combine: true }).catch(quietly("taste"));
+      prefs.pull({ combine: true }).catch(quietly("preferences"));
       fastUntil = Date.now() + CHANGE_HOLD_MS;
       cart.due();
       schedule(300);
     },
     afterUnpaired() {
       alerts.drop();
-      prefs.reset(); // the taste edits stay on this device
+      prefs.reset(); // the preferences stay on this device
       cart.resetReport();
       cart.due();
       schedule(300); // keep mirroring this app's own basket

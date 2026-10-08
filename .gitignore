@@ -8,6 +8,7 @@ Thumbs.db
 # website build output
 web/public/
 web/api/_lib/core.js
+web/api/_lib/sharing.js
 .vercel/
 web/.vercel/
 .env

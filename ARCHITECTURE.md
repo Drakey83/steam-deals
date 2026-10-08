@@ -96,6 +96,10 @@ applies, are in `src/shared/sharing.js` (the website build copies it to `web/api
   while a tab is being used or after a change, every 2 min when nobody is around, "I'm here" every 10 min. Each
   side also compares with the relay once at launch, so a change that didn't get out is sent then.
 - Apps before 1.15 write only Your taste edits; the relay keeps the rest of the document for them.
+- **Out of free usage.** When Upstash's monthly limit is reached, `_lib/redis.js` turns its error into
+  `over_limit` (and stops asking Upstash for 10 minutes); every device then checks only every 30 minutes (other
+  relay failures: 10 s, doubling, up to 5 min) and its basket says syncing is paused. Each device keeps working
+  on its own and catches up when the limit resets, so a full relay can't hammer the website into Vercel's limits.
 - **Website tabs update themselves.** Each deploy stamps a build id into `web-api.js` and `/version.json`; an open
   tab checks every 5 minutes and on focus (browser-api/updates.js), and on a newer build reloads quietly once it's
   in the background (or offers Reload meanwhile), so no tab keeps syncing with old code.

@@ -321,6 +321,12 @@ Supersedes the one-shot phone→PC hand-off in §13 (the relay still answers `se
   1.15 (tasteTags only) keeps the rest. Relay body limit raised to 400 KB for this document (a full one is ~80 KB).
 - **Renderer.** `settings:changed` → `onSettingsFromElsewhere` (app.js): redraws top bar, sort and sidebar;
   rescans when catalog, scan depth or the scan floor changed; otherwise re-ranks in place.
+- **Busy mode (v1.15.1).** `sig` takes `me` (device tag: "pc" or a browser's random 8-char tag) and `busy`
+  (in use now); the relay keeps `busy:<tag>` = now + 30 s in the signal hash (expired ones deleted on the next
+  write) and answers `busy` = another device is in use. In use: the app's window focused and system idle < 25 s
+  (checked locally every 2 s; the start of use triggers a poll at once); a website tab with input in the last 25 s
+  (the first input after a pause polls at once). Polling: 1 s while another device is in use; otherwise website
+  10 s, app 10 s (tab open or recent change) / 30 s.
 - **Verified 2026-10-07** with a packaged 1.15.0 test copy and the live website (code pairing): website → app in
   ~1 s, app → website in ~2 s (sort, catalog, reviews, Deck only); Not interested added on the website reached the
   app, restored in the app and stayed restored on the website.

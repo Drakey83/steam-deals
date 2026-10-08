@@ -141,7 +141,7 @@ checkout, in the Steam app, the website, or on your phone, since the cart belong
   - **Everything you choose is the same everywhere.** For you / Browse, On sale / All games, the sort, every
     sidebar filter (discount, rating, reviews, Steam Deck / Machine only, hide owned, wishlist only, tags), scan
     depth, the score weights, Not interested and what the app has learned from what you open and basket. Change one
-    on any device and the others show it within a few seconds, both ways, so Your taste and For you come out the
+    on any device and the others show it within about a second, both ways, so Your taste and For you come out the
     same too. (Store region and language stay per device, for a phone abroad.)
   - **Not signed in?** Pair with a code instead: in the app's basket press **Pair a phone or browser** (or **Add a
     device without signing in**), then type the six-letter code on the website's basket under **Already have it?**.

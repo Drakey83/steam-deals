@@ -1,7 +1,7 @@
 // Channels: making and redeeming codes, the cheap poll every device makes, and closing a code channel.
 const crypto = require("node:crypto");
 const { HttpError } = require("../server.js");
-const { K, KEEP, ACTIVE_MS, PAIR_RE } = require("./keys.js");
+const { K, KEEP, ACTIVE_MS, BUSY_MS, TAG_RE, PAIR_RE } = require("./keys.js");
 const { str, parse } = require("./clean.js");
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -51,6 +51,8 @@ module.exports = {
   /**
    * The cheap poll every device makes: has anything changed? A phone adds touch=true ("someone is looking", so
    * the PC checks more often); the PC adds pc={ok, v} ("I'm here, signed in or not, this version").
+   * Busy mode: me=<device tag> names the caller; busy=true says "someone is using me right now" (for BUSY_MS).
+   * The answer's `busy` is whether any *other* device is in use, so this one checks every second meanwhile.
    */
   async sig({ db, body, needPair, now }) {
     const id = needPair();
@@ -59,11 +61,17 @@ module.exports = {
     const sig = {};
     for (let i = 0; i + 1 < h.length; i += 2) sig[h[i]] = h[i + 1];
     const pc = body.pc && typeof body.pc === "object" ? { pc: String(now), pcok: body.pc.ok ? "1" : "0", pcv: str(body.pc.v, 20) } : null;
+    const me = TAG_RE.test(String(body.me || "")) ? String(body.me) : null;
+    const busyField = (f) => f.startsWith("busy:");
+    const othersBusy = Object.keys(sig).some((f) => busyField(f) && f !== `busy:${me}` && Number(sig[f]) > now);
+    const stale = Object.keys(sig).filter((f) => busyField(f) && Number(sig[f]) <= now && f !== `busy:${me}`);
     const sets = [];
     if (body.touch) sets.push("active", String(now + ACTIVE_MS));
     if (pc) sets.push(...Object.entries(pc).flat());
+    if (me && body.busy) sets.push(`busy:${me}`, String(now + BUSY_MS));
     const cmds = [];
     if (sets.length) cmds.push(["HSET", K.sig(id), ...sets], ["EXPIRE", K.sig(id), KEEP]);
+    if (sets.length && stale.length) cmds.push(["HDEL", K.sig(id), ...stale]); // devices no longer in use
     if (body.withCart) cmds.push(["GET", K.cart(id)]);
     const out = cmds.length ? await db.pipeline(cmds) : [];
     // Echo what this very call just wrote, so a caller sees the state after its own update.
@@ -77,6 +85,7 @@ module.exports = {
       pc: Number(sig.pc) || 0,
       pcok: sig.pcok === "1",
       pcv: sig.pcv || null,
+      busy: othersBusy,
       now,
     };
     if (body.withCart) result.cart = parse(out[out.length - 1], null);

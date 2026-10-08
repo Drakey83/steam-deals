@@ -88,9 +88,12 @@ applies, are in `src/shared/sharing.js` (the website build copies it to `web/api
 - Each host stamps these on a local change (`notePrefsEdit`, in its settings update), so the interface knows
   nothing about syncing. A change arriving from elsewhere comes in as `settings:changed`; `app.js`
   (`onSettingsFromElsewhere`) redraws, and rescans only when the scan itself changed.
-- While a website tab is open, the app checks every few seconds (the tab marks the channel "active"), and the
-  tab checks every 4 s, so a change shows on the other device within seconds. Each side also compares with the
-  relay once at launch, so a change that didn't get out is sent then.
+- **Busy mode** decides how often devices check (the relay's free plan has a monthly command budget shared by
+  everyone). A device in use (app window focused with recent input; a website tab with a recent click, tap, key or
+  scroll) says so on its polls (`sig` with `me`, `busy`), and every *other* device then checks every second, so
+  a change shows within about a second. Otherwise: a website tab every 10 s, the app every 10 s while a tab is
+  open or after a change, 30 s idle. Each side also compares with the relay once at launch, so a change that
+  didn't get out is sent then.
 - Apps before 1.15 write only Your taste edits; the relay keeps the rest of the document for them.
 - **Website tabs update themselves.** Each deploy stamps a build id into `web-api.js` and `/version.json`; an open
   tab checks every 5 minutes and on focus (browser-api/updates.js), and on a newer build reloads quietly once it's

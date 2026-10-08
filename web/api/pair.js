@@ -8,8 +8,9 @@
 //                                                                                   with pairId, another device
 //   claim       { code }                           → { pairId, rev }               phone/browser redeems a code
 //   check       { pairId }                         → { claimed, expired }          PC waits for the code
-//   sig         { pairId, touch?, pc?, withCart? } → { rev, arev, prev, active, pc, pcok, pcv, cart? }
-//                                                                                   cheap poll: has anything changed?
+//   sig         { pairId, touch?, pc?, withCart?,  → { rev, arev, prev, active, pc, pcok, pcv, busy, cart? }
+//                 me?, busy? }                                                      cheap poll: has anything changed?
+//                                                                                   busy: another device in use now
 //   basket.get  { pairId }                         → { rev, items, updatedAt, by }  by: pc | phone | web
 //   basket.ops  { pairId, ops, by }                → { rev, items, updatedAt }     add/remove/clear, atomically
 //   cart.set    { pairId, cart, ok }               → { ok }                        PC reports Steam-cart status

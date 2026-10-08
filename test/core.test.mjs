@@ -84,3 +84,14 @@ test("a save can't remove basket games the screen never showed (they arrived whi
   const next = [a];
   assert.equal(core.keepUnseen([a, b], next, null), next);
 });
+
+test("a scan asks Steam for the fixed floor that covers the person's minimum discount", () => {
+  assert.equal(core.scanFloor(50), 50);
+  assert.equal(core.scanFloor(80), 50, "anything from 50% up shares the 50% scan");
+  assert.equal(core.scanFloor(45), 25);
+  assert.equal(core.scanFloor(25), 25);
+  assert.equal(core.scanFloor(15), 10);
+  assert.equal(core.scanFloor(5), 1);
+  assert.equal(core.scanFloor(0), 1, "Any discount: every game on sale");
+  assert.equal(core.scanFloor(undefined), 1);
+});

@@ -142,6 +142,17 @@ function isSteamId64(value) {
 }
 
 /** Steam catalog query (IStoreQueryService/Query/v1) input for one page, most popular first. */
+/**
+ * The smallest discount a scan asks Steam for, given the person's "Min discount" (0 = any sale). Steam is asked
+ * for one of a few fixed floors so scans are shared (the website's edge cache, the app's cache); the list is then
+ * narrowed to the exact minimum on the device. Lowering the minimum below the last scan's floor needs a new scan.
+ */
+const SCAN_FLOORS = [50, 25, 10, 1];
+function scanFloor(minDiscount) {
+  const m = Math.max(0, Number(minDiscount) || 0);
+  return SCAN_FLOORS.find((f) => f <= Math.max(1, m)) ?? 1;
+}
+
 function buildQueryInput({ start = 0, count = 500, discounted = true, minDiscount = 50, language = "english", country = "US" } = {}) {
   const filters = { type_filters: { include_apps: true, include_games: true }, released_only: true };
   if (discounted) filters.price_filters = { min_discount_percent: minDiscount };
@@ -247,7 +258,7 @@ function basketOps(prev, next) {
   return ops;
 }
 
-const api = { keepUnseen, deviceWhere, sameBasket, basketOps, COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
+const api = { scanFloor, SCAN_FLOORS, keepUnseen, deviceWhere, sameBasket, basketOps, COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.SteamCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

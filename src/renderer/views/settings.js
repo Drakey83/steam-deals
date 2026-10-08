@@ -16,6 +16,7 @@ import { openAlerts } from "./alerts.js";
 import { restoreAll, restoreGame } from "./dismiss.js";
 import { renderStats } from "./feed.js";
 import { renderSidebar } from "./sidebar.js";
+import { updatesRow } from "./updates.js";
 
 const NOTE = { fontSize: "12.5px" };
 
@@ -51,6 +52,7 @@ export function openSettings() {
           "The free Steam Deals Windows app does everything this site does and adds the one thing a browser can't: it fills your Steam cart. Pair this browser with it (basket → “Already have it?”) and your basket becomes your Steam cart, live, from anywhere. ",
           el("a", { class: "link", href: "/app", target: "_blank", rel: "noopener" }, "How it works and download"), "."))
       : group("Windows app",
+          updatesRow(),
           toggleRow("Keep my Steam cart in sync with the basket", "pairAutoCart", true, "Adds what you put in the basket, here or on your other devices, to your Steam cart and removes what you take out. It never buys anything."),
           toggleRow("Close to the tray instead of quitting", "closeToTray", true, "The X button hides Steam Deals next to the clock so syncing keeps running. Quit from the tray menu."),
           ...startupRows()),

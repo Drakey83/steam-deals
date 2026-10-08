@@ -6,6 +6,7 @@ const settings = require("./settings");
 const { sync } = require("./pairing");
 const { runtime, sendToUI } = require("./runtime");
 const { showWindow, toggleWindow } = require("./window");
+const updates = require("./updates");
 
 const ROOT = path.join(__dirname, "..", "..");
 
@@ -32,8 +33,14 @@ function refreshTray() {
     refreshTray();
     sendToUI("settings:changed", settings.publicView());
   };
+  const u = updates.status();
+  const updateItem = u.state === "ready" ? { label: `Restart to update to ${u.version}`, click: () => updates.install() }
+    : u.state === "downloading" ? { label: `Downloading update ${u.version || ""}… ${u.percent || 0}%`, enabled: false }
+    : u.state === "checking" ? { label: "Checking for updates…", enabled: false }
+    : { label: "Check for updates", enabled: u.state !== "unavailable", click: () => updates.check() };
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Open Steam Deals", click: showWindow },
+    updateItem,
     { type: "separator" },
     {
       label: "Pause syncing with my other devices",

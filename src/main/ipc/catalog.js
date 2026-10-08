@@ -3,6 +3,7 @@
 const settings = require("../settings");
 const cache = require("../cache");
 const steam = require("../steam");
+const { scanFloor } = require("../../shared/core.js");
 const { buildTaste, fetchLibrary } = require("../library");
 const { sendToUI } = require("../runtime");
 const { handle } = require("./handle");
@@ -20,7 +21,8 @@ async function fetchDeals({ force = false } = {}) {
   // scanDepth 0 = "everything on sale" (~70k items); the whole catalog (~240k) stays capped at 25k.
   const depth = Number(s.scanDepth);
   const limit = depth === 0 && discounted ? Infinity : Math.min(Math.max(depth || 10000, 500), 25000);
-  const key = `catalog:${CATALOG_CACHE_VERSION}:${discounted ? "sale" : "all"}:${s.country}:${s.language}:${s.scanDepth}:${steam.SERVER_MIN_DISCOUNT}`;
+  const floor = scanFloor(s.minDiscount); // Steam is asked for this; the interface narrows to the exact minimum
+  const key = `catalog:${CATALOG_CACHE_VERSION}:${discounted ? "sale" : "all"}:${s.country}:${s.language}:${s.scanDepth}:${floor}`;
   if (!force) {
     const hit = cache.get(key, DEALS_TTL_MS);
     if (hit) return { ...hit.value, fromCache: true, age: hit.age };
@@ -35,13 +37,14 @@ async function fetchDeals({ force = false } = {}) {
       language: s.language,
       limit,
       discounted,
+      minDiscount: floor,
       signal: controller.signal,
       onProgress: (p) => sendToUI("deals:progress", p),
       // Stream each page so the UI can show results while the scan continues.
       onPage: (items, meta) => sendToUI("deals:partial", { runId, items, ...meta, discounted }),
     });
-    cache.set(key, result);
-    return { ...result, runId, fromCache: false };
+    cache.set(key, { ...result, scanFloor: floor });
+    return { ...result, scanFloor: floor, runId, fromCache: false };
   } finally {
     if (dealsAbort === controller) dealsAbort = null;
   }

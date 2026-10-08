@@ -1,7 +1,7 @@
 {
   "name": "steam-deals",
   "productName": "Steam Deals",
-  "version": "1.13.4",
+  "version": "1.14.0",
   "description": "Find the best Steam discounts on games you don't already own.",
   "author": "Reid Carlisle",
   "license": "MIT",
@@ -61,7 +61,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "${productName} Setup ${version}.${ext}"
+      "artifactName": "Steam-Deals-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -74,6 +74,17 @@
       "uninstallerIcon": "build/icon.ico",
       "deleteAppDataOnUninstall": false,
       "include": "build/installer.nsh"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Drakey83",
+        "repo": "steam-deals",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

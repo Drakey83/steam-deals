@@ -10,6 +10,7 @@ const { runtime, sendToUI } = require("../runtime");
 const { keepUnseen } = require("../../shared/core.js");
 const { applyLoginItem, refreshTray } = require("../tray");
 const { handle } = require("./handle");
+const updates = require("../updates");
 
 /** Settings the UI may change. Everything else (account, API key, pairing ids…) is managed here. */
 const ALLOWED_SETTING_KEYS = new Set([
@@ -62,6 +63,11 @@ function register() {
   });
 
   handle("deeplink:pending", () => ({ basket: takePending() }));
+
+  // Updating the app from inside it (../updates.js).
+  handle("updates:status", () => ({ status: updates.status() }));
+  handle("updates:check", async () => ({ status: await updates.check() }));
+  handle("updates:install", () => ({ value: updates.install() }));
 }
 
 module.exports = { register, ALLOWED_SETTING_KEYS };

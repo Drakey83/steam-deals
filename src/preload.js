@@ -93,6 +93,14 @@ contextBridge.exposeInMainWorld("steamDeals", {
     remove: (payload) => invoke("cart:remove", payload),
   },
 
+  // Updating the app: check GitHub, follow the background download, restart into the new version.
+  updates: {
+    status: () => invoke("updates:status"),
+    check: () => invoke("updates:check"),
+    install: () => invoke("updates:install"),
+    onStatus: (cb) => subscribe("updates:status", cb),
+  },
+
   openExternal: (url) => invoke("shell:openExternal", url),
   window: {
     isMaximized: () => invoke("window:isMaximized"),

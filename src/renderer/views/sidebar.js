@@ -3,7 +3,7 @@ import { DEFAULT_FILTERS, REVIEW_MINS, SCAN_DEPTHS } from "../config.js";
 import { $, el } from "../lib/dom.js";
 import { fmtInt } from "../lib/format.js";
 import { ICON } from "../lib/icons.js";
-import { api } from "../lib/platform.js";
+import { Core, api } from "../lib/platform.js";
 import { isPersonal, patchSettings, state, syncSortWithView, tagName } from "../state.js";
 import { switchEl, usersLine } from "../ui/common.js";
 import { updateResults } from "./feed.js";
@@ -18,16 +18,20 @@ export function renderSidebar() {
   if (!side) return;
   const s = state.settings;
 
-  const range = (key, label, min, max, step, fmt, tip) => {
+  const range = (key, label, min, max, step, fmt, tip, onRelease) => {
     const val = el("span", { class: "val num" }, fmt(s[key]));
     const input = el("input", { type: "range", min, max, step, value: s[key], "aria-label": label });
     input.addEventListener("input", () => {
       val.textContent = fmt(Number(input.value));
       patchSettings({ [key]: Number(input.value) });
     });
+    if (onRelease) input.addEventListener("change", () => onRelease(Number(input.value)));
     return el("div", { class: "field", title: tip }, el("div", { class: "field-row" }, el("span", {}, label), val), input);
   };
-  const toggle = (key, label, disabled = false, tip = null) => switchEl(label, s[key], (on) => patchSettings({ [key]: on }, { persistNow: true }), { disabled, tip });
+  const toggle = (key, label, disabled = false, tip = null) => switchEl(label, s[key], (on) => {
+    patchSettings({ [key]: on }, { persistNow: true });
+    if (key === "wishlistOnly") renderSidebar(); // its note says what the switch changes
+  }, { disabled, tip });
   const select = (key, label, options, { refetch = false, tip = null } = {}) => {
     const sel = el("select", { class: "select", "aria-label": label }, options.map(([v, l]) => el("option", { value: v, selected: String(s[key]) === String(v) }, l)));
     sel.addEventListener("change", () => {
@@ -51,7 +55,10 @@ export function renderSidebar() {
       el("div", { class: "section-title" }, "Filters", el("button", { class: "btn btn-ghost btn-sm", title: "Put every filter and tag back to its default", onclick: resetFilters }, "Reset")),
       el("div", { style: { display: "grid", gap: "14px" } },
         saleOnly
-          ? range("minDiscount", "Min discount", 50, 95, 5, (v) => `${v}%`, "Hide deals with a smaller discount than this.")
+          ? range("minDiscount", "Min discount", 0, 95, 5, (v) => (v > 0 ? `${v}%` : "Any"), "Hide deals with a smaller discount than this. All the way left shows every game on sale.", (v) => {
+            // Below what the current list was scanned for: scan again for the smaller sales.
+            if (Core.scanFloor(v) < (state.meta?.scanFloor ?? 50)) patchSettings({ minDiscount: v }, { refetch: true, persistNow: true });
+          })
           : el("div", { class: "muted", style: { fontSize: "12px" } }, "Showing the whole catalog. Switch to “On sale” to filter by discount."),
         range("minRating", "Min rating", 50, 95, 5, (v) => `${v}%`, "Hide games whose Steam reviews are less positive than this."),
         select("minReviews", "Min reviews", REVIEW_MINS, { tip: "Hide games with fewer Steam reviews than this. A rating from a handful of reviews is less reliable." }),
@@ -67,6 +74,7 @@ export function renderSidebar() {
       toggle("hideOwned", "Hide games I own", !signedIn, signedIn ? "Leave out games already in your Steam library." : "Sign in through Steam to hide games you own."),
       toggle("wishlistOnly", "Wishlist only", !signedIn, signedIn ? "Show only games on your Steam wishlist." : "Sign in through Steam to filter by your wishlist."),
       signedIn ? null : el("div", { class: "muted", style: MUTED_NOTE }, "Sign in to hide owned games."),
+      signedIn && s.wishlistOnly ? el("div", { class: "muted", style: MUTED_NOTE }, saleOnly ? "Showing every game on your wishlist that's on sale, at any discount. The minimum discount, rating and reviews above don't apply to it." : "Showing your whole wishlist. The minimum rating and reviews above don't apply to it.") : null,
     ),
     tagsHost,
     select("scanDepth", "Scan depth", SCAN_DEPTHS, { refetch: true, tip: "How many of Steam's most popular discounted games to look through. Deeper finds more deals but takes longer." }),

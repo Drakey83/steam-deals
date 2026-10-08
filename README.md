@@ -66,6 +66,9 @@ The app has two jobs.
    and it syncs with the app automatically. Optional: turn on **Start with Windows** in Settings (it opens
    full screen at sign-in; turn on **Open closed to the tray** if you'd rather it start quietly in the tray).
 
+After that the app keeps itself up to date: it checks GitHub for new versions, downloads them in the background,
+and offers **Restart to update** (Settings → Updates, or the tray menu). Your basket and settings stay.
+
 The X button hides the app to the tray so syncing keeps running; quit from the tray menu, or turn that off in
 Settings. Clicking the tray icon minimizes the window, or brings it back. The [steamdeal.vercel.app/app](https://steamdeal.vercel.app/app) page explains all of this for
 people who arrive from the website.

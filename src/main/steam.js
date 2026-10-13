@@ -9,7 +9,7 @@ const API = "https://api.steampowered.com";
 const STORE = "https://store.steampowered.com";
 const COMMUNITY = "https://steamcommunity.com";
 
-const { headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile } = require("../shared/core.js");
+const { GIVEAWAY_QUERY, buildQueryInput, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile } = require("../shared/core.js");
 
 const PAGE_SIZE = 500; // verified: Query/v1 returns up to 500 items per page
 const PAGE_SPACING_MS = 250;
@@ -144,6 +144,21 @@ async function fetchDeals({
     onPage?.(fresh, { scanned: start, total, target });
     if (page.length === 0 || (total !== null && start >= total) || start >= limit) break;
     await sleep(PAGE_SPACING_MS, signal);
+  }
+  // Free-to-keep giveaways may be games outside the popular ones scanned: one small extra request finds them.
+  if (discounted) {
+    const gift = buildQueryInput({ ...GIVEAWAY_QUERY, discounted, language, country });
+    const res = await fetchJSON(`${API}/IStoreQueryService/Query/v1/?input_json=${encodeURIComponent(JSON.stringify(gift))}`, { signal, fetchImpl }).catch(() => null);
+    const fresh = [];
+    for (const raw of res?.response?.store_items ?? []) {
+      const it = normalizeItem(raw);
+      if (it && !seen.has(it.appid)) {
+        seen.add(it.appid);
+        items.push(it);
+        fresh.push(it);
+      }
+    }
+    if (fresh.length) onPage?.(fresh, { scanned: start, total, target: start });
   }
   return { items, total, scanned: start, discounted, fetchedAt: Date.now(), truncated: total !== null && start < total };
 }

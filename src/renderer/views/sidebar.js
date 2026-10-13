@@ -55,7 +55,7 @@ export function renderSidebar() {
       el("div", { class: "section-title" }, "Filters", el("button", { class: "btn btn-ghost btn-sm", title: "Put every filter and tag back to its default", onclick: resetFilters }, "Reset")),
       el("div", { style: { display: "grid", gap: "14px" } },
         saleOnly
-          ? range("minDiscount", "Min discount", 0, 95, 5, (v) => (v > 0 ? `${v}%` : "Any"), "Hide deals with a smaller discount than this. All the way left shows every game on sale.", (v) => {
+          ? range("minDiscount", "Min discount", 0, 100, 5, (v) => (v >= 100 ? "Free" : v > 0 ? `${v}%` : "Any"), "Hide deals with a smaller discount than this. All the way left shows every game on sale; all the way right, only games free to keep for a limited time (Steam giveaways, claimed on the game's Steam page).", (v) => {
             // Below what the current list was scanned for: scan again for the smaller sales.
             if (Core.scanFloor(v) < (state.meta?.scanFloor ?? 50)) patchSettings({ minDiscount: v }, { refetch: true, persistNow: true });
           })

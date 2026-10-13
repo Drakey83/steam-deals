@@ -26,8 +26,10 @@ function normalizeItem(it, { requireDiscount = true } = {}) {
   if (!it || it.success === false || it.visible === false) return null;
   if (it.item_type !== undefined && it.item_type !== 0) return null; // 0 = app
   if (it.type !== undefined && it.type !== 0) return null; // 0 = game (not DLC/demo/music/software…)
-  if (it.is_free) return null;
   const bpo = it.best_purchase_option;
+  // A "free to keep" giveaway (100% off for a limited time) is marked is_free too; free-to-play games are not deals.
+  const freeToKeep = Boolean(bpo?.is_free_to_keep);
+  if (it.is_free && !freeToKeep) return null;
   if (!bpo) return null;
   const discount = Number(bpo.discount_pct ?? 0) || 0;
   if (!Number.isFinite(discount) || (requireDiscount && discount <= 0)) return null;
@@ -56,6 +58,8 @@ function normalizeItem(it, { requireDiscount = true } = {}) {
     description: it.basic_info?.short_description ?? "",
     image: itemImage(it),
     url: storeUrl(it.appid),
+    // Claimed on the game's Steam page ("Add to Account"), not bought through the cart; ends at freeUntil.
+    ...(freeToKeep ? { freeToKeep: true, freeUntil: Number(bpo.free_to_keep_ends) > 0 ? Number(bpo.free_to_keep_ends) * 1000 : null } : {}),
   };
 }
 
@@ -158,6 +162,9 @@ function isSteamId64(value) {
  * narrowed to the exact minimum on the device. Lowering the minimum below the last scan's floor needs a new scan.
  */
 const SCAN_FLOORS = [50, 25, 10, 1];
+// Free-to-keep giveaways (100% off) can be games outside the popular ones a scan covers, so every scan also asks
+// for these directly: one small request (Steam ignores a minimum of exactly 100, so 99).
+const GIVEAWAY_QUERY = { start: 0, count: 100, minDiscount: 99 };
 function scanFloor(minDiscount) {
   const m = Math.max(0, Number(minDiscount) || 0);
   return SCAN_FLOORS.find((f) => f <= Math.max(1, m)) ?? 1;
@@ -268,7 +275,7 @@ function basketOps(prev, next) {
   return ops;
 }
 
-const api = { scanFloor, SCAN_FLOORS, keepUnseen, deviceWhere, sameBasket, basketOps, COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
+const api = { scanFloor, SCAN_FLOORS, GIVEAWAY_QUERY, keepUnseen, deviceWhere, sameBasket, basketOps, COMPAT_LABELS, headerImage, storeUrl, normalizeItem, normTags, libraryFingerprint, pickSample, buildTasteProfile, isSteamId64, buildQueryInput, TAX_REGIONS, defaultTaxRegion, taxRegionFor, estimateTax };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.SteamCore = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -109,6 +109,8 @@ applies, are in `src/shared/sharing.js` (the website build copies it to `web/api
 - **Scans** ask Steam for one of a few fixed discount floors (50%, 25%, 10%, any; `scanFloor` in shared/core.js),
   the one that covers the person's minimum, so scans are shared and cached; the device narrows to the exact
   minimum. Lowering the minimum below the current scan's floor starts a new scan.
+- **Giveaways** (free to keep for a limited time) are asked for directly with every scan (`GIVEAWAY_QUERY`), kept
+  as `freeToKeep` by `normalizeItem`, and claimed on Steam rather than added to the basket.
 - **The wishlist** isn't left to the scan: signed in, every wishlist game the scan missed is looked up directly
   (data.js `addWishlistGames`), and with Wishlist only on, the bargain minimums don't apply (logic/ranking.js).
 - **Images**: newer games have no plain `steam/apps/<appid>/header.jpg`; Steam lists a hashed path in the game's

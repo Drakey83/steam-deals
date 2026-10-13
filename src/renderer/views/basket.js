@@ -59,8 +59,24 @@ export async function ensureTaxRegion() {
 
 const totals = () => basketTotals(basket(), state.settings, Core);
 
+/** A game free to keep for a limited time isn't bought: it's claimed on its Steam page ("Add to Account"). */
+function claimButton(d, label) {
+  const until = d.freeUntil ? ` until ${new Date(d.freeUntil).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : " for a limited time";
+  return el("button", {
+    class: `btn btn-sm btn-primary claim-free ${label ? "" : "btn-icon"}`,
+    title: `Free to keep${until}. Claim it on its Steam page with “Add to Account”; it's yours for good. (It doesn't go through the basket or cart.)`,
+    "aria-label": `Claim ${d.name} for free on Steam`,
+    html: `${ICON.external}${label ? "<span>Claim free on Steam</span>" : ""}`,
+    onclick: (e) => {
+      e.stopPropagation();
+      api.openExternal(d.url);
+    },
+  });
+}
+
 /** The add/remove control on cards (icon) and in the details panel (with a label). */
 export function basketToggle(d, { label = false } = {}) {
+  if (d.freeToKeep) return claimButton(d, label);
   const b = el("button", { class: `btn btn-sm basket-toggle ${label ? "" : "btn-icon"}`, dataset: { appid: d.appid } });
   paintToggle(b, d.name, label);
   b.addEventListener("click", (e) => {

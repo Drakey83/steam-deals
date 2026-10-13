@@ -176,7 +176,8 @@ checkout, in the Steam app, the website, or on your phone, since the cart belong
   Paired with the Windows app, your edits are shared: change them on either side and the other follows.
 
 Filters live in the left sidebar: minimum discount (all the way down to **Any**, for every game on sale; the app
-scans again for the smaller sales when you go below 50%), minimum rating and review count, **Steam Deck / Machine
+scans again for the smaller sales when you go below 50%; all the way up to **Free**, for games Steam is giving away
+to keep for a limited time, which show a FREE badge and a button to claim them on Steam), minimum rating and review count, **Steam Deck / Machine
 only** (on: only games Valve rates Verified or Playable on Steam Deck or Steam Machine; off: every game. Cards carry a
 Deck ✓ / Machine ✓ badge for Verified and ~ for Playable, and the details panel lists every published rating), tags,
 hide-owned and **Wishlist only**. Wishlist only shows every game on your wishlist that's on sale, at any discount:

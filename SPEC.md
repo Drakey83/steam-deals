@@ -116,6 +116,12 @@ shared across most filter changes; the UI narrows client-side. Lowering the mini
 Wishlist: signed in, wishlist games the scan didn't include are looked up by appid (`GetItems`) after each scan, so
 "Wishlist only" shows every wishlist game on sale; the discount, rating and review minimums don't apply to it.
 
+Giveaways: Steam marks a limited-time free-to-keep offer with `best_purchase_option.is_free_to_keep` (and
+`free_to_keep_ends`); `normalizeItem` keeps these (other `is_free` items are free-to-play, not deals) as
+`freeToKeep`/`freeUntil`. Every sale scan also asks for 99%+ items directly (`GIVEAWAY_QUERY`), since a giveaway
+can be outside the popular games scanned. Cards show FREE and a "Claim free on Steam" button (opens the store page;
+free licenses aren't bought through the cart) instead of the basket button.
+
 Images: the header art path Steam lists for the game (`include_assets`: `assets.asset_url_format` + `assets.header`,
 under `https://shared.akamai.steamstatic.com/store_item_assets/`), since newer games have no plain
 `steam/apps/<appid>/header.jpg`; that plain address is the fallback. 460x215, lazy-loaded.
@@ -138,7 +144,7 @@ Screens
 2. Browse:
    - Title bar (hidden native frame + overlay caption buttons): app mark + name on the left; drag region.
    - Top bar: search (`/` focuses), sort select, Refresh with "updated 4 min ago", account chip (avatar, name) → menu (Settings, Sign out).
-   - Left sidebar (280 px): Min discount slider (Any–95), Min rating slider (50–95), Min reviews select, toggles (Hide owned, Wishlist only),
+   - Left sidebar (280 px): Min discount slider (Any–Free: 100% = free-to-keep giveaways only, rating/review minimums off), Min rating slider (50–95), Min reviews select, toggles (Hide owned, Wishlist only),
      Tags (chips, top 30 by frequency in the current pool, multi-select, searchable), Scan depth, Reset filters.
    - Stats strip: "412 deals · 638 owned hidden · best discount 95%".
    - Grid of cards (auto-fill, min 300 px): header art, discount badge (top-left, green), score ring (top-right), title,

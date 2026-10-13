@@ -195,3 +195,14 @@ test("Wishlist only shows every wishlist game on sale, whatever the discount, ra
   const off = rankDeals({ deals, settings: settings({ wishlistOnly: false }), library }).list.map((d) => d.appid).sort();
   assert.deepEqual(off, [2, 4], "switched off, the minimums apply as before");
 });
+
+test("Min discount at 100% (Free) shows every free-to-keep game, whatever its reviews", async () => {
+  const { rankDeals } = await import("../src/renderer/logic/ranking.js");
+  const g = (appid, discount, rating, reviews) => ({ appid, name: `G${appid}`, discount, rating, reviews, tagids: [], tags: [], priceCents: 0 });
+  const deals = [g(1, 100, 40, 3), g(2, 95, 99, 100000), g(3, 100, 90, 5000)];
+  const lib = { signedIn: false, owned: new Set(), wishlist: new Set() };
+  const s = { catalog: "sale", minDiscount: 100, minRating: 90, minReviews: 1000, weights: { discount: 40, rating: 35, popularity: 25 }, selectedTags: [], sort: "score" };
+  const r = rankDeals({ deals, settings: s, library: lib });
+  const ids = (r.results || r.list || r).map((d) => d.appid).sort();
+  assert.deepEqual(ids, [1, 3]);
+});

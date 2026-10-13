@@ -103,3 +103,14 @@ test("a game's art comes from the path Steam lists for it (newer games have no p
   const old = core.normalizeItem({ ...base, appid: 620 });
   assert.equal(old.image, core.headerImage(620), "no listed art: the plain address");
 });
+
+test("a free-to-keep giveaway is kept (and marked), a free-to-play game isn't", async () => {
+  const { createRequire } = await import("node:module");
+  const Core = createRequire(import.meta.url)("../src/shared/core.js");
+  const base = { appid: 99, item_type: 0, type: 0, name: "G", is_free: true };
+  const giveaway = Core.normalizeItem({ ...base, best_purchase_option: { packageid: 5, discount_pct: 100, final_price_in_cents: "0", original_price_in_cents: "1999", formatted_final_price: "$0.00", formatted_original_price: "$19.99", is_free_to_keep: true, free_to_keep_ends: 1792083600 } });
+  assert.equal(giveaway.freeToKeep, true);
+  assert.equal(giveaway.discount, 100);
+  assert.equal(giveaway.freeUntil, 1792083600000);
+  assert.equal(Core.normalizeItem({ ...base }), null, "free-to-play: no purchase option, not a deal");
+});

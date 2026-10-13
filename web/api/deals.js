@@ -13,11 +13,20 @@ module.exports = handler(async (req, res) => {
   const floor = core.SCAN_FLOORS.includes(Number(q.md)) ? Number(q.md) : 50;
   const input = core.buildQueryInput({ start, count: 500, discounted, minDiscount: floor, language, country });
   const data = await steamJSON(`${API}/IStoreQueryService/Query/v1/?input_json=${encodeURIComponent(JSON.stringify(input))}`);
-  const raw = data?.response?.store_items || [];
+  let raw = data?.response?.store_items || [];
+  const scanned = raw.length;
+  // The first page also carries any free-to-keep giveaways, which may be games outside the popular ones scanned.
+  if (discounted && start === 0) {
+    const gift = core.buildQueryInput({ ...core.GIVEAWAY_QUERY, discounted, language, country });
+    const extra = await steamJSON(`${API}/IStoreQueryService/Query/v1/?input_json=${encodeURIComponent(JSON.stringify(gift))}`).catch(() => null);
+    raw = [...raw, ...(extra?.response?.store_items || [])];
+  }
   const items = [];
+  const seen = new Set();
   for (const it of raw) {
     const n = core.normalizeItem(it, { requireDiscount: discounted });
-    if (n && (!discounted || n.discount >= floor)) {
+    if (n && !seen.has(n.appid) && (!discounted || n.discount >= floor)) {
+      seen.add(n.appid);
       delete n.url; // the browser rebuilds this from the appid; the image stays (newer games' art has hashed paths)
       delete n.tagids;
       items.push(n);
@@ -26,7 +35,7 @@ module.exports = handler(async (req, res) => {
   send(
     res,
     200,
-    { start, scanned: raw.length, total: data?.response?.metadata?.total_matching_records ?? null, discounted, scanFloor: discounted ? floor : null, items, fetchedAt: Date.now() },
+    { start, scanned, total: data?.response?.metadata?.total_matching_records ?? null, discounted, scanFloor: discounted ? floor : null, items, fetchedAt: Date.now() },
     { cache: "public, max-age=300, s-maxage=10800, stale-while-revalidate=86400" },
   );
 });

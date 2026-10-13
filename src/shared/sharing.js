@@ -123,7 +123,7 @@ const FILTER_CLEAN = {
   view: (v) => (v === "foryou" || v === "all" ? v : undefined),
   catalog: (v) => (v === "sale" || v === "all" ? v : undefined),
   sort: (v) => (SORT_VALUES.includes(v) ? v : undefined),
-  minDiscount: (v) => intIn(v, 0, 95),
+  minDiscount: (v) => intIn(v, 0, 100),
   minRating: (v) => intIn(v, 0, 100),
   minReviews: (v) => intIn(v, 0, 10000000),
   scanDepth: (v) => intIn(v, 0, 1000000),

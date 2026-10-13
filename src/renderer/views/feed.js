@@ -173,7 +173,9 @@ function card(d, rank) {
   const node = el("div", { class: "card", role: "button", tabindex: 0, dataset: { appid: d.appid }, "aria-label": `${d.name}, ${d.discount}% off, ${d.price}` },
     el("div", { class: "card-art" },
       imgEl(d.image, "", Core.headerImage(d.appid)),
-      d.discount > 0 ? el("span", { class: "badge-discount num", title: `${d.discount}% off the usual price${d.originalPrice ? ` of ${d.originalPrice}` : ""}` }, `-${d.discount}%`) : null,
+      d.freeToKeep
+        ? el("span", { class: "badge-discount num", title: `Free to keep for a limited time (usually ${d.originalPrice || "paid"}). Claim it on Steam and it's yours for good.` }, "FREE")
+        : d.discount > 0 ? el("span", { class: "badge-discount num", title: `${d.discount}% off the usual price${d.originalPrice ? ` of ${d.originalPrice}` : ""}` }, `-${d.discount}%`) : null,
       ring,
       owned ? el("span", { class: "ribbon", title: "Already in your Steam library" }, "Owned") : null,
       wished ? el("span", { class: "heart", html: ICON.heart, title: "On your wishlist" }) : null,
@@ -182,7 +184,7 @@ function card(d, rank) {
       el("div", { class: "card-title", title: d.name }, d.name),
       because,
       el("div", { class: "price-row" },
-        el("span", { class: "price num" }, d.price ?? "—"),
+        el("span", { class: "price num" }, d.freeToKeep ? "Free" : d.price ?? "—"),
         d.discount > 0 && d.originalPrice ? el("span", { class: "price-orig num" }, d.originalPrice) : null,
         historySlot(d),
         el("span", { class: "spacer" }),

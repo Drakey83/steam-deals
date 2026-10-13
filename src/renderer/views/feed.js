@@ -16,7 +16,7 @@ import { dismissButton } from "./dismiss.js";
 import { openDetails } from "./details.js";
 import { openSettings } from "./settings.js";
 import { renderSortSelect } from "./shell.js";
-import { resetFilters } from "./sidebar.js";
+import { renderSidebar, resetFilters } from "./sidebar.js";
 import { renderForYouHead } from "./foryou.js";
 
 /**
@@ -130,6 +130,15 @@ export function renderGrid(reset, { keepPlace = false } = {}) {
 
 function emptyState() {
   const strict = state.deals.length > 0; // there are deals, the filters just hide them all
+  if (strict && state.settings.catalog !== "all" && state.settings.minDiscount >= 100) {
+    // "Free": only giveaways, and most of the time there are none.
+    return el("div", { class: "empty", style: { gridColumn: "1 / -1" } },
+      el("div", { class: "glyph", html: ICON.tag }),
+      el("h3", {}, "No games are free to keep right now"),
+      el("p", {}, "Steam gives games away to keep for a few days now and then. They show up here with a FREE badge as soon as one starts (each scan checks), with a button to claim it on Steam."),
+      el("button", { class: "btn", onclick: () => (patchSettings({ minDiscount: 50 }, { persistNow: true }), renderSidebar()) }, "Show 50%+ deals"),
+    );
+  }
   return el("div", { class: "empty", style: { gridColumn: "1 / -1" } },
     el("div", { class: "glyph", html: strict ? ICON.filter : ICON.sparkle }),
     el("h3", {}, strict ? "Nothing matches these filters" : state.error ? "Couldn't reach Steam" : "No deals found"),

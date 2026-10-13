@@ -55,13 +55,13 @@ export function rankDeals({ deals, settings: s, library: lib, query = "", person
   // "Wishlist only": the person already chose these games, so the bargain-hunting minimums (discount, rating,
   // reviews, and For-you's quality floor) don't apply. Every wishlist game on sale shows (in All games: every one).
   const wishlistMode = Boolean(s.wishlistOnly && lib.signedIn);
-  // "Free" (min discount 100%): every game free to keep right now. Giveaways are rare and short, so the rating and
-  // review minimums don't hide any.
+  // "Free" (min discount 100%): only games Steam marks free to keep right now (giveaways), nothing else at 100%.
+  // Giveaways are rare and short, so the rating and review minimums don't hide any.
   const freeMode = saleOnly && s.minDiscount >= 100;
   const base = wishlistMode
-    ? deals.filter((d) => lib.wishlist.has(d.appid) && (!saleOnly || d.discount > 0) && (!freeMode || d.discount >= 100))
+    ? deals.filter((d) => lib.wishlist.has(d.appid) && (!saleOnly || d.discount > 0) && (!freeMode || d.freeToKeep))
     : freeMode
-      ? deals.filter((d) => d.discount >= 100)
+      ? deals.filter((d) => d.freeToKeep)
       : deals.filter((d) => (!saleOnly || d.discount >= s.minDiscount) && (d.rating ?? -1) >= minRating && d.reviews >= minReviews);
   const ownedInBase = lib.signedIn ? base.filter((d) => lib.owned.has(d.appid)).length : 0;
   let pool = hideOwned ? base.filter((d) => !lib.owned.has(d.appid)) : base;

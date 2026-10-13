@@ -37,15 +37,19 @@
 .search {
   position: relative;
   flex: 1 1 200px;
-  min-width: 150px;
+  min-width: 110px; /* narrow windows with a basket total: give way before the account button is cut off */
   max-width: 460px;
 }
 @media (max-width: 1500px) {
+  /* Around 1280 px wide with a basket total showing, everything has to fit on one row. */
+  .topbar {
+    gap: 6px;
+  }
   .search kbd {
     display: none;
   }
   .seg-btn {
-    padding: 0 10px;
+    padding: 0 8px;
   }
   .updated {
     display: none;
